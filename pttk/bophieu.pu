@@ -1,0 +1,41 @@
+@startuml
+participant User as U
+participant "API Server" as API
+participant Database as DB
+participant "Vote Log" as Log
+participant Notification as Notif
+
+U -> API: POST /voting-sessions/{id}/vote
+activate API
+
+API -> API: Validate session status
+API -> API: Validate time window
+API -> API: Check user participation
+API -> DB: Check existing vote
+activate DB
+
+alt User đã vote trước đó
+    DB --> API: Return existing vote
+    API -> API: Validate can change
+    API -> DB: Update vote
+    API -> Log: Log VOTE_CHANGED
+    activate Log
+    deactivate Log
+else User chưa vote
+    API -> DB: Create new vote
+    API -> Log: Log VOTE_CAST
+    activate Log
+    deactivate Log
+end
+
+deactivate DB
+
+API -> DB: Delete draft (if exists)
+API -> Notif: Send confirmation
+activate Notif
+deactivate Notif
+
+API --> U: Return success
+deactivate API
+
+@enduml

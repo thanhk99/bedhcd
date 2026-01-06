@@ -1,0 +1,22 @@
+@startuml
+start
+:User muốn bỏ phiếu;
+
+if (Voting session\nđang ACTIVE?) then (Không)
+  :Từ chối - Session chưa mở\nhoặc đã đóng;
+  stop
+else (Có)
+  if (Trong thời gian\nbỏ phiếu?) then (Không)
+    :Từ chối - Ngoài thời gian;
+    stop
+  else (Có)
+    if (Đã bỏ phiếu\ntrước đó?) then (Có)
+      :Cho phép thay đổi phiếu;
+    else (Không)
+      :Cho phép bỏ phiếu mới;
+    endif
+  endif
+endif
+
+stop
+@enduml
