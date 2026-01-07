@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "votes", uniqueConstraints = {
-        @UniqueConstraint(columnNames = { "voting_session_id", "user_id", "candidate_id" })
+        @UniqueConstraint(columnNames = { "voting_item_id", "user_id", "candidate_id" })
 })
 @Data
 @NoArgsConstructor
@@ -23,8 +23,8 @@ public class Vote {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "voting_session_id", nullable = false)
-    private VotingSession votingSession;
+    @JoinColumn(name = "voting_item_id", nullable = false)
+    private VotingItem votingItem;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

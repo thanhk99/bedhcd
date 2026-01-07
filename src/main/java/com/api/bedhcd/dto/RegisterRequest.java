@@ -25,4 +25,16 @@ public class RegisterRequest {
     private String password;
 
     private String fullName;
+
+    private String phoneNumber;
+
+    private String investorCode;
+
+    private String cccd;
+
+    private String dateOfIssue;
+
+    private String placeOfIssue;
+
+    private String address;
 }

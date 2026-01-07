@@ -8,7 +8,7 @@ import java.util.List;
 
 @Repository
 public interface CandidateRepository extends JpaRepository<Candidate, Long> {
-    List<Candidate> findByVotingSessionId(Long sessionId);
+    List<Candidate> findByVotingItem_Id(Long votingItemId);
 
-    List<Candidate> findByVotingSessionIdOrderByDisplayOrder(Long sessionId);
+    List<Candidate> findByVotingItem_IdOrderByDisplayOrder(Long votingItemId);
 }

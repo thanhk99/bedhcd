@@ -16,14 +16,14 @@
 
 ## 4. Quy trình Nghiệp vụ Chính (Core Flows)
 ### 4.1. Quy trình Bỏ phiếu
-1. **Kiểm tra điều kiện**: Session đang mở và đang trong thời gian bỏ phiếu.
+1. **Kiểm tra thời gian**: Bỏ phiếu trong thời gian quy định của cuộc họp (không cần session mở).
 2. **Tính toán quyền năng**: Tổng phiếu = (Phiếu sở hữu + Phiếu nhận ủy quyền) [x Số ghế nếu là bầu cử].
 3. **Thực hiện**: User chọn/nhập phiếu -> Hệ thống Validate -> Ghi log -> Xóa bản nháp -> Xác nhận.
-4. **Thay đổi**: Cho phép thay đổi phiếu nhiều lần trong thời gian session còn mở.
+4. **Thay đổi**: Cho phép thay đổi phiếu nhiều lần trong thời hạn bỏ phiếu.
 
 ### 4.2. Lưu bản nháp (Draft)
 - Cho phép lưu tạm lựa chọn khi chưa muốn submit chính thức.
-- Tự động xóa khi đã bỏ phiếu thật hoặc khi session đóng.
+- Tự động xóa khi đã bỏ phiếu thật hoặc khi cuộc họp kết thúc.
 
 ### 4.3. Ủy quyền (Proxy)
 - Một cổ đông chỉ được ủy quyền cho **duy nhất 1 người** trong 1 cuộc họp.

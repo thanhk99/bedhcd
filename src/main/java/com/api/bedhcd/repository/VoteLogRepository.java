@@ -10,5 +10,5 @@ import java.util.List;
 public interface VoteLogRepository extends JpaRepository<VoteLog, Long> {
     List<VoteLog> findByUserId(Long userId);
 
-    List<VoteLog> findByVotingSessionId(Long sessionId);
+    List<VoteLog> findByVotingItem_Id(Long votingItemId);
 }

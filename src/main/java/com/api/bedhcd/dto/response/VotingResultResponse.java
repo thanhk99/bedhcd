@@ -12,8 +12,8 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class VotingResultResponse {
-    private Long sessionId;
-    private String sessionTitle;
+    private Long meetingId;
+    private String meetingTitle;
     private List<CandidateResult> results;
     private long totalVoters;
     private long totalWeight;

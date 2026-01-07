@@ -10,9 +10,9 @@ import java.util.Optional;
 
 @Repository
 public interface ProxyDelegationRepository extends JpaRepository<ProxyDelegation, Long> {
-    Optional<ProxyDelegation> findByMeetingIdAndDelegatorId(Long meetingId, Long delegatorId);
+    Optional<ProxyDelegation> findByMeeting_IdAndDelegator_Id(Long meetingId, Long delegatorId);
 
-    List<ProxyDelegation> findByMeetingIdAndProxyId(Long meetingId, Long proxyId);
+    List<ProxyDelegation> findByMeeting_IdAndProxy_Id(Long meetingId, Long proxyId);
 
-    List<ProxyDelegation> findByMeetingIdAndStatus(Long meetingId, DelegationStatus status);
+    List<ProxyDelegation> findByMeeting_IdAndStatus(Long meetingId, DelegationStatus status);
 }

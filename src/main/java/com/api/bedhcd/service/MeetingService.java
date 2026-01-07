@@ -10,6 +10,7 @@ import com.api.bedhcd.repository.MeetingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import com.api.bedhcd.util.RandomUtil;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -26,6 +27,7 @@ public class MeetingService {
         User currentUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
         Meeting meeting = Meeting.builder()
+                .id(RandomUtil.generate6DigitId(meetingRepository::existsById))
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .meetingDate(request.getMeetingDate())

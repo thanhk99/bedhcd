@@ -21,7 +21,6 @@ import java.util.Set;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(unique = true, nullable = false, length = 50)
@@ -29,6 +28,21 @@ public class User {
 
     @Column(unique = true, nullable = false, length = 100)
     private String email;
+
+    @Column(unique = true, nullable = false, length = 100)
+    private String phoneNumber;
+
+    @Column(unique = true, nullable = false, length = 100)
+    private String investorCode;
+
+    @Column(unique = true, nullable = false, length = 100)
+    private String cccd;
+
+    @Column(unique = true, nullable = false, length = 100)
+    private String dateOfIssue;
+
+    @Column(nullable = false, length = 200)
+    private String address;
 
     @Column(nullable = false)
     private String password;
@@ -43,6 +57,14 @@ public class User {
     @Builder.Default
     private Integer sharesOwned = 0;
 
+    @Column(name = "received_proxy_shares")
+    @Builder.Default
+    private Integer receivedProxyShares = 0;
+
+    @Column(name = "delegated_shares")
+    @Builder.Default
+    private Integer delegatedShares = 0;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Enumerated(EnumType.STRING)
@@ -53,10 +75,6 @@ public class User {
     @Column(nullable = false)
     @Builder.Default
     private Boolean enabled = true;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Boolean accountNonLocked = true;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

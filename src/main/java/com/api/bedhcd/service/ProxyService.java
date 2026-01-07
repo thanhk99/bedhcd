@@ -37,7 +37,7 @@ public class ProxyService {
         User proxy = userRepository.findById(request.getProxyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Proxy not found"));
 
-        if (proxyDelegationRepository.findByMeetingIdAndDelegatorId(meetingId, delegator.getId()).isPresent()) {
+        if (proxyDelegationRepository.findByMeeting_IdAndDelegator_Id(meetingId, delegator.getId()).isPresent()) {
             throw new BadRequestException("User has already delegated for this meeting");
         }
 
@@ -55,6 +55,13 @@ public class ProxyService {
                 .build();
 
         delegation = proxyDelegationRepository.save(delegation);
+
+        // Update share counts
+        delegator.setDelegatedShares(delegator.getDelegatedShares() + delegation.getSharesDelegated());
+        proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() + delegation.getSharesDelegated());
+        userRepository.save(delegator);
+        userRepository.save(proxy);
+
         return mapToResponse(delegation);
     }
 
@@ -66,10 +73,18 @@ public class ProxyService {
         delegation.setStatus(DelegationStatus.REVOKED);
         delegation.setRevokedAt(LocalDateTime.now());
         proxyDelegationRepository.save(delegation);
+
+        // Update share counts
+        User delegator = delegation.getDelegator();
+        User proxy = delegation.getProxy();
+        delegator.setDelegatedShares(delegator.getDelegatedShares() - delegation.getSharesDelegated());
+        proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() - delegation.getSharesDelegated());
+        userRepository.save(delegator);
+        userRepository.save(proxy);
     }
 
     public List<ProxyDelegationResponse> getDelegationsByMeeting(Long meetingId) {
-        return proxyDelegationRepository.findByMeetingIdAndStatus(meetingId, DelegationStatus.ACTIVE).stream()
+        return proxyDelegationRepository.findByMeeting_IdAndStatus(meetingId, DelegationStatus.ACTIVE).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }

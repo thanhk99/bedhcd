@@ -9,7 +9,7 @@ import java.util.List;
 
 @Repository
 public interface LoginHistoryRepository extends JpaRepository<LoginHistory, Long> {
-    List<LoginHistory> findByUserId(Long userId);
+    List<LoginHistory> findByUser_Id(Long userId);
 
     List<LoginHistory> findByStatus(LoginStatus status);
 }

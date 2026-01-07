@@ -11,13 +11,13 @@ import java.util.Optional;
 
 @Repository
 public interface VoteRepository extends JpaRepository<Vote, Long> {
-    List<Vote> findByVotingSessionIdAndUserId(Long sessionId, Long userId);
+        List<Vote> findByVotingItem_IdAndUser_Id(Long votingItemId, Long userId);
 
-    @Query("SELECT COUNT(v) FROM Vote v WHERE v.votingSession.id = :sessionId AND v.candidate.id = :candidateId")
-    long countByVotingSessionIdAndCandidateId(@Param("sessionId") Long sessionId,
-            @Param("candidateId") Long candidateId);
+        @Query("SELECT COUNT(v) FROM Vote v WHERE v.votingItem.id = :votingItemId AND v.candidate.id = :candidateId")
+        long countByVotingItemIdAndCandidateId(@Param("votingItemId") Long votingItemId,
+                        @Param("candidateId") Long candidateId);
 
-    @Query("SELECT SUM(v.voteWeight) FROM Vote v WHERE v.votingSession.id = :sessionId AND v.candidate.id = :candidateId")
-    Long sumVoteWeightByVotingSessionIdAndCandidateId(@Param("sessionId") Long sessionId,
-            @Param("candidateId") Long candidateId);
+        @Query("SELECT SUM(v.voteWeight) FROM Vote v WHERE v.votingItem.id = :votingItemId AND v.candidate.id = :candidateId")
+        Long sumVoteWeightByVotingItemIdAndCandidateId(@Param("votingItemId") Long votingItemId,
+                        @Param("candidateId") Long candidateId);
 }

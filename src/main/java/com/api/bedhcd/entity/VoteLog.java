@@ -27,8 +27,8 @@ public class VoteLog {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "voting_session_id", nullable = false)
-    private VotingSession votingSession;
+    @JoinColumn(name = "voting_item_id", nullable = false)
+    private VotingItem votingItem;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vote_id")

@@ -22,6 +22,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.api.bedhcd.util.RandomUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,13 +62,18 @@ public class AuthService {
         roles.add(Role.SHAREHOLDER);
 
         User user = User.builder()
+                .id(RandomUtil.generate6DigitId(userRepository::existsById))
                 .username(request.getUsername())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
+                .phoneNumber(request.getPhoneNumber())
+                .investorCode(request.getInvestorCode())
+                .cccd(request.getCccd())
+                .dateOfIssue(request.getDateOfIssue())
+                .address(request.getAddress())
                 .roles(roles)
                 .enabled(true)
-                .accountNonLocked(true)
                 .build();
 
         user = userRepository.save(user);
@@ -89,10 +95,10 @@ public class AuthService {
     public AuthResponse login(LoginRequest request, HttpServletResponse response) {
         // Authenticate user
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
+                new UsernamePasswordAuthenticationToken(request.getIdentifier(), request.getPassword()));
 
         // Get user details
-        User user = userRepository.findByUsername(request.getUsername())
+        User user = userRepository.findByCccdOrInvestorCode(request.getIdentifier(), request.getIdentifier())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         // Generate tokens
@@ -159,7 +165,7 @@ public class AuthService {
 
     private void saveRefreshToken(User user, String token) {
         // Delete old refresh tokens for this user
-        refreshTokenRepository.deleteByUserId(user.getId());
+        refreshTokenRepository.deleteByUser_Id(user.getId());
 
         // Create new refresh token
         RefreshToken refreshToken = RefreshToken.builder()

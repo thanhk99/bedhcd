@@ -54,15 +54,11 @@ Document này mô tả chi tiết quy trình bỏ phiếu trong hệ thống Đ�
 start
 :User muốn bỏ phiếu;
 
-if (Voting session\nđang ACTIVE?) then (Không)
-  :Từ chối - Session chưa mở\nhoặc đã đóng;
+if (Trong thời gian\nbỏ phiếu?) then (Không)
+  :Từ chối - Ngoài thời gian;
   stop
 else (Có)
-  if (Trong thời gian\nbỏ phiếu?) then (Không)
-    :Từ chối - Ngoài thời gian;
-    stop
-  else (Có)
-    if (Đã bỏ phiếu\ntrước đó?) then (Có)
+  if (Đã bỏ phiếu\ntrước đó?) then (Có)
       :Cho phép thay đổi phiếu;
     else (Không)
       :Cho phép bỏ phiếu mới;
@@ -77,14 +73,14 @@ stop
 
 #### Rule 1: Thời gian hợp lệ
 ```
-current_time >= voting_session.start_time 
+current_time >= meeting.voting_start_time 
 AND 
-current_time <= voting_session.end_time
+current_time <= meeting.voting_end_time
 ```
 
 #### Rule 2: Số lượng lựa chọn
 ```
-number_of_selections <= voting_session.max_selections
+number_of_selections <= meeting.max_selections
 ```
 
 #### Rule 3: Quyền biểu quyết
@@ -108,10 +104,9 @@ participant Database as DB
 participant "Vote Log" as Log
 participant Notification as Notif
 
-U -> API: POST /voting-sessions/{id}/vote
+U -> API: POST /meetings/{id}/vote
 activate API
 
-API -> API: Validate session status
 API -> API: Validate time window
 API -> API: Check user participation
 API -> DB: Check existing vote
@@ -148,16 +143,16 @@ deactivate API
 #### Bước 1: Validate Request
 ```java
 // Pseudo code
-validateVoteRequest(sessionId, userId, candidateIds) {
-    // 1. Check voting session exists and ACTIVE
-    session = findVotingSession(sessionId)
-    if (session.status != ACTIVE) {
-        throw "Voting session is not active"
-    }
+validateVoteRequest(meetingId, userId, candidateIds) {
+    // 1. Check meeting exists
+    meeting = findMeeting(meetingId)
     
     // 2. Check time window
     now = getCurrentTime()
-    if (now < session.startTime || now > session.endTime) {
+    if (meeting.votingStartTime != null && now < meeting.votingStartTime) {
+        throw "Outside voting time window"
+    }
+    if (meeting.votingEndTime != null && now > meeting.votingEndTime) {
         throw "Outside voting time window"
     }
     
@@ -357,7 +352,7 @@ endif
 **Cho RESOLUTION:**
 ```java
 // Save draft
-POST /api/voting-sessions/{sessionId}/draft
+POST /api/meetings/{id}/draft
 {
     "candidateId": 123,
     "notes": "Cân nhắc lựa chọn này"
@@ -367,7 +362,7 @@ POST /api/voting-sessions/{sessionId}/draft
 **Cho BOD và SUPERVISORY_BOARD (Cumulative Voting):**
 ```java
 // Save draft with vote distribution
-POST /api/voting-sessions/{sessionId}/draft
+POST /api/meetings/{id}/draft
 {
     "voteDistribution": {
         "1": 5000,    // candidate_id: vote_count
@@ -390,7 +385,7 @@ POST /api/voting-sessions/{sessionId}/draft
 **Common APIs:**
 ```java
 // Get user's drafts
-GET /api/voting-sessions/{sessionId}/drafts
+GET /api/meetings/{id}/drafts
 
 // Response for cumulative voting
 {
@@ -414,7 +409,7 @@ GET /api/voting-sessions/{sessionId}/drafts
 DELETE /api/drafts/{draftId}
 
 // Convert draft to vote
-POST /api/voting-sessions/{sessionId}/vote-from-draft
+POST /api/meetings/{id}/vote-from-draft
 {
     "draftId": 456
 }
@@ -719,16 +714,11 @@ calculateElectionResult(sessionId) {
 
 ## 6. Trạng Thái và Lifecycle
 
-### 6.1. Voting Session Status
-
 @startuml
 [*] --> PENDING : Tạo mới
-PENDING --> ACTIVE : Admin mở vote
-ACTIVE --> CLOSED : Hết thời gian hoặc Admin đóng
+PENDING --> ACTIVE : Admin mở cuộc họp
+ACTIVE --> CLOSED : Kết thúc cuộc họp
 CLOSED --> [*]
-
-PENDING --> [*] : Admin xóa
-ACTIVE --> [*] : Admin xóa (rare)
 @enduml
 
 ### 6.2. Vote Lifecycle

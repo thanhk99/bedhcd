@@ -19,6 +19,14 @@ public class UserResponse {
     private String username;
     private String email;
     private String fullName;
+    private Integer sharesOwned;
+    private Integer receivedProxyShares;
+    private Integer delegatedShares;
+    private String phoneNumber;
+    private String investorCode;
+    private String cccd;
+    private String dateOfIssue;
+    private String address;
     private Set<Role> roles;
     private Boolean enabled;
     private LocalDateTime createdAt;

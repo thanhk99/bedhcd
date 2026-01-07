@@ -1,6 +1,7 @@
 package com.api.bedhcd.entity;
 
 import com.api.bedhcd.entity.enums.MeetingStatus;
+import com.api.bedhcd.entity.enums.VotingType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,7 +23,6 @@ import java.util.List;
 public class Meeting {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
@@ -41,12 +41,12 @@ public class Meeting {
     private MeetingStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by")
+    @JoinColumn(name = "created_by_id")
     private User createdBy;
 
     @OneToMany(mappedBy = "meeting", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<VotingSession> votingSessions = new ArrayList<>();
+    private List<VotingItem> votingItems = new ArrayList<>();
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

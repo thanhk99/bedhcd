@@ -22,16 +22,17 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+    public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
+        // Find user by cccd or investorCode
+        User user = userRepository.findByCccdOrInvestorCode(identifier, identifier)
+                .orElseThrow(() -> new UsernameNotFoundException(
+                        "User not found with CCCD or Investor Code: " + identifier));
 
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getUsername())
                 .password(user.getPassword())
                 .authorities(getAuthorities(user))
                 .accountExpired(false)
-                .accountLocked(!user.getAccountNonLocked())
                 .credentialsExpired(false)
                 .disabled(!user.getEnabled())
                 .build();

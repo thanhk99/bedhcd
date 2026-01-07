@@ -19,6 +19,10 @@ public class MeetingResponse {
     private LocalDateTime meetingDate;
     private String location;
     private MeetingStatus status;
+    private com.api.bedhcd.entity.enums.VotingType votingType;
+    private java.time.LocalDateTime votingStartTime;
+    private java.time.LocalDateTime votingEndTime;
+    private Integer maxSelections;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
