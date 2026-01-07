@@ -1,237 +1,394 @@
 package com.api.bedhcd.service;
 
-import com.api.bedhcd.dto.request.CandidateRequest;
+import com.api.bedhcd.dto.request.ResolutionRequest;
+import com.api.bedhcd.dto.request.VotingOptionRequest;
 import com.api.bedhcd.dto.request.VoteRequest;
-import com.api.bedhcd.dto.response.CandidateResponse;
+import com.api.bedhcd.dto.response.VotingOptionResponse;
+import com.api.bedhcd.dto.response.ResolutionResponse;
+import com.api.bedhcd.dto.response.UserVoteResponse;
 import com.api.bedhcd.dto.response.VotingResultResponse;
 import com.api.bedhcd.entity.*;
-import com.api.bedhcd.entity.enums.VotingType;
+import com.api.bedhcd.entity.enums.VoteAction;
 import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.repository.*;
+import com.api.bedhcd.util.RandomUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import com.api.bedhcd.util.RandomUtil;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class VotingService {
 
-    private final CandidateRepository candidateRepository;
-    private final VoteRepository voteRepository;
-    private final VoteDraftRepository voteDraftRepository;
-    private final MeetingRepository meetingRepository;
-    private final VotingItemRepository votingItemRepository;
-    private final ProxyDelegationRepository proxyDelegationRepository;
-    private final UserRepository userRepository;
+        private final ResolutionRepository resolutionRepository;
+        private final VotingOptionRepository votingOptionRepository;
+        private final VoteRepository voteRepository;
+        private final VoteDraftRepository voteDraftRepository;
+        private final MeetingRepository meetingRepository;
+        private final ProxyDelegationRepository proxyDelegationRepository;
+        private final UserRepository userRepository;
+        private final VoteLogRepository voteLogRepository;
 
-    @Transactional
-    public VotingItem createVotingItem(Long meetingId, com.api.bedhcd.dto.request.VotingItemRequest request) {
-        Meeting meeting = meetingRepository.findById(meetingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+        // Semantic IDs for default resolution voting options
+        private static final Map<String, String> RESOLUTION_OPTION_IDS = Map.of(
+                        "Đồng ý", "yes",
+                        "Không đồng ý", "no",
+                        "Không ý kiến", "not_agree");
 
-        VotingItem votingItem = VotingItem.builder()
-                .id(RandomUtil.generate6DigitId(votingItemRepository::existsById))
-                .meeting(meeting)
-                .title(request.getTitle())
-                .description(request.getDescription())
-                .votingType(request.getVotingType())
-                .startTime(request.getStartTime())
-                .endTime(request.getEndTime())
-                .maxSelections(request.getMaxSelections() != null ? request.getMaxSelections() : 1)
-                .build();
+        @Transactional
+        public ResolutionResponse createResolution(String meetingId, ResolutionRequest request) {
+                Meeting meeting = meetingRepository.findById(meetingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
 
-        return votingItemRepository.save(votingItem);
-    }
+                Resolution resolution = Resolution.builder()
+                                .id(RandomUtil.generate6DigitId(resolutionRepository::existsById))
+                                .meeting(meeting)
+                                .title(request.getTitle())
+                                .description(request.getDescription())
+                                .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
+                                .build();
 
-    @Transactional
-    public CandidateResponse addCandidate(Long votingItemId, CandidateRequest request) {
-        java.util.Objects.requireNonNull(votingItemId, "votingItemId must not be null");
-        VotingItem votingItem = votingItemRepository.findById(votingItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("VotingItem not found"));
+                resolution = resolutionRepository.save(resolution);
 
-        Candidate candidate = Candidate.builder()
-                .id(RandomUtil.generate6DigitId(candidateRepository::existsById))
-                .votingItem(votingItem)
-                .name(request.getName())
-                .position(request.getPosition())
-                .bio(request.getBio())
-                .photoUrl(request.getPhotoUrl())
-                .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
-                .build();
+                // Tự động tạo 3 lựa chọn cố định cho nghị quyết
+                createVotingOption(resolution, "Đồng ý", 1);
+                createVotingOption(resolution, "Không đồng ý", 2);
+                createVotingOption(resolution, "Không ý kiến", 3);
 
-        candidate = candidateRepository.save(candidate);
-        return mapCandidateToResponse(candidate);
-    }
-
-    @Transactional
-    public void castVote(Long votingItemId, VoteRequest request) {
-        java.util.Objects.requireNonNull(votingItemId, "votingItemId must not be null");
-        VotingItem votingItem = votingItemRepository.findById(votingItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("VotingItem not found"));
-
-        validateVotingTime(votingItem);
-
-        User currentUser = getCurrentUser();
-
-        // Calculate voting power
-        long votingPower = calculateVotingPower(currentUser.getId(), votingItem.getMeeting().getId());
-
-        // Validation logic
-        validateVoteDistribution(votingItem, request, votingPower);
-
-        // Delete existing votes and drafts
-        voteRepository.deleteAll(voteRepository.findByVotingItem_IdAndUser_Id(votingItemId, currentUser.getId()));
-        voteDraftRepository.deleteByVotingItem_IdAndUser_Id(votingItemId, currentUser.getId());
-
-        // Save new votes
-        LocalDateTime now = LocalDateTime.now();
-        for (VoteRequest.CandidateVoteRequest candidateVote : request.getCandidateVotes()) {
-            Candidate candidate = candidateRepository.findById(candidateVote.getCandidateId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Candidate not found: " + candidateVote.getCandidateId()));
-
-            Vote vote = Vote.builder()
-                    .votingItem(votingItem)
-                    .user(currentUser)
-                    .candidate(candidate)
-                    .voteWeight(candidateVote.getVoteWeight())
-                    .votedAt(now)
-                    .build();
-
-            voteRepository.save(vote);
+                return mapResolutionToResponse(resolution);
         }
-    }
 
-    @Transactional
-    public void saveDraft(Long votingItemId, VoteRequest request) {
-        java.util.Objects.requireNonNull(votingItemId, "votingItemId must not be null");
-        VotingItem votingItem = votingItemRepository.findById(votingItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("VotingItem not found"));
+        @Transactional
+        public ResolutionResponse updateResolution(String resolutionId, ResolutionRequest request) {
+                Resolution resolution = resolutionRepository.findById(resolutionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
 
-        validateVotingTime(votingItem);
-        User currentUser = getCurrentUser();
+                resolution.setTitle(request.getTitle());
+                resolution.setDescription(request.getDescription());
+                if (request.getDisplayOrder() != null) {
+                        resolution.setDisplayOrder(request.getDisplayOrder());
+                }
 
-        // Xóa các draft cũ
-        voteDraftRepository.deleteByVotingItem_IdAndUser_Id(votingItemId, currentUser.getId());
-
-        // Lưu draft mới
-        for (VoteRequest.CandidateVoteRequest candidateVote : request.getCandidateVotes()) {
-            Candidate candidate = candidateRepository.findById(candidateVote.getCandidateId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Candidate not found"));
-
-            VoteDraft draft = VoteDraft.builder()
-                    .votingItem(votingItem)
-                    .user(currentUser)
-                    .candidate(candidate)
-                    .build();
-
-            voteDraftRepository.save(draft);
+                resolution = resolutionRepository.save(resolution);
+                return mapResolutionToResponse(resolution);
         }
-    }
 
-    public VotingResultResponse getVotingResults(Long votingItemId) {
-        java.util.Objects.requireNonNull(votingItemId, "votingItemId must not be null");
-        VotingItem votingItem = votingItemRepository.findById(votingItemId)
-                .orElseThrow(() -> new ResourceNotFoundException("VotingItem not found"));
+        @Transactional
+        public void deleteResolution(String resolutionId) {
+                Resolution resolution = resolutionRepository.findById(resolutionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
 
-        List<Candidate> candidates = candidateRepository.findByVotingItem_Id(votingItemId);
-        List<VotingResultResponse.CandidateResult> results = candidates.stream()
-                .map(candidate -> {
-                    long count = voteRepository.countByVotingItemIdAndCandidateId(votingItemId, candidate.getId());
-                    Long weight = voteRepository.sumVoteWeightByVotingItemIdAndCandidateId(votingItemId,
-                            candidate.getId());
-                    return VotingResultResponse.CandidateResult.builder()
-                            .candidateId(candidate.getId())
-                            .candidateName(candidate.getName())
-                            .voteCount(count)
-                            .totalWeight(weight != null ? weight : 0L)
-                            .build();
-                })
-                .collect(Collectors.toList());
+                // Xóa các dữ liệu liên quan
+                voteRepository.deleteAllByResolution_Id(resolutionId);
+                voteDraftRepository.deleteByResolution_Id(resolutionId);
+                votingOptionRepository.deleteAllByResolution_Id(resolutionId);
 
-        long totalWeight = results.stream().mapToLong(VotingResultResponse.CandidateResult::getTotalWeight).sum();
-        results.forEach(r -> {
-            if (totalWeight > 0) {
-                r.setPercentage((double) r.getTotalWeight() / totalWeight * 100);
-            }
-        });
-
-        return VotingResultResponse.builder()
-                .meetingId(votingItem.getMeeting().getId())
-                .meetingTitle(votingItem.getMeeting().getTitle())
-                .results(results)
-                .totalWeight(totalWeight)
-                .build();
-    }
-
-    private void validateVotingTime(VotingItem votingItem) {
-        LocalDateTime now = LocalDateTime.now();
-        if (votingItem.getStartTime() != null && now.isBefore(votingItem.getStartTime())) {
-            throw new BadRequestException("Outside voting time window");
+                resolutionRepository.delete(resolution);
         }
-        if (votingItem.getEndTime() != null && now.isAfter(votingItem.getEndTime())) {
-            throw new BadRequestException("Outside voting time window");
+
+        @Transactional
+        public void deleteVotingOption(String optionId) {
+                VotingOption option = votingOptionRepository.findById(optionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Voting option not found"));
+
+                // Không cho phép xóa các lựa chọn mặc định của Nghị quyết
+                if (option.getResolution() != null && isDefaultResolutionOption(option.getName())) {
+                        throw new BadRequestException("Cannot delete default resolution options: " + option.getName());
+                }
+
+                // Xóa các dữ liệu liên quan
+                voteRepository.deleteAllByVotingOption_Id(optionId);
+                voteDraftRepository.deleteByVotingOption_Id(optionId);
+
+                votingOptionRepository.delete(option);
         }
-    }
 
-    private void validateVoteDistribution(VotingItem votingItem, VoteRequest request, long votingPower) {
-        if (votingItem.getVotingType() == VotingType.BOARD_OF_DIRECTORS
-                || votingItem.getVotingType() == VotingType.SUPERVISORY_BOARD) {
-            long totalAllowedVotes = votingPower * votingItem.getMaxSelections();
-            long totalAllocatedVotes = request.getCandidateVotes().stream()
-                    .mapToLong(VoteRequest.CandidateVoteRequest::getVoteWeight)
-                    .sum();
-
-            if (totalAllocatedVotes > totalAllowedVotes) {
-                throw new BadRequestException("Total votes allocated (" + totalAllocatedVotes
-                        + ") exceeds allowed votes (" + totalAllowedVotes + ")");
-            }
-        } else {
-            if (request.getCandidateVotes().size() > 1) {
-                throw new BadRequestException("Can only vote for one option in resolution");
-            }
-            // Trong Biểu quyết, voteWeight luôn bằng votingPower (toàn bộ cổ phần)
-            if (!request.getCandidateVotes().isEmpty()) {
-                request.getCandidateVotes().get(0).setVoteWeight((int) votingPower);
-            }
+        private boolean isDefaultResolutionOption(String name) {
+                return name.equals("Đồng ý") || name.equals("Không đồng ý") || name.equals("Không ý kiến");
         }
-    }
 
-    private long calculateVotingPower(Long userId, Long meetingId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        private void createVotingOption(Resolution resolution, String name, int order) {
+                // Use semantic ID for default options, random ID for custom options
+                String id = RESOLUTION_OPTION_IDS.getOrDefault(name,
+                                RandomUtil.generate6DigitId(votingOptionRepository::existsById));
 
-        long baseShares = user.getSharesOwned() != null ? user.getSharesOwned() : 0;
+                VotingOption option = VotingOption.builder()
+                                .id(id)
+                                .resolution(resolution)
+                                .name(name)
+                                .displayOrder(order)
+                                .build();
+                votingOptionRepository.save(option);
+        }
 
-        // Cộng thêm cổ phần được ủy quyền
-        List<ProxyDelegation> delegations = proxyDelegationRepository.findByMeeting_IdAndProxy_Id(meetingId, userId);
-        long delegatedShares = delegations.stream()
-                .filter(d -> d.getStatus() == com.api.bedhcd.entity.enums.DelegationStatus.ACTIVE)
-                .mapToLong(ProxyDelegation::getSharesDelegated)
-                .sum();
+        public ResolutionResponse getResolutionById(String resolutionId) {
+                Resolution resolution = resolutionRepository.findById(resolutionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
+                return mapResolutionToResponse(resolution);
+        }
 
-        return baseShares + delegatedShares;
-    }
+        public VotingOptionResponse getVotingOptionById(String votingOptionId) {
+                VotingOption option = votingOptionRepository.findById(votingOptionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Voting option not found"));
+                return mapVotingOptionToResponse(option);
+        }
 
-    private User getCurrentUser() {
-        return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-    }
+        @Transactional
+        public VotingOptionResponse updateVotingOption(String id, VotingOptionRequest request) {
+                VotingOption option = votingOptionRepository.findById(id)
+                                .orElseThrow(() -> new ResourceNotFoundException("Voting option not found"));
 
-    private CandidateResponse mapCandidateToResponse(Candidate candidate) {
-        return CandidateResponse.builder()
-                .id(candidate.getId())
-                .name(candidate.getName())
-                .position(candidate.getPosition())
-                .bio(candidate.getBio())
-                .photoUrl(candidate.getPhotoUrl())
-                .displayOrder(candidate.getDisplayOrder())
-                .build();
-    }
+                option.setName(request.getName());
+                option.setPosition(request.getPosition());
+                option.setBio(request.getBio());
+                option.setPhotoUrl(request.getPhotoUrl());
+                if (request.getDisplayOrder() != null) {
+                        option.setDisplayOrder(request.getDisplayOrder());
+                }
+
+                option = votingOptionRepository.save(option);
+                return mapVotingOptionToResponse(option);
+        }
+
+        @Transactional
+        public void castVote(String resolutionId, VoteRequest request) {
+                Resolution resolution = resolutionRepository.findById(resolutionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
+
+                User currentUser = getCurrentUser();
+                long votingPower = calculateVotingPower(currentUser.getId(), resolution.getMeeting().getId());
+
+                // Validation: Chỉ được chọn 1 lựa chọn
+                if (request.getOptionVotes().size() > 1) {
+                        throw new BadRequestException("Can only vote for one option in resolution");
+                }
+
+                // Get existing votes
+                List<Vote> existingVotes = voteRepository.findByResolution_IdAndUser_Id(resolutionId,
+                                currentUser.getId());
+                Map<String, Vote> existingVoteMap = existingVotes.stream()
+                                .collect(Collectors.toMap(v -> v.getVotingOption().getId(), v -> v));
+
+                // Delete drafts
+                voteDraftRepository.deleteByResolution_IdAndUser_Id(resolutionId, currentUser.getId());
+
+                LocalDateTime now = LocalDateTime.now();
+                VoteRequest.OptionVoteRequest optionVote = request.getOptionVotes().get(0);
+                String selectedOptionId = optionVote.getVotingOptionId();
+
+                VotingOption option = votingOptionRepository.findById(selectedOptionId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Voting option not found: " + selectedOptionId));
+
+                Vote vote;
+                VoteAction action;
+
+                // Check if vote exists for this option
+                if (existingVoteMap.containsKey(selectedOptionId)) {
+                        // UPDATE existing vote
+                        vote = existingVoteMap.get(selectedOptionId);
+                        vote.setVoteWeight(votingPower);
+                        vote.setVotedAt(now);
+                        action = VoteAction.VOTE_CHANGED;
+                } else {
+                        // INSERT new vote
+                        vote = Vote.builder()
+                                        .resolution(resolution)
+                                        .user(currentUser)
+                                        .votingOption(option)
+                                        .voteWeight(votingPower)
+                                        .votedAt(now)
+                                        .build();
+                        action = VoteAction.VOTE_CAST;
+                }
+
+                vote = voteRepository.save(vote);
+
+                // Log the action
+                VoteLog log = VoteLog.builder()
+                                .user(currentUser)
+                                .resolution(resolution)
+                                .vote(vote)
+                                .action(action)
+                                .votingOption(option)
+                                .build();
+                voteLogRepository.save(log);
+
+                // Set weight = 0 for options no longer selected
+                for (Vote oldVote : existingVotes) {
+                        String oldOptionId = oldVote.getVotingOption().getId();
+                        if (!oldOptionId.equals(selectedOptionId) && oldVote.getVoteWeight() > 0) {
+                                oldVote.setVoteWeight(0L);
+                                oldVote.setVotedAt(now);
+                                voteRepository.save(oldVote);
+
+                                // Log VOTE_CHANGED with weight 0
+                                VoteLog zeroLog = VoteLog.builder()
+                                                .user(currentUser)
+                                                .resolution(resolution)
+                                                .vote(oldVote)
+                                                .action(VoteAction.VOTE_CHANGED)
+                                                .votingOption(oldVote.getVotingOption())
+                                                .build();
+                                voteLogRepository.save(zeroLog);
+                        }
+                }
+        }
+
+        @Transactional
+        public void saveDraft(String resolutionId, VoteRequest request) {
+                Resolution resolution = resolutionRepository.findById(resolutionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
+
+                User currentUser = getCurrentUser();
+                voteDraftRepository.deleteByResolution_IdAndUser_Id(resolutionId, currentUser.getId());
+
+                for (VoteRequest.OptionVoteRequest optionVote : request.getOptionVotes()) {
+                        VotingOption option = votingOptionRepository.findById(optionVote.getVotingOptionId())
+                                        .orElseThrow(() -> new ResourceNotFoundException("Voting option not found"));
+
+                        VoteDraft draft = VoteDraft.builder()
+                                        .resolution(resolution)
+                                        .user(currentUser)
+                                        .votingOption(option)
+                                        .build();
+
+                        voteDraftRepository.save(draft);
+                }
+        }
+
+        public VotingResultResponse getVotingResults(String resolutionId) {
+                Resolution resolution = resolutionRepository.findById(resolutionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
+
+                List<Vote> votes = voteRepository.findByResolution_Id(resolutionId);
+                List<VotingOption> options = votingOptionRepository
+                                .findByResolution_IdOrderByDisplayOrder(resolutionId);
+
+                // Only count votes with weight > 0
+                long totalVoters = votes.stream()
+                                .filter(v -> v.getVoteWeight() > 0)
+                                .map(v -> v.getUser().getId())
+                                .distinct()
+                                .count();
+
+                List<VotingResultResponse.VotingOptionResult> results = options.stream()
+                                .map(option -> {
+                                        long totalOptionWeight = votes.stream()
+                                                        .filter(v -> v.getVoteWeight() > 0) // Only count active votes
+                                                        .filter(v -> v.getVotingOption() != null && v.getVotingOption()
+                                                                        .getId().equals(option.getId()))
+                                                        .mapToLong(Vote::getVoteWeight)
+                                                        .sum();
+
+                                        long votersForOption = votes.stream()
+                                                        .filter(v -> v.getVoteWeight() > 0) // Only count active votes
+                                                        .filter(v -> v.getVotingOption() != null && v.getVotingOption()
+                                                                        .getId().equals(option.getId()))
+                                                        .map(v -> v.getUser().getId())
+                                                        .distinct()
+                                                        .count();
+
+                                        return VotingResultResponse.VotingOptionResult.builder()
+                                                        .votingOptionId(option.getId())
+                                                        .votingOptionName(option.getName())
+                                                        .voteCount(votersForOption)
+                                                        .totalWeight(totalOptionWeight)
+                                                        .build();
+                                })
+                                .collect(Collectors.toList());
+
+                long totalWeight = results.stream().mapToLong(VotingResultResponse.VotingOptionResult::getTotalWeight)
+                                .sum();
+                results.forEach(r -> {
+                        if (totalWeight > 0) {
+                                r.setPercentage((double) r.getTotalWeight() / totalWeight * 100);
+                        }
+                });
+
+                return VotingResultResponse.builder()
+                                .meetingId(resolution.getMeeting().getId())
+                                .meetingTitle(resolution.getMeeting().getTitle())
+                                .resolutionId(resolution.getId())
+                                .resolutionTitle(resolution.getTitle())
+                                .results(results)
+                                .totalVoters(totalVoters)
+                                .totalWeight(totalWeight)
+                                .createdAt(LocalDateTime.now())
+                                .build();
+        }
+
+        private long calculateVotingPower(String userId, String meetingId) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                long baseShares = user.getSharesOwned() != null ? user.getSharesOwned() : 0;
+                List<ProxyDelegation> delegations = proxyDelegationRepository.findByMeeting_IdAndProxy_Id(meetingId,
+                                userId);
+                long delegatedShares = delegations.stream()
+                                .filter(d -> d.getStatus() == com.api.bedhcd.entity.enums.DelegationStatus.ACTIVE)
+                                .mapToLong(ProxyDelegation::getSharesDelegated)
+                                .sum();
+
+                return baseShares + delegatedShares;
+        }
+
+        private User getCurrentUser() {
+                return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        }
+
+        private VotingOptionResponse mapVotingOptionToResponse(VotingOption option) {
+                return VotingOptionResponse.builder()
+                                .id(option.getId())
+                                .name(option.getName())
+                                .position(option.getPosition())
+                                .bio(option.getBio())
+                                .photoUrl(option.getPhotoUrl())
+                                .displayOrder(option.getDisplayOrder())
+                                .build();
+        }
+
+        public ResolutionResponse mapResolutionToResponse(Resolution resolution) {
+                List<VotingOption> options = votingOptionRepository
+                                .findByResolution_IdOrderByDisplayOrder(resolution.getId());
+
+                List<UserVoteResponse> userVotes = null;
+                try {
+                        User currentUser = getCurrentUser();
+                        if (currentUser != null) {
+                                userVotes = voteRepository
+                                                .findByResolution_IdAndUser_Id(resolution.getId(), currentUser.getId())
+                                                .stream()
+                                                .filter(v -> v.getVoteWeight() > 0)
+                                                .map(v -> UserVoteResponse.builder()
+                                                                .votingOptionId(v.getVotingOption().getId())
+                                                                .votingOptionName(v.getVotingOption().getName())
+                                                                .voteWeight(v.getVoteWeight())
+                                                                .votedAt(v.getVotedAt())
+                                                                .build())
+                                                .collect(Collectors.toList());
+                        }
+                } catch (Exception e) {
+                        // User not authenticated or other security context issue, ignore
+                }
+
+                return ResolutionResponse.builder()
+                                .id(resolution.getId())
+                                .title(resolution.getTitle())
+                                .description(resolution.getDescription())
+                                .displayOrder(resolution.getDisplayOrder())
+                                .votingOptions(options.stream()
+                                                .map(this::mapVotingOptionToResponse)
+                                                .collect(Collectors.toList()))
+                                .userVotes(userVotes)
+                                .build();
+        }
 }

@@ -9,9 +9,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProxyDelegationRequest {
-    private String delegatorId;
-    private String proxyId;
-    private Long sharesDelegated;
-    private String authorizationDocument;
+public class VotingOptionRequest {
+    private String name;
+    private String position;
+    private String bio;
+    private String photoUrl;
+    private Integer displayOrder;
 }

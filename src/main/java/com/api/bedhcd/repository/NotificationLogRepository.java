@@ -9,7 +9,7 @@ import java.util.List;
 
 @Repository
 public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
-    List<NotificationLog> findByUser_Id(Long userId);
+    List<NotificationLog> findByUser_Id(String userId);
 
     List<NotificationLog> findByStatus(NotificationStatus status);
 }

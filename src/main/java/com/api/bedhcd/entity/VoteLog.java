@@ -27,8 +27,12 @@ public class VoteLog {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "voting_item_id", nullable = false)
-    private VotingItem votingItem;
+    @JoinColumn(name = "resolution_id")
+    private Resolution resolution;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "election_id")
+    private Election election;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vote_id")
@@ -39,11 +43,11 @@ public class VoteLog {
     private VoteAction action;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "candidate_id")
-    private Candidate candidate;
+    @JoinColumn(name = "voting_option_id")
+    private VotingOption votingOption;
 
-    @Column(name = "previous_candidate_id")
-    private Long previousCandidateId;
+    @Column(name = "previous_voting_option_id")
+    private String previousVotingOptionId;
 
     @Column(name = "ip_address")
     private String ipAddress;

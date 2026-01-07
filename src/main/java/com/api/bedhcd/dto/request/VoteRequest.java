@@ -12,14 +12,14 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class VoteRequest {
-    private List<CandidateVoteRequest> candidateVotes;
+    private List<OptionVoteRequest> optionVotes;
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
-    public static class CandidateVoteRequest {
-        private Long candidateId;
-        private Integer voteWeight;
+    public static class OptionVoteRequest {
+        private String votingOptionId;
+        private Long voteWeight;
     }
 }

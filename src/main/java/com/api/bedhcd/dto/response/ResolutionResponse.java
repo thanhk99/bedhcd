@@ -5,15 +5,17 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CandidateResponse {
-    private Long id;
-    private String name;
-    private String position;
-    private String bio;
-    private String photoUrl;
+public class ResolutionResponse {
+    private String id;
+    private String title;
+    private String description;
     private Integer displayOrder;
+    private List<VotingOptionResponse> votingOptions;
+    private List<UserVoteResponse> userVotes;
 }

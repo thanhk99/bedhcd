@@ -40,7 +40,7 @@ public class NotificationLog {
     private String relatedEntityType;
 
     @Column(name = "related_entity_id")
-    private Long relatedEntityId;
+    private String relatedEntityId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

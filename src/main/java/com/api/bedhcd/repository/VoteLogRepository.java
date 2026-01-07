@@ -8,7 +8,9 @@ import java.util.List;
 
 @Repository
 public interface VoteLogRepository extends JpaRepository<VoteLog, Long> {
-    List<VoteLog> findByUserId(Long userId);
+    List<VoteLog> findByUser_Id(String userId);
 
-    List<VoteLog> findByVotingItem_Id(Long votingItemId);
+    List<VoteLog> findByResolution_Id(String resolutionId);
+
+    List<VoteLog> findByElection_Id(String electionId);
 }

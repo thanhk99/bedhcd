@@ -6,23 +6,31 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "candidates")
+@Table(name = "voting_options")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Candidate {
+@EntityListeners(AuditingEntityListener.class)
+public class VotingOption {
 
     @Id
-    private Long id;
+    private String id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "voting_item_id", nullable = false)
-    private VotingItem votingItem;
+    @JoinColumn(name = "resolution_id")
+    private Resolution resolution;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "election_id")
+    private Election election;
 
     @Column(nullable = false, length = 100)
     private String name;
@@ -42,4 +50,11 @@ public class Candidate {
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @CreatedBy
+    @Column(updatable = false)
+    private String createdBy;
+
+    @LastModifiedBy
+    private String updatedBy;
 }

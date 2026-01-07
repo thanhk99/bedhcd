@@ -1,5 +1,6 @@
 package com.api.bedhcd.config;
 
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -46,6 +47,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     }
                 }
             }
+        } catch (ExpiredJwtException ex) {
+            request.setAttribute("expired", ex.getMessage());
+            logger.warn("JWT token is expired");
         } catch (Exception ex) {
             logger.error("Could not set user authentication in security context", ex);
         }

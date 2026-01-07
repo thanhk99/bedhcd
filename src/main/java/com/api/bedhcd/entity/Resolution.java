@@ -8,21 +8,25 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "voting_items")
+@Table(name = "resolutions")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class VotingItem {
+@EntityListeners(AuditingEntityListener.class)
+public class Resolution {
 
     @Id
-    private Long id;
+    private String id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "meeting_id", nullable = false)
@@ -34,31 +38,21 @@ public class VotingItem {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private VotingType votingType;
-
-    private LocalDateTime startTime;
-
-    private LocalDateTime endTime;
-
-    @Column(nullable = false)
     @Builder.Default
-    private Integer maxSelections = 1;
-
-    @OneToMany(mappedBy = "votingItem", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<Candidate> candidates = new ArrayList<>();
-
-    @OneToMany(mappedBy = "votingItem", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<Vote> votes = new ArrayList<>();
+    private Integer displayOrder = 0;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @CreatedBy
+    @Column(updatable = false)
+    private String createdBy;
+
     @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    @LastModifiedBy
+    private String updatedBy;
 }

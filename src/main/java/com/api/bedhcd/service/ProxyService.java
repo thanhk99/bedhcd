@@ -21,14 +21,16 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class ProxyService {
 
     private final ProxyDelegationRepository proxyDelegationRepository;
     private final MeetingRepository meetingRepository;
     private final UserRepository userRepository;
 
+    @SuppressWarnings("null")
     @Transactional
-    public ProxyDelegationResponse createDelegation(Long meetingId, ProxyDelegationRequest request) {
+    public ProxyDelegationResponse createDelegation(String meetingId, ProxyDelegationRequest request) {
         Meeting meeting = meetingRepository.findById(meetingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
 
@@ -83,7 +85,8 @@ public class ProxyService {
         userRepository.save(proxy);
     }
 
-    public List<ProxyDelegationResponse> getDelegationsByMeeting(Long meetingId) {
+    @SuppressWarnings("null")
+    public List<ProxyDelegationResponse> getDelegationsByMeeting(String meetingId) {
         return proxyDelegationRepository.findByMeeting_IdAndStatus(meetingId, DelegationStatus.ACTIVE).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());

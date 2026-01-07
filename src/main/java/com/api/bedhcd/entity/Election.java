@@ -1,6 +1,6 @@
 package com.api.bedhcd.entity;
 
-import com.api.bedhcd.entity.enums.MeetingStatus;
+import com.api.bedhcd.entity.enums.ElectionType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,19 +17,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "meetings")
+@Table(name = "elections")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @EntityListeners(AuditingEntityListener.class)
-public class Meeting {
+public class Election {
 
     @Id
     private String id;
 
-    @Column(name = "meeting_code", unique = true, length = 50)
-    private String meetingCode;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "meeting_id", nullable = false)
+    private Meeting meeting;
 
     @Column(nullable = false)
     private String title;
@@ -37,25 +38,16 @@ public class Meeting {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(nullable = false)
-    private LocalDateTime startTime;
-
-    @Column(nullable = false)
-    private LocalDateTime endTime;
-
-    private String location;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private MeetingStatus status;
+    private ElectionType electionType;
 
-    @OneToMany(mappedBy = "meeting", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<Resolution> resolutions = new ArrayList<>();
+    private Integer displayOrder = 0;
 
-    @OneToMany(mappedBy = "meeting", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "election", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<Election> elections = new ArrayList<>();
+    private List<VotingOption> votingOptions = new ArrayList<>();
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

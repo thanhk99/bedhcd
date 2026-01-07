@@ -17,12 +17,13 @@ public class AuthResponse {
     private String accessToken;
     @Builder.Default
     private String tokenType = "Bearer";
-    private Long userId;
+    private String userId;
     private String username;
     private String email;
+    private String refreshToken;
     private Set<Role> roles;
 
-    public AuthResponse(String accessToken, Long userId, String username, String email, Set<Role> roles) {
+    public AuthResponse(String accessToken, String userId, String username, String email, Set<Role> roles) {
         this.accessToken = accessToken;
         this.userId = userId;
         this.username = username;

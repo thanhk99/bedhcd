@@ -32,6 +32,7 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class AuthService {
 
     private final UserRepository userRepository;
@@ -45,6 +46,7 @@ public class AuthService {
     @Value("${jwt.refresh-token-expiration}")
     private Long refreshTokenExpiration;
 
+    @SuppressWarnings("null")
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         // Check if username already exists
@@ -91,6 +93,7 @@ public class AuthService {
                 .build();
     }
 
+    @SuppressWarnings("null")
     @Transactional
     public AuthResponse login(LoginRequest request, HttpServletResponse response) {
         // Authenticate user
@@ -114,6 +117,7 @@ public class AuthService {
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
+                .refreshToken(refreshToken)
                 .userId(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
@@ -163,10 +167,8 @@ public class AuthService {
         cookieUtil.deleteRefreshTokenCookie(response);
     }
 
+    @SuppressWarnings("null")
     private void saveRefreshToken(User user, String token) {
-        // Delete old refresh tokens for this user
-        refreshTokenRepository.deleteByUser_Id(user.getId());
-
         // Create new refresh token
         RefreshToken refreshToken = RefreshToken.builder()
                 .token(token)

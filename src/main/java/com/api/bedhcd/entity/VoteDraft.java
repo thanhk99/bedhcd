@@ -12,7 +12,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "vote_drafts", uniqueConstraints = {
-        @UniqueConstraint(columnNames = { "voting_item_id", "user_id", "candidate_id" })
+        @UniqueConstraint(columnNames = { "resolution_id", "user_id", "voting_option_id" }),
+        @UniqueConstraint(columnNames = { "election_id", "user_id", "voting_option_id" })
 })
 @Data
 @NoArgsConstructor
@@ -25,16 +26,20 @@ public class VoteDraft {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "voting_item_id", nullable = false)
-    private VotingItem votingItem;
+    @JoinColumn(name = "resolution_id")
+    private Resolution resolution;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "election_id")
+    private Election election;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "candidate_id")
-    private Candidate candidate;
+    @JoinColumn(name = "voting_option_id")
+    private VotingOption votingOption;
 
     @Column(columnDefinition = "TEXT")
     private String notes;

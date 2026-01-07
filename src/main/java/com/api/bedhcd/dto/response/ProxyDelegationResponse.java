@@ -14,11 +14,11 @@ import java.time.LocalDateTime;
 @Builder
 public class ProxyDelegationResponse {
     private Long id;
-    private Long delegatorId;
+    private String delegatorId;
     private String delegatorName;
-    private Long proxyId;
+    private String proxyId;
     private String proxyName;
-    private Integer sharesDelegated;
+    private Long sharesDelegated;
     private String authorizationDocument;
     private DelegationStatus status;
     private LocalDateTime createdAt;

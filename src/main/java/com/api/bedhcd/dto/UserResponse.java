@@ -15,13 +15,13 @@ import java.util.Set;
 @Builder
 public class UserResponse {
 
-    private Long id;
+    private String id;
     private String username;
     private String email;
     private String fullName;
-    private Integer sharesOwned;
-    private Integer receivedProxyShares;
-    private Integer delegatedShares;
+    private Long sharesOwned;
+    private Long receivedProxyShares;
+    private Long delegatedShares;
     private String phoneNumber;
     private String investorCode;
     private String cccd;

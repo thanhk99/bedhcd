@@ -8,7 +8,15 @@ import java.util.List;
 
 @Repository
 public interface VoteDraftRepository extends JpaRepository<VoteDraft, Long> {
-    List<VoteDraft> findByVotingItem_IdAndUser_Id(Long votingItemId, Long userId);
+    List<VoteDraft> findByResolution_IdAndUser_Id(String resolutionId, String userId);
 
-    void deleteByVotingItem_IdAndUser_Id(Long votingItemId, Long userId);
+    void deleteByResolution_IdAndUser_Id(String resolutionId, String userId);
+
+    void deleteByResolution_Id(String resolutionId);
+
+    List<VoteDraft> findByElection_IdAndUser_Id(String electionId, String userId);
+
+    void deleteByElection_IdAndUser_Id(String electionId, String userId);
+
+    void deleteByVotingOption_Id(String votingOptionId);
 }

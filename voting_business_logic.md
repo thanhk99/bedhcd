@@ -21,13 +21,13 @@ Document này mô tả chi tiết quy trình bỏ phiếu trong hệ thống Đ�
 - **Mục đích**: Bầu các thành viên ban kiểm soát
 - **Phương pháp**: Bỏ phiếu tích lũy (Cumulative Voting)
 - **Quy tắc**: 
-  - Tổng số phiếu = Số cổ phần × Số ghế cần bầu
-  - Ví dụ: User có 5,000 cổ phần, bầu 5 ghế → Tổng 25,000 phiếu
+  - Tổng số phiếu = Số cổ phần
+  - Ví dụ: User có 5,000 cổ phần → Tổng 5,000 phiếu
   - User phân bổ phiếu tự do cho các ứng viên
   - Có thể cho tất cả phiếu cho 1 người hoặc chia đều
 - **Ví dụ phân bổ**:
   ```
-  Tổng phiếu: 25,000
+  Tổng phiếu: 5,000
   - Ứng viên 1: 5,000 phiếu
   - Ứng viên 2: 10,000 phiếu
   - Ứng viên 3: 10,000 phiếu
@@ -40,7 +40,7 @@ Document này mô tả chi tiết quy trình bỏ phiếu trong hệ thống Đ�
 - **Mục đích**: Bầu các thành viên hội đồng quản trị
 - **Phương pháp**: Bỏ phiếu tích lũy (Cumulative Voting)
 - **Quy tắc**: Tương tự Ban Kiểm Soát
-  - Tổng số phiếu = Số cổ phần × Số ghế cần bầu
+  - Tổng số phiếu = Số cổ phần
   - Phân bổ tự do cho các ứng viên
 - **Tính kết quả**: Top N ứng viên có tổng số phiếu cao nhất
 
@@ -80,7 +80,7 @@ current_time <= meeting.voting_end_time
 
 #### Rule 2: Số lượng lựa chọn
 ```
-number_of_selections <= meeting.max_selections
+number_of_selections <= meeting.candidates.size()
 ```
 
 #### Rule 3: Quyền biểu quyết
@@ -163,7 +163,7 @@ validateVoteRequest(meetingId, userId, candidateIds) {
     }
     
     // 4. Check number of selections
-    if (candidateIds.length > session.maxSelections) {
+    if (candidateIds.length > candidates.size()) {
         throw "Too many selections"
     }
     
@@ -227,7 +227,7 @@ processCumulativeVote(sessionId, userId, voteDistribution) {
     
     // 1. Tính tổng số phiếu được phép
     baseShares = calculateVoteWeight(userId, session.meetingId)
-    totalAllowedVotes = baseShares × session.maxSelections
+    totalAllowedVotes = baseShares
     
     // 2. Validate tổng phiếu phân bổ
     totalAllocated = SUM(voteDistribution.values())
@@ -631,8 +631,8 @@ calculateElectionResult(sessionId) {
     // Sort by total votes (descending)
     sortedResults = sortBy(candidateResults, 'totalVotes', 'DESC')
     
-    // Determine winners (top N based on max_selections)
-    winners = sortedResults.slice(0, session.maxSelections)
+    // Determine winners (top N)
+    winners = sortedResults;
     
     // Calculate statistics
     totalVotesCast = SUM(candidateResults.map(r => r.totalVotes))
@@ -648,8 +648,7 @@ calculateElectionResult(sessionId) {
         winners: winners,
         statistics: {
             totalVotesCast: totalVotesCast,
-            uniqueVoters: uniqueVoters,
-            seatsAvailable: session.maxSelections
+            uniqueVoters: uniqueVoters
         }
     }
 }
@@ -704,8 +703,7 @@ calculateElectionResult(sessionId) {
     ],
     "statistics": {
         "totalVotesCast": 125000,
-        "uniqueVoters": 5,
-        "seatsAvailable": 3
+        "uniqueVoters": 5
     }
 }
 ```

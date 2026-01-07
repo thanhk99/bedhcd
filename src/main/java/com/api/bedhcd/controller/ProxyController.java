@@ -10,20 +10,20 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/meetings/{meetingId}/proxy")
+@RequestMapping("/meetings/{meetingId}/proxy")
 @RequiredArgsConstructor
 public class ProxyController {
 
     private final ProxyService proxyService;
 
     @PostMapping
-    public ResponseEntity<ProxyDelegationResponse> createDelegation(@PathVariable Long meetingId,
+    public ResponseEntity<ProxyDelegationResponse> createDelegation(@PathVariable String meetingId,
             @RequestBody ProxyDelegationRequest request) {
         return ResponseEntity.ok(proxyService.createDelegation(meetingId, request));
     }
 
     @GetMapping
-    public ResponseEntity<List<ProxyDelegationResponse>> getDelegations(@PathVariable Long meetingId) {
+    public ResponseEntity<List<ProxyDelegationResponse>> getDelegations(@PathVariable String meetingId) {
         return ResponseEntity.ok(proxyService.getDelegationsByMeeting(meetingId));
     }
 

@@ -1,4 +1,4 @@
-package com.api.bedhcd.dto.request;
+package com.api.bedhcd.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CandidateRequest {
+public class VotingOptionResponse {
+    private String id;
     private String name;
     private String position;
     private String bio;

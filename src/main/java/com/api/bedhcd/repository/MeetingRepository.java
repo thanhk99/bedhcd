@@ -10,10 +10,16 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-public interface MeetingRepository extends JpaRepository<Meeting, Long> {
+public interface MeetingRepository extends JpaRepository<Meeting, String> {
     List<Meeting> findByStatus(MeetingStatus status);
 
-    List<Meeting> findByMeetingDateBetween(LocalDateTime start, LocalDateTime end);
+    List<Meeting> findByStartTimeBetween(LocalDateTime start, LocalDateTime end);
 
     List<Meeting> findByCreatedBy(User user);
+
+    boolean existsByStatus(MeetingStatus status);
+
+    java.util.Optional<Meeting> findFirstByStatus(MeetingStatus status);
+
+    long countByStatus(com.api.bedhcd.entity.enums.MeetingStatus status);
 }

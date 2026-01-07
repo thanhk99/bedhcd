@@ -57,11 +57,19 @@ public class JwtUtil {
 
     public String generateAccessToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
+        claims.put("token_type", "access");
+        claims.put("roles", userDetails.getAuthorities().stream()
+                .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                .collect(java.util.stream.Collectors.toList()));
         return createToken(claims, userDetails.getUsername(), accessTokenExpiration);
     }
 
     public String generateRefreshToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
+        claims.put("token_type", "refresh");
+        claims.put("roles", userDetails.getAuthorities().stream()
+                .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                .collect(java.util.stream.Collectors.toList()));
         return createToken(claims, userDetails.getUsername(), refreshTokenExpiration);
     }
 

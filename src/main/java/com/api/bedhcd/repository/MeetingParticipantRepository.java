@@ -10,9 +10,9 @@ import java.util.Optional;
 
 @Repository
 public interface MeetingParticipantRepository extends JpaRepository<MeetingParticipant, Long> {
-    List<MeetingParticipant> findByMeeting_Id(Long meetingId);
+    List<MeetingParticipant> findByMeeting_Id(String meetingId);
 
-    Optional<MeetingParticipant> findByMeeting_IdAndUser_Id(Long meetingId, Long userId);
+    Optional<MeetingParticipant> findByMeeting_IdAndUser_Id(String meetingId, String userId);
 
-    long countByMeeting_IdAndStatus(Long meetingId, ParticipantStatus status);
+    long countByMeeting_IdAndStatus(String meetingId, ParticipantStatus status);
 }

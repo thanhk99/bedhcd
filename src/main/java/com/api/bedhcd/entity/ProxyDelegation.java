@@ -37,7 +37,7 @@ public class ProxyDelegation {
     private User proxy;
 
     @Column(nullable = false)
-    private Integer sharesDelegated;
+    private Long sharesDelegated;
 
     @Column(name = "authorization_document")
     private String authorizationDocument;
