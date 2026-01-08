@@ -28,6 +28,8 @@ public class UserResponse {
     private String dateOfIssue;
     private String address;
     private Set<Role> roles;
+    private java.util.List<com.api.bedhcd.dto.response.ProxyDelegationResponse> delegationsMade;
+    private java.util.List<com.api.bedhcd.dto.response.ProxyDelegationResponse> delegationsReceived;
     private Boolean enabled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

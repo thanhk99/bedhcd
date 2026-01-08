@@ -5,6 +5,9 @@ import com.api.bedhcd.entity.Role;
 import com.api.bedhcd.entity.User;
 import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.repository.UserRepository;
+import com.api.bedhcd.dto.response.ProxyDelegationResponse;
+import com.api.bedhcd.repository.ProxyDelegationRepository;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final ProxyDelegationRepository proxyDelegationRepository;
     private final PasswordEncoder passwordEncoder;
 
     @SuppressWarnings("null")
@@ -34,7 +38,17 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
 
-        return mapToUserResponse(user);
+        UserResponse response = mapToUserResponse(user);
+
+        response.setDelegationsMade(proxyDelegationRepository.findByDelegator_Id(id).stream()
+                .map(this::mapToProxyResponse)
+                .collect(Collectors.toList()));
+
+        response.setDelegationsReceived(proxyDelegationRepository.findByProxy_Id(id).stream()
+                .map(this::mapToProxyResponse)
+                .collect(Collectors.toList()));
+
+        return response;
     }
 
     @Transactional
@@ -121,9 +135,6 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
 
-        // Note: For admin update simplifying validation slightly or adding checks
-        // conditionally
-        // Updating fields if provided
         if (request.getFullName() != null)
             user.setFullName(request.getFullName());
         if (request.getEmail() != null)
@@ -173,6 +184,21 @@ public class UserService {
                 .enabled(user.getEnabled())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
+                .build();
+    }
+
+    private ProxyDelegationResponse mapToProxyResponse(com.api.bedhcd.entity.ProxyDelegation delegation) {
+        return ProxyDelegationResponse.builder()
+                .id(delegation.getId())
+                .delegatorId(delegation.getDelegator().getId())
+                .delegatorName(delegation.getDelegator().getFullName())
+                .proxyId(delegation.getProxy().getId())
+                .proxyName(delegation.getProxy().getFullName())
+                .sharesDelegated(delegation.getSharesDelegated())
+                .authorizationDocument(delegation.getAuthorizationDocument())
+                .status(delegation.getStatus())
+                .createdAt(delegation.getCreatedAt())
+                .revokedAt(delegation.getRevokedAt())
                 .build();
     }
 }

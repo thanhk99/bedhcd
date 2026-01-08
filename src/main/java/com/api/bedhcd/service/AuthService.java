@@ -10,6 +10,7 @@ import com.api.bedhcd.entity.Role;
 import com.api.bedhcd.entity.User;
 import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
+import com.api.bedhcd.exception.UnauthorizedException;
 import com.api.bedhcd.repository.RefreshTokenRepository;
 import com.api.bedhcd.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -129,15 +130,15 @@ public class AuthService {
     public AuthResponse refreshAccessToken(HttpServletRequest request, HttpServletResponse response) {
         // Get refresh token from cookie
         String refreshToken = cookieUtil.getRefreshTokenFromCookie(request)
-                .orElseThrow(() -> new BadRequestException("Refresh token not found in cookie"));
+                .orElseThrow(() -> new UnauthorizedException("Refresh token not found in cookie"));
 
         // Validate refresh token
         RefreshToken storedToken = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new BadRequestException("Invalid refresh token"));
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
 
         if (storedToken.isExpired()) {
             refreshTokenRepository.delete(storedToken);
-            throw new BadRequestException("Refresh token has expired");
+            throw new UnauthorizedException("Refresh token has expired");
         }
 
         // Generate new access token

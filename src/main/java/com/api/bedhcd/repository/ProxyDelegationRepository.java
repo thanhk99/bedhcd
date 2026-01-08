@@ -15,4 +15,8 @@ public interface ProxyDelegationRepository extends JpaRepository<ProxyDelegation
     List<ProxyDelegation> findByMeeting_IdAndProxy_Id(String meetingId, String proxyId);
 
     List<ProxyDelegation> findByMeeting_IdAndStatus(String meetingId, DelegationStatus status);
+
+    List<ProxyDelegation> findByDelegator_Id(String delegatorId);
+
+    List<ProxyDelegation> findByProxy_Id(String proxyId);
 }

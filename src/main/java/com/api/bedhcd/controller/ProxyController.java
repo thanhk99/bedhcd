@@ -27,7 +27,7 @@ public class ProxyController {
         return ResponseEntity.ok(proxyService.getDelegationsByMeeting(meetingId));
     }
 
-    @DeleteMapping("/{delegationId}")
+    @PostMapping("/{delegationId}")
     public ResponseEntity<Void> revokeDelegation(@PathVariable Long delegationId) {
         proxyService.revokeDelegation(delegationId);
         return ResponseEntity.noContent().build();
