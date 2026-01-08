@@ -8,6 +8,7 @@ import com.api.bedhcd.dto.response.ResolutionResponse;
 import com.api.bedhcd.dto.response.UserVoteResponse;
 import com.api.bedhcd.dto.response.VotingResultResponse;
 import com.api.bedhcd.entity.*;
+import com.api.bedhcd.entity.MeetingParticipant;
 import com.api.bedhcd.entity.enums.VoteAction;
 import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
@@ -33,9 +34,9 @@ public class VotingService {
         private final VoteRepository voteRepository;
         private final VoteDraftRepository voteDraftRepository;
         private final MeetingRepository meetingRepository;
-        private final ProxyDelegationRepository proxyDelegationRepository;
         private final UserRepository userRepository;
         private final VoteLogRepository voteLogRepository;
+        private final MeetingParticipantRepository meetingParticipantRepository;
 
         // Semantic IDs for default resolution voting options
         private static final Map<String, String> RESOLUTION_OPTION_IDS = Map.of(
@@ -329,16 +330,36 @@ public class VotingService {
         private long calculateVotingPower(String userId, String meetingId) {
                 User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                Meeting meeting = meetingRepository.findById(meetingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
 
-                long baseShares = user.getSharesOwned() != null ? user.getSharesOwned() : 0;
-                List<ProxyDelegation> delegations = proxyDelegationRepository.findByMeeting_IdAndProxy_Id(meetingId,
-                                userId);
-                long delegatedShares = delegations.stream()
-                                .filter(d -> d.getStatus() == com.api.bedhcd.entity.enums.DelegationStatus.ACTIVE)
-                                .mapToLong(ProxyDelegation::getSharesDelegated)
-                                .sum();
+                MeetingParticipant participant = getOrCreateParticipant(meeting, user);
 
-                return baseShares + delegatedShares;
+                long baseShares = participant.getSharesOwned() != null ? participant.getSharesOwned() : 0;
+                long receivedShares = participant.getReceivedProxyShares() != null
+                                ? participant.getReceivedProxyShares()
+                                : 0;
+
+                return baseShares + receivedShares;
+        }
+
+        private MeetingParticipant getOrCreateParticipant(Meeting meeting, User user) {
+                return meetingParticipantRepository.findByMeeting_IdAndUser_Id(meeting.getId(), user.getId())
+                                .orElseGet(() -> {
+                                        MeetingParticipant participant = MeetingParticipant.builder()
+                                                        .meeting(meeting)
+                                                        .user(user)
+                                                        .sharesOwned(user.getSharesOwned() != null
+                                                                        ? user.getSharesOwned()
+                                                                        : 0L)
+                                                        .receivedProxyShares(0L)
+                                                        .delegatedShares(0L)
+                                                        .participationType(
+                                                                        com.api.bedhcd.entity.enums.ParticipationType.DIRECT)
+                                                        .status(com.api.bedhcd.entity.enums.ParticipantStatus.PENDING)
+                                                        .build();
+                                        return meetingParticipantRepository.save(participant);
+                                });
         }
 
         private User getCurrentUser() {

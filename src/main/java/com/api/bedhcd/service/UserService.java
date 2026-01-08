@@ -7,6 +7,10 @@ import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.repository.UserRepository;
 import com.api.bedhcd.dto.response.ProxyDelegationResponse;
 import com.api.bedhcd.repository.ProxyDelegationRepository;
+import com.api.bedhcd.repository.MeetingParticipantRepository;
+import com.api.bedhcd.repository.MeetingRepository;
+import com.api.bedhcd.entity.MeetingParticipant;
+import com.api.bedhcd.entity.Meeting;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,11 +20,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@SuppressWarnings("null")
 public class UserService {
 
     private final UserRepository userRepository;
     private final ProxyDelegationRepository proxyDelegationRepository;
     private final PasswordEncoder passwordEncoder;
+    private final MeetingParticipantRepository meetingParticipantRepository;
+    private final MeetingRepository meetingRepository;
 
     @SuppressWarnings("null")
     @Transactional(readOnly = true)
@@ -123,11 +130,29 @@ public class UserService {
                 .cccd(request.getCccd())
                 .dateOfIssue(request.getDateOfIssue())
                 .address(request.getAddress())
+                .sharesOwned(request.getSharesOwned() != null ? request.getSharesOwned() : 0L)
                 .roles(roles)
                 .enabled(true)
                 .build();
 
-        return mapToUserResponse(userRepository.save(user));
+        user = userRepository.save(user);
+
+        // Link user to meeting
+        Meeting meeting = meetingRepository.findById(request.getMeetingId())
+                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+
+        MeetingParticipant participant = MeetingParticipant.builder()
+                .meeting(meeting)
+                .user(user)
+                .sharesOwned(user.getSharesOwned() != null ? user.getSharesOwned() : 0L)
+                .receivedProxyShares(0L)
+                .delegatedShares(0L)
+                .participationType(com.api.bedhcd.entity.enums.ParticipationType.DIRECT)
+                .status(com.api.bedhcd.entity.enums.ParticipantStatus.PENDING)
+                .build();
+        meetingParticipantRepository.save(participant);
+
+        return mapToUserResponse(user);
     }
 
     @Transactional
@@ -149,6 +174,9 @@ public class UserService {
             user.setCccd(request.getCccd());
         if (request.getDateOfIssue() != null)
             user.setDateOfIssue(request.getDateOfIssue());
+        if (request.getPlaceOfIssue() != null)
+            if (request.getSharesOwned() != null)
+                user.setSharesOwned(request.getSharesOwned());
 
         // Password update only if provided and not empty
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
@@ -166,15 +194,37 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
+    @Transactional(readOnly = true)
+    public java.util.List<UserResponse> getShareholdersByMeeting(String meetingId) {
+        return meetingParticipantRepository.findByMeeting_Id(meetingId).stream()
+                .map(this::mapParticipantToResponse)
+                .collect(Collectors.toList());
+    }
+
     private UserResponse mapToUserResponse(User user) {
+        // Try to find if there is an ongoing meeting to get proxy shares context
+        java.util.Optional<com.api.bedhcd.entity.Meeting> ongoingMeeting = meetingRepository
+                .findFirstByStatus(com.api.bedhcd.entity.enums.MeetingStatus.ONGOING);
+
+        if (ongoingMeeting.isPresent()) {
+            return meetingParticipantRepository.findByMeeting_IdAndUser_Id(ongoingMeeting.get().getId(), user.getId())
+                    .map(this::mapParticipantToResponse)
+                    .orElse(mapBaseUserToResponse(user));
+        }
+
+        return mapBaseUserToResponse(user);
+    }
+
+    private UserResponse mapBaseUserToResponse(User user) {
         return UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .sharesOwned(user.getSharesOwned())
-                .receivedProxyShares(user.getReceivedProxyShares())
-                .delegatedShares(user.getDelegatedShares())
+                .receivedProxyShares(0L)
+                .delegatedShares(0L)
+                .totalShares(user.getSharesOwned() != null ? user.getSharesOwned() : 0L)
                 .phoneNumber(user.getPhoneNumber())
                 .investorCode(user.getInvestorCode())
                 .cccd(user.getCccd())
@@ -185,6 +235,17 @@ public class UserService {
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();
+    }
+
+    private UserResponse mapParticipantToResponse(com.api.bedhcd.entity.MeetingParticipant participant) {
+        User user = participant.getUser();
+        UserResponse response = mapBaseUserToResponse(user);
+        response.setSharesOwned(participant.getSharesOwned());
+        response.setReceivedProxyShares(participant.getReceivedProxyShares());
+        response.setDelegatedShares(participant.getDelegatedShares());
+        response.setTotalShares((participant.getSharesOwned() != null ? participant.getSharesOwned() : 0) +
+                (participant.getReceivedProxyShares() != null ? participant.getReceivedProxyShares() : 0));
+        return response;
     }
 
     private ProxyDelegationResponse mapToProxyResponse(com.api.bedhcd.entity.ProxyDelegation delegation) {

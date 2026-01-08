@@ -11,9 +11,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "proxy_delegations", uniqueConstraints = {
-        @UniqueConstraint(columnNames = { "meeting_id", "delegator_id" })
-})
+@Table(name = "proxy_delegations")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

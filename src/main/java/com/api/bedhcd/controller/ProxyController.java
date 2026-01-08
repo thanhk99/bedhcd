@@ -27,7 +27,19 @@ public class ProxyController {
         return ResponseEntity.ok(proxyService.getDelegationsByMeeting(meetingId));
     }
 
-    @PostMapping("/{delegationId}")
+    @GetMapping("/delegator/{userId}")
+    public ResponseEntity<List<ProxyDelegationResponse>> getDelegationsByDelegator(@PathVariable String meetingId,
+            @PathVariable String userId) {
+        return ResponseEntity.ok(proxyService.getDelegationsByDelegator(meetingId, userId));
+    }
+
+    @GetMapping("/proxy/{userId}")
+    public ResponseEntity<List<ProxyDelegationResponse>> getDelegationsByProxy(@PathVariable String meetingId,
+            @PathVariable String userId) {
+        return ResponseEntity.ok(proxyService.getDelegationsByProxy(meetingId, userId));
+    }
+
+    @PostMapping("/{delegationId}/revoke")
     public ResponseEntity<Void> revokeDelegation(@PathVariable Long delegationId) {
         proxyService.revokeDelegation(delegationId);
         return ResponseEntity.noContent().build();

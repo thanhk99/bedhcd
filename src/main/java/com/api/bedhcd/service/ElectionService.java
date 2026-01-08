@@ -8,6 +8,7 @@ import com.api.bedhcd.dto.response.ElectionResponse;
 import com.api.bedhcd.dto.response.UserVoteResponse;
 import com.api.bedhcd.dto.response.VotingResultResponse;
 import com.api.bedhcd.entity.*;
+import com.api.bedhcd.entity.MeetingParticipant;
 import com.api.bedhcd.entity.enums.VoteAction;
 import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
@@ -35,9 +36,9 @@ public class ElectionService {
         private final VoteRepository voteRepository;
         private final VoteDraftRepository voteDraftRepository;
         private final MeetingRepository meetingRepository;
-        private final ProxyDelegationRepository proxyDelegationRepository;
         private final UserRepository userRepository;
         private final VoteLogRepository voteLogRepository;
+        private final MeetingParticipantRepository meetingParticipantRepository;
 
         @Transactional
         public ElectionResponse createElection(String meetingId, ElectionRequest request) {
@@ -273,17 +274,37 @@ public class ElectionService {
         private long calculateVotingPower(String userId, String meetingId, Integer multiplier) {
                 User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                Meeting meeting = meetingRepository.findById(meetingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
 
-                long baseShares = user.getSharesOwned() != null ? user.getSharesOwned() : 0;
-                List<ProxyDelegation> delegations = proxyDelegationRepository.findByMeeting_IdAndProxy_Id(meetingId,
-                                userId);
-                long delegatedShares = delegations.stream()
-                                .filter(d -> d.getStatus() == com.api.bedhcd.entity.enums.DelegationStatus.ACTIVE)
-                                .mapToLong(ProxyDelegation::getSharesDelegated)
-                                .sum();
+                MeetingParticipant participant = getOrCreateParticipant(meeting, user);
 
-                long totalShares = baseShares + delegatedShares;
+                long baseShares = participant.getSharesOwned() != null ? participant.getSharesOwned() : 0;
+                long receivedShares = participant.getReceivedProxyShares() != null
+                                ? participant.getReceivedProxyShares()
+                                : 0;
+
+                long totalShares = baseShares + receivedShares;
                 return totalShares * (multiplier != null ? multiplier : 1);
+        }
+
+        private MeetingParticipant getOrCreateParticipant(Meeting meeting, User user) {
+                return meetingParticipantRepository.findByMeeting_IdAndUser_Id(meeting.getId(), user.getId())
+                                .orElseGet(() -> {
+                                        MeetingParticipant participant = MeetingParticipant.builder()
+                                                        .meeting(meeting)
+                                                        .user(user)
+                                                        .sharesOwned(user.getSharesOwned() != null
+                                                                        ? user.getSharesOwned()
+                                                                        : 0L)
+                                                        .receivedProxyShares(0L)
+                                                        .delegatedShares(0L)
+                                                        .participationType(
+                                                                        com.api.bedhcd.entity.enums.ParticipationType.DIRECT)
+                                                        .status(com.api.bedhcd.entity.enums.ParticipantStatus.PENDING)
+                                                        .build();
+                                        return meetingParticipantRepository.save(participant);
+                                });
         }
 
         private User getCurrentUser() {

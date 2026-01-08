@@ -13,6 +13,10 @@ import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.exception.UnauthorizedException;
 import com.api.bedhcd.repository.RefreshTokenRepository;
 import com.api.bedhcd.repository.UserRepository;
+import com.api.bedhcd.repository.MeetingRepository;
+import com.api.bedhcd.repository.MeetingParticipantRepository;
+import com.api.bedhcd.entity.Meeting;
+import com.api.bedhcd.entity.MeetingParticipant;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -36,148 +40,167 @@ import java.util.Set;
 @SuppressWarnings("null")
 public class AuthService {
 
-    private final UserRepository userRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
-    private final CookieUtil cookieUtil;
-    private final AuthenticationManager authenticationManager;
-    private final UserDetailsService userDetailsService;
+        private final UserRepository userRepository;
+        private final RefreshTokenRepository refreshTokenRepository;
+        private final PasswordEncoder passwordEncoder;
+        private final JwtUtil jwtUtil;
+        private final CookieUtil cookieUtil;
+        private final AuthenticationManager authenticationManager;
+        private final UserDetailsService userDetailsService;
+        private final MeetingRepository meetingRepository;
+        private final MeetingParticipantRepository meetingParticipantRepository;
 
-    @Value("${jwt.refresh-token-expiration}")
-    private Long refreshTokenExpiration;
+        @Value("${jwt.refresh-token-expiration}")
+        private Long refreshTokenExpiration;
 
-    @SuppressWarnings("null")
-    @Transactional
-    public AuthResponse register(RegisterRequest request) {
-        // Check if username already exists
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new BadRequestException("Username is already taken");
+        @SuppressWarnings("null")
+        @Transactional
+        public AuthResponse register(RegisterRequest request) {
+                // Check if username already exists
+                if (userRepository.existsByUsername(request.getUsername())) {
+                        throw new BadRequestException("Username is already taken");
+                }
+
+                // Check if email already exists
+                if (userRepository.existsByEmail(request.getEmail())) {
+                        throw new BadRequestException("Email is already registered");
+                }
+
+                // Create new user
+                Set<Role> roles = new HashSet<>();
+                roles.add(Role.SHAREHOLDER);
+
+                User user = User.builder()
+                                .id(RandomUtil.generate6DigitId(userRepository::existsById))
+                                .username(request.getUsername())
+                                .email(request.getEmail())
+                                .password(passwordEncoder.encode(request.getPassword()))
+                                .fullName(request.getFullName())
+                                .phoneNumber(request.getPhoneNumber())
+                                .investorCode(request.getInvestorCode())
+                                .cccd(request.getCccd())
+                                .dateOfIssue(request.getDateOfIssue())
+                                .address(request.getAddress())
+                                .sharesOwned(request.getSharesOwned() != null ? request.getSharesOwned() : 0L)
+                                .roles(roles)
+                                .enabled(true)
+                                .build();
+
+                user = userRepository.save(user);
+
+                // Link user to meeting
+                Meeting meeting = meetingRepository.findById(request.getMeetingId())
+                                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+
+                MeetingParticipant participant = MeetingParticipant.builder()
+                                .meeting(meeting)
+                                .user(user)
+                                .sharesOwned(user.getSharesOwned() != null ? user.getSharesOwned() : 0L)
+                                .receivedProxyShares(0L)
+                                .delegatedShares(0L)
+                                .participationType(com.api.bedhcd.entity.enums.ParticipationType.DIRECT)
+                                .status(com.api.bedhcd.entity.enums.ParticipantStatus.PENDING)
+                                .build();
+                meetingParticipantRepository.save(participant);
+
+                // Generate tokens
+                UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
+                String accessToken = jwtUtil.generateAccessToken(userDetails);
+
+                return AuthResponse.builder()
+                                .accessToken(accessToken)
+                                .userId(user.getId())
+                                .username(user.getUsername())
+                                .email(user.getEmail())
+                                .roles(user.getRoles())
+                                .build();
         }
 
-        // Check if email already exists
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email is already registered");
+        @SuppressWarnings("null")
+        @Transactional
+        public AuthResponse login(LoginRequest request, HttpServletResponse response) {
+                // Authenticate user
+                Authentication authentication = authenticationManager.authenticate(
+                                new UsernamePasswordAuthenticationToken(request.getIdentifier(),
+                                                request.getPassword()));
+
+                // Get user details
+                User user = userRepository.findByCccdOrInvestorCode(request.getIdentifier(), request.getIdentifier())
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                // Generate tokens
+                UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+                String accessToken = jwtUtil.generateAccessToken(userDetails);
+                String refreshToken = jwtUtil.generateRefreshToken(userDetails);
+
+                // Save refresh token to database
+                saveRefreshToken(user, refreshToken);
+
+                // Add refresh token to cookie
+                cookieUtil.addRefreshTokenCookie(response, refreshToken);
+
+                return AuthResponse.builder()
+                                .accessToken(accessToken)
+                                .refreshToken(refreshToken)
+                                .userId(user.getId())
+                                .username(user.getUsername())
+                                .email(user.getEmail())
+                                .roles(user.getRoles())
+                                .build();
         }
 
-        // Create new user
-        Set<Role> roles = new HashSet<>();
-        roles.add(Role.SHAREHOLDER);
+        @Transactional
+        public AuthResponse refreshAccessToken(HttpServletRequest request, HttpServletResponse response) {
+                // Get refresh token from cookie
+                String refreshToken = cookieUtil.getRefreshTokenFromCookie(request)
+                                .orElseThrow(() -> new UnauthorizedException("Refresh token not found in cookie"));
 
-        User user = User.builder()
-                .id(RandomUtil.generate6DigitId(userRepository::existsById))
-                .username(request.getUsername())
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName())
-                .phoneNumber(request.getPhoneNumber())
-                .investorCode(request.getInvestorCode())
-                .cccd(request.getCccd())
-                .dateOfIssue(request.getDateOfIssue())
-                .address(request.getAddress())
-                .roles(roles)
-                .enabled(true)
-                .build();
+                // Validate refresh token
+                RefreshToken storedToken = refreshTokenRepository.findByToken(refreshToken)
+                                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
 
-        user = userRepository.save(user);
+                if (storedToken.isExpired()) {
+                        refreshTokenRepository.delete(storedToken);
+                        throw new UnauthorizedException("Refresh token has expired");
+                }
 
-        // Generate tokens
-        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
-        String accessToken = jwtUtil.generateAccessToken(userDetails);
+                // Generate new access token
+                UserDetails userDetails = userDetailsService.loadUserByUsername(storedToken.getUser().getUsername());
+                String newAccessToken = jwtUtil.generateAccessToken(userDetails);
 
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .userId(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .roles(user.getRoles())
-                .build();
-    }
+                User user = storedToken.getUser();
 
-    @SuppressWarnings("null")
-    @Transactional
-    public AuthResponse login(LoginRequest request, HttpServletResponse response) {
-        // Authenticate user
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getIdentifier(), request.getPassword()));
-
-        // Get user details
-        User user = userRepository.findByCccdOrInvestorCode(request.getIdentifier(), request.getIdentifier())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        // Generate tokens
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String accessToken = jwtUtil.generateAccessToken(userDetails);
-        String refreshToken = jwtUtil.generateRefreshToken(userDetails);
-
-        // Save refresh token to database
-        saveRefreshToken(user, refreshToken);
-
-        // Add refresh token to cookie
-        cookieUtil.addRefreshTokenCookie(response, refreshToken);
-
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .userId(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .roles(user.getRoles())
-                .build();
-    }
-
-    @Transactional
-    public AuthResponse refreshAccessToken(HttpServletRequest request, HttpServletResponse response) {
-        // Get refresh token from cookie
-        String refreshToken = cookieUtil.getRefreshTokenFromCookie(request)
-                .orElseThrow(() -> new UnauthorizedException("Refresh token not found in cookie"));
-
-        // Validate refresh token
-        RefreshToken storedToken = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
-
-        if (storedToken.isExpired()) {
-            refreshTokenRepository.delete(storedToken);
-            throw new UnauthorizedException("Refresh token has expired");
+                return AuthResponse.builder()
+                                .accessToken(newAccessToken)
+                                .userId(user.getId())
+                                .username(user.getUsername())
+                                .email(user.getEmail())
+                                .roles(user.getRoles())
+                                .build();
         }
 
-        // Generate new access token
-        UserDetails userDetails = userDetailsService.loadUserByUsername(storedToken.getUser().getUsername());
-        String newAccessToken = jwtUtil.generateAccessToken(userDetails);
+        @Transactional
+        public void logout(HttpServletRequest request, HttpServletResponse response) {
+                // Get refresh token from cookie
+                cookieUtil.getRefreshTokenFromCookie(request).ifPresent(token -> {
+                        // Delete refresh token from database
+                        refreshTokenRepository.findByToken(token).ifPresent(refreshTokenRepository::delete);
+                });
 
-        User user = storedToken.getUser();
+                // Delete refresh token cookie
+                cookieUtil.deleteRefreshTokenCookie(response);
+        }
 
-        return AuthResponse.builder()
-                .accessToken(newAccessToken)
-                .userId(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .roles(user.getRoles())
-                .build();
-    }
+        @SuppressWarnings("null")
+        private void saveRefreshToken(User user, String token) {
+                // Create new refresh token
+                RefreshToken refreshToken = RefreshToken.builder()
+                                .token(token)
+                                .user(user)
+                                .expiryDate(LocalDateTime.now().plusSeconds(refreshTokenExpiration / 1000))
+                                .createdAt(LocalDateTime.now())
+                                .build();
 
-    @Transactional
-    public void logout(HttpServletRequest request, HttpServletResponse response) {
-        // Get refresh token from cookie
-        cookieUtil.getRefreshTokenFromCookie(request).ifPresent(token -> {
-            // Delete refresh token from database
-            refreshTokenRepository.findByToken(token).ifPresent(refreshTokenRepository::delete);
-        });
-
-        // Delete refresh token cookie
-        cookieUtil.deleteRefreshTokenCookie(response);
-    }
-
-    @SuppressWarnings("null")
-    private void saveRefreshToken(User user, String token) {
-        // Create new refresh token
-        RefreshToken refreshToken = RefreshToken.builder()
-                .token(token)
-                .user(user)
-                .expiryDate(LocalDateTime.now().plusSeconds(refreshTokenExpiration / 1000))
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        refreshTokenRepository.save(refreshToken);
-    }
+                refreshTokenRepository.save(refreshToken);
+        }
 }

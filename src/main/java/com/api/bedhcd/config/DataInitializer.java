@@ -34,7 +34,7 @@ public class DataInitializer implements CommandLineRunner {
                     .fullName("Administrator")
                     .phoneNumber("0000000000")
                     .investorCode("ADMIN")
-                    .cccd("000000000000")
+                    .cccd("0")
                     .dateOfIssue("2020-01-01")
                     .address("System")
                     .roles(roles)

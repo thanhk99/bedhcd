@@ -25,12 +25,18 @@ Base URL: `/auth`
 **Request Body:**
 ```json
 {
-  "cccd": "string",
-  "investorCode": "string",
+  "username": "string",
+  "email": "string",
   "password": "string",
   "fullName": "string",
-  "email": "string",
-  "sharesOwned": 1000
+  "phoneNumber": "string",
+  "investorCode": "string",
+  "cccd": "string",
+  "dateOfIssue": "string",
+  "placeOfIssue": "string",
+  "address": "string",
+  "sharesOwned": 1000,
+  "meetingId": "string"
 }
 ```
 
@@ -40,7 +46,7 @@ Base URL: `/auth`
   "accessToken": "string",
   "tokenType": "Bearer",
   "userId": "string",
-  "fullName": "string",
+  "username": "string",
   "email": "string",
   "roles": ["ROLE_USER"]
 }
@@ -137,12 +143,18 @@ Base URL: `/users`
 **Request Body:**
 ```json
 {
-  "cccd": "string",
-  "investorCode": "string",
+  "username": "string",
+  "email": "string",
   "password": "string",
   "fullName": "string",
-  "email": "string",
-  "sharesOwned": 1000
+  "phoneNumber": "string",
+  "investorCode": "string",
+  "cccd": "string",
+  "dateOfIssue": "string",
+  "placeOfIssue": "string",
+  "address": "string",
+  "sharesOwned": 1000,
+  "meetingId": "string"
 }
 ```
 
@@ -154,14 +166,28 @@ Base URL: `/users`
 ```json
 {
   "id": "string",
-  "cccd": "string",
-  "investorCode": "string",
-  "fullName": "string",
+  "username": "string",
   "email": "string",
+  "fullName": "string",
+  "phoneNumber": "string",
+  "investorCode": "string",
+  "cccd": "string",
+  "dateOfIssue": "string",
+  "placeOfIssue": "string",
+  "address": "string",
   "sharesOwned": 1000,
-  "roles": ["ROLE_USER"]
+  "receivedProxyShares": 500,
+  "delegatedShares": 0,
+  "totalShares": 1500,
+  "roles": ["ROLE_USER"],
+  "enabled": true,
+  "createdAt": "2024-01-01T00:00:00",
+  "updatedAt": "2024-01-01T00:00:00"
 }
 ```
+
+> [!IMPORTANT]
+> Từ phiên bản này, các trường `receivedProxyShares`, `delegatedShares` và `totalShares` sẽ được trả về dựa trên ngữ cảnh cuộc họp đang diễn ra (`ONGOING`). Nếu không có cuộc họp nào đang diễn ra, các giá trị này sẽ mặc định về dữ liệu tổng quát (thường là 0 nếu không có uỷ quyền mặc định).
 
 ### 2.4. Lấy thông tin người dùng theo ID
 
@@ -395,6 +421,33 @@ Base URL: `/meetings`
 - `status`: enum (SCHEDULED, ONGOING, COMPLETED, CANCELLED)
 
 **Response:** 200 OK
+
+### 3.8. Lấy danh sách cổ đông của cuộc họp
+
+**GET** `/meetings/{id}/shareholders`
+
+Lấy danh sách tất cả người dùng kèm theo thông tin cổ phần và uỷ quyền trong ngữ cảnh của cuộc họp cụ thể này.
+
+**Response:**
+```json
+[
+  {
+    "id": "string",
+    "cccd": "string",
+    "investorCode": "string",
+    "fullName": "string",
+    "email": "string",
+    "sharesOwned": 1000,
+    "receivedProxyShares": 500,
+    "delegatedShares": 0,
+    "totalShares": 1500,
+    "roles": ["ROLE_USER"]
+  }
+]
+```
+
+> [!NOTE]
+> Thông tin `receivedProxyShares` và `delegatedShares` được tính toán riêng biệt cho từng cuộc họp.
 
 ---
 
@@ -752,9 +805,10 @@ Base URL: `/meetings/{meetingId}/proxy`
 **Request Body:**
 ```json
 {
-  "principalId": "user_123",
+  "delegatorId": "user_123",
   "proxyId": "user_456",
-  "sharesDelegated": 1000
+  "sharesDelegated": 1000,
+  "authorizationDocument": "Optional string"
 }
 ```
 
@@ -762,8 +816,8 @@ Base URL: `/meetings/{meetingId}/proxy`
 ```json
 {
   "id": 1,
-  "principalId": "user_123",
-  "principalName": "Nguyễn Văn A",
+  "delegatorId": "user_123",
+  "delegatorName": "Nguyễn Văn A",
   "proxyId": "user_456",
   "proxyName": "Trần Văn B",
   "sharesDelegated": 1000,
@@ -781,8 +835,8 @@ Base URL: `/meetings/{meetingId}/proxy`
 [
   {
     "id": 1,
-    "principalId": "user_123",
-    "principalName": "Nguyễn Văn A",
+    "delegatorId": "user_123",
+    "delegatorName": "Nguyễn Văn A",
     "proxyId": "user_456",
     "proxyName": "Trần Văn B",
     "sharesDelegated": 1000,
@@ -792,9 +846,25 @@ Base URL: `/meetings/{meetingId}/proxy`
 ]
 ```
 
-### 6.3. Thu hồi ủy quyền
+### 6.3. Lấy danh sách uỷ quyền theo người uỷ quyền
 
-**DELETE** `/meetings/{meetingId}/proxy/{delegationId}`
+Lấy danh sách các uỷ quyền mà người dùng này là NGƯỜI UỶ QUYỀN.
+
+**GET** `/meetings/{meetingId}/proxy/delegator/{userId}`
+
+**Response:** Giống như 6.2
+
+### 6.4. Lấy danh sách uỷ quyền theo người được uỷ quyền
+
+Lấy danh sách các uỷ quyền mà người dùng này là NGƯỜI ĐƯỢC UỶ QUYỀN.
+
+**GET** `/meetings/{meetingId}/proxy/proxy/{userId}`
+
+**Response:** Giống như 6.2
+
+### 6.5. Thu hồi ủy quyền
+
+**POST** `/meetings/{meetingId}/proxy/{delegationId}/revoke`
 
 **Response:** 204 No Content
 

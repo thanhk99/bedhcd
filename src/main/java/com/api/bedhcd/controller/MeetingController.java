@@ -4,6 +4,8 @@ import com.api.bedhcd.dto.request.MeetingRequest;
 import com.api.bedhcd.dto.response.MeetingResponse;
 import com.api.bedhcd.entity.enums.MeetingStatus;
 import com.api.bedhcd.service.MeetingService;
+import com.api.bedhcd.service.UserService;
+import com.api.bedhcd.dto.UserResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +19,7 @@ import java.util.List;
 public class MeetingController {
 
     private final MeetingService meetingService;
+    private final UserService userService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -61,5 +64,10 @@ public class MeetingController {
     public ResponseEntity<Void> updateStatus(@PathVariable String id, @RequestParam MeetingStatus status) {
         meetingService.updateMeetingStatus(id, status);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{id}/shareholders")
+    public ResponseEntity<List<UserResponse>> getShareholders(@PathVariable String id) {
+        return ResponseEntity.ok(userService.getShareholdersByMeeting(id));
     }
 }

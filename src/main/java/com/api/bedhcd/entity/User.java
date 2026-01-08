@@ -68,14 +68,6 @@ public class User implements UserDetails {
     @Builder.Default
     private Long sharesOwned = 0L;
 
-    @Column(name = "received_proxy_shares")
-    @Builder.Default
-    private Long receivedProxyShares = 0L;
-
-    @Column(name = "delegated_shares")
-    @Builder.Default
-    private Long delegatedShares = 0L;
-
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Enumerated(EnumType.STRING)

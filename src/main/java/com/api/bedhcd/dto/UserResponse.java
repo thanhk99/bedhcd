@@ -22,10 +22,12 @@ public class UserResponse {
     private Long sharesOwned;
     private Long receivedProxyShares;
     private Long delegatedShares;
+    private Long totalShares;
     private String phoneNumber;
     private String investorCode;
     private String cccd;
     private String dateOfIssue;
+    private String placeOfIssue;
     private String address;
     private Set<Role> roles;
     private java.util.List<com.api.bedhcd.dto.response.ProxyDelegationResponse> delegationsMade;
