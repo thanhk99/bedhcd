@@ -42,6 +42,9 @@ public class VoteLog {
     @Column(nullable = false)
     private VoteAction action;
 
+    @Column(name = "vote_weight")
+    private Long voteWeight;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "voting_option_id")
     private VotingOption votingOption;

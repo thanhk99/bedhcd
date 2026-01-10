@@ -19,11 +19,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
-        // Find user by username, cccd or investorCode
-        User user = userRepository.findByUsername(identifier)
-                .or(() -> userRepository.findByCccdOrInvestorCode(identifier, identifier))
+        // Find user by cccd or investorCode
+        User user = userRepository.findByCccdOrInvestorCode(identifier, identifier)
                 .orElseThrow(() -> new UsernameNotFoundException(
-                        "User not found with Username, CCCD or Investor Code: " + identifier));
+                        "User not found with CCCD or Investor Code: " + identifier));
 
         return user;
     }

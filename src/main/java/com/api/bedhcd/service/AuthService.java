@@ -15,8 +15,11 @@ import com.api.bedhcd.repository.RefreshTokenRepository;
 import com.api.bedhcd.repository.UserRepository;
 import com.api.bedhcd.repository.MeetingRepository;
 import com.api.bedhcd.repository.MeetingParticipantRepository;
+import com.api.bedhcd.repository.LoginHistoryRepository;
 import com.api.bedhcd.entity.Meeting;
 import com.api.bedhcd.entity.MeetingParticipant;
+import com.api.bedhcd.entity.LoginHistory;
+import com.api.bedhcd.entity.enums.LoginStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +52,7 @@ public class AuthService {
         private final UserDetailsService userDetailsService;
         private final MeetingRepository meetingRepository;
         private final MeetingParticipantRepository meetingParticipantRepository;
+        private final LoginHistoryRepository loginHistoryRepository;
 
         @Value("${jwt.refresh-token-expiration}")
         private Long refreshTokenExpiration;
@@ -56,10 +60,7 @@ public class AuthService {
         @SuppressWarnings("null")
         @Transactional
         public AuthResponse register(RegisterRequest request) {
-                // Check if username already exists
-                if (userRepository.existsByUsername(request.getUsername())) {
-                        throw new BadRequestException("Username is already taken");
-                }
+                // Check if email already exists
 
                 // Check if email already exists
                 if (userRepository.existsByEmail(request.getEmail())) {
@@ -72,7 +73,6 @@ public class AuthService {
 
                 User user = User.builder()
                                 .id(RandomUtil.generate6DigitId(userRepository::existsById))
-                                .username(request.getUsername())
                                 .email(request.getEmail())
                                 .password(passwordEncoder.encode(request.getPassword()))
                                 .fullName(request.getFullName())
@@ -104,13 +104,12 @@ public class AuthService {
                 meetingParticipantRepository.save(participant);
 
                 // Generate tokens
-                UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
+                UserDetails userDetails = userDetailsService.loadUserByUsername(user.getCccd());
                 String accessToken = jwtUtil.generateAccessToken(userDetails);
 
                 return AuthResponse.builder()
                                 .accessToken(accessToken)
                                 .userId(user.getId())
-                                .username(user.getUsername())
                                 .email(user.getEmail())
                                 .roles(user.getRoles())
                                 .build();
@@ -118,18 +117,23 @@ public class AuthService {
 
         @SuppressWarnings("null")
         @Transactional
-        public AuthResponse login(LoginRequest request, HttpServletResponse response) {
-                // Authenticate user
-                Authentication authentication = authenticationManager.authenticate(
-                                new UsernamePasswordAuthenticationToken(request.getIdentifier(),
-                                                request.getPassword()));
-
-                // Get user details
+        public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse response) {
+                // Get user details first
                 User user = userRepository.findByCccdOrInvestorCode(request.getIdentifier(), request.getIdentifier())
                                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+                try {
+                        // Authenticate user
+                        authenticationManager.authenticate(
+                                        new UsernamePasswordAuthenticationToken(request.getIdentifier(),
+                                                        request.getPassword()));
+                } catch (Exception e) {
+                        // We do NOT log failures anymore as per requirement
+                        throw e;
+                }
+
                 // Generate tokens
-                UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+                UserDetails userDetails = userDetailsService.loadUserByUsername(user.getCccd());
                 String accessToken = jwtUtil.generateAccessToken(userDetails);
                 String refreshToken = jwtUtil.generateRefreshToken(userDetails);
 
@@ -139,15 +143,46 @@ public class AuthService {
                 // Add refresh token to cookie
                 cookieUtil.addRefreshTokenCookie(response, refreshToken);
 
+                // Save login history
+                saveLoginHistory(user, refreshToken, true, com.api.bedhcd.entity.enums.LoginMethod.PASSWORD,
+                                httpRequest);
+
                 return AuthResponse.builder()
                                 .accessToken(accessToken)
                                 .refreshToken(refreshToken)
                                 .userId(user.getId())
-                                .username(user.getUsername())
                                 .email(user.getEmail())
                                 .roles(user.getRoles())
                                 .build();
         }
+
+        private void saveLoginHistory(User user, String token, boolean success,
+                        com.api.bedhcd.entity.enums.LoginMethod method, HttpServletRequest request) {
+                try {
+                        String ipAddress = request.getHeader("X-Forwarded-For");
+                        if (ipAddress == null || ipAddress.isEmpty()) {
+                                ipAddress = request.getRemoteAddr();
+                        }
+
+                        String userAgent = request.getHeader("User-Agent");
+
+                        LoginHistory history = LoginHistory.builder()
+                                        .user(user)
+                                        .loginTime(LocalDateTime.now())
+                                        .status(success ? LoginStatus.SUCCESS : LoginStatus.FAILED)
+                                        .sessionToken(token)
+                                        .loginMethod(method)
+                                        .ipAddress(ipAddress)
+                                        .userAgent(userAgent)
+                                        .build();
+                        loginHistoryRepository.save(history);
+                } catch (Exception e) {
+                        // Log error but don't fail authentication
+                        System.err.println("Failed to save login history: " + e.getMessage());
+                }
+        }
+
+        // ... existing refreshAccessToken and logout methods ...
 
         @Transactional
         public AuthResponse refreshAccessToken(HttpServletRequest request, HttpServletResponse response) {
@@ -165,7 +200,7 @@ public class AuthService {
                 }
 
                 // Generate new access token
-                UserDetails userDetails = userDetailsService.loadUserByUsername(storedToken.getUser().getUsername());
+                UserDetails userDetails = userDetailsService.loadUserByUsername(storedToken.getUser().getCccd());
                 String newAccessToken = jwtUtil.generateAccessToken(userDetails);
 
                 User user = storedToken.getUser();
@@ -173,7 +208,6 @@ public class AuthService {
                 return AuthResponse.builder()
                                 .accessToken(newAccessToken)
                                 .userId(user.getId())
-                                .username(user.getUsername())
                                 .email(user.getEmail())
                                 .roles(user.getRoles())
                                 .build();
@@ -189,6 +223,14 @@ public class AuthService {
 
                 // Delete refresh token cookie
                 cookieUtil.deleteRefreshTokenCookie(response);
+
+                // Update logout time in history if possible
+                cookieUtil.getRefreshTokenFromCookie(request).ifPresent(token -> {
+                        loginHistoryRepository.findBySessionToken(token).ifPresent(history -> {
+                                history.setLogoutTime(LocalDateTime.now());
+                                loginHistoryRepository.save(history);
+                        });
+                });
         }
 
         @SuppressWarnings("null")
@@ -202,5 +244,31 @@ public class AuthService {
                                 .build();
 
                 refreshTokenRepository.save(refreshToken);
+        }
+
+        @Transactional
+        public AuthResponse loginWithoutPassword(User user, HttpServletRequest request, HttpServletResponse response) {
+                // Generate tokens
+                UserDetails userDetails = userDetailsService.loadUserByUsername(user.getCccd());
+                String accessToken = jwtUtil.generateAccessToken(userDetails);
+                String refreshToken = jwtUtil.generateRefreshToken(userDetails);
+
+                // Save refresh token to database
+                saveRefreshToken(user, refreshToken);
+
+                // Add refresh token to cookie
+                cookieUtil.addRefreshTokenCookie(response, refreshToken);
+
+                // Save login history
+                saveLoginHistory(user, refreshToken, true, com.api.bedhcd.entity.enums.LoginMethod.QR_MAGIC_LINK,
+                                request);
+
+                return AuthResponse.builder()
+                                .accessToken(accessToken)
+                                .refreshToken(refreshToken)
+                                .userId(user.getId())
+                                .email(user.getEmail())
+                                .roles(user.getRoles())
+                                .build();
         }
 }

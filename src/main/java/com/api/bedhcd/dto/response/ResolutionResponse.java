@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -13,9 +14,11 @@ import java.util.List;
 @Builder
 public class ResolutionResponse {
     private String id;
+    private String meetingId;
     private String title;
     private String description;
     private Integer displayOrder;
     private List<VotingOptionResponse> votingOptions;
     private List<UserVoteResponse> userVotes;
+    private LocalDateTime createdAt;
 }

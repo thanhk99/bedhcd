@@ -34,9 +34,6 @@ public class User implements UserDetails {
     @Id
     private String id;
 
-    @Column(unique = true, nullable = false, length = 50)
-    private String username;
-
     @Column(unique = true, nullable = false, length = 100)
     private String email;
 
@@ -60,9 +57,6 @@ public class User implements UserDetails {
 
     @Column(length = 100)
     private String fullName;
-
-    @Column(name = "shareholder_code", unique = true, length = 50)
-    private String shareholderCode;
 
     @Column(name = "shares_owned")
     @Builder.Default
@@ -99,6 +93,11 @@ public class User implements UserDetails {
         return roles.stream()
                 .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name()))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public String getUsername() {
+        return cccd;
     }
 
     @Override

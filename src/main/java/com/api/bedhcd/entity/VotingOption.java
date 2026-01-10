@@ -1,5 +1,6 @@
 package com.api.bedhcd.entity;
 
+import com.api.bedhcd.entity.enums.VotingOptionType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,6 +35,10 @@ public class VotingOption {
 
     @Column(nullable = false, length = 100)
     private String name;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private VotingOptionType type;
 
     @Column(length = 100)
     private String position;

@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 public class ResolutionController {
@@ -26,6 +28,12 @@ public class ResolutionController {
             @PathVariable String meetingId,
             @RequestBody ResolutionRequest request) {
         return ResponseEntity.ok(votingService.createResolution(meetingId, request));
+    }
+
+    @GetMapping("/meetings/{meetingId}/resolutions")
+    public ResponseEntity<List<ResolutionResponse>> getResolutionsByMeeting(
+            @PathVariable String meetingId) {
+        return ResponseEntity.ok(votingService.getResolutionsByMeetingId(meetingId));
     }
 
     @GetMapping("/resolutions/{resolutionId}")
@@ -68,13 +76,22 @@ public class ResolutionController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/resolutions/{resolutionId}/options")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<VotingOptionResponse> addVotingOption(
+            @PathVariable String resolutionId,
+            @RequestBody VotingOptionRequest request) {
+        return ResponseEntity.ok(votingService.addVotingOptionToResolution(resolutionId, request));
+    }
+
     // --- Biểu quyết nghị quyết ---
 
     @PostMapping("/resolutions/{resolutionId}/vote")
     public ResponseEntity<Void> castVote(
             @PathVariable String resolutionId,
-            @RequestBody VoteRequest request) {
-        votingService.castVote(resolutionId, request);
+            @RequestBody VoteRequest request,
+            jakarta.servlet.http.HttpServletRequest servletRequest) {
+        votingService.castVote(resolutionId, request, servletRequest);
         return ResponseEntity.ok().build();
     }
 

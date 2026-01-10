@@ -20,6 +20,7 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    private final com.api.bedhcd.service.VotingService votingService;
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -37,6 +38,19 @@ public class UserController {
     public ResponseEntity<UserResponse> getCurrentUserProfile() {
         UserResponse user = userService.getCurrentUser();
         return ResponseEntity.ok(user);
+    }
+
+    @GetMapping("/me/votes")
+    public ResponseEntity<java.util.List<com.api.bedhcd.dto.response.VoteHistoryResponse>> getUserVoteHistory() {
+        // Need to get current user ID
+        String userId = userService.getCurrentUser().getId();
+        return ResponseEntity.ok(votingService.getUserVoteHistory(userId));
+    }
+
+    @GetMapping("/me/login-history")
+    public ResponseEntity<java.util.List<com.api.bedhcd.dto.response.LoginHistoryResponse>> getUserLoginHistory() {
+        String userId = userService.getCurrentUser().getId();
+        return ResponseEntity.ok(userService.getUserLoginHistory(userId));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -75,6 +89,29 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponse> updateUser(@PathVariable String id, @RequestBody RegisterRequest request) {
         return ResponseEntity.ok(userService.updateUser(id, request));
+    }
+
+    @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> resetPassword(@PathVariable String id) {
+        String newPassword = userService.resetPassword(id);
+        Map<String, String> response = new HashMap<>();
+        response.put("newPassword", newPassword);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/votes")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<java.util.List<com.api.bedhcd.dto.response.VoteHistoryResponse>> getUserVoteHistoryByAdmin(
+            @PathVariable String id) {
+        return ResponseEntity.ok(votingService.getUserVoteHistory(id));
+    }
+
+    @GetMapping("/{id}/login-history")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<java.util.List<com.api.bedhcd.dto.response.LoginHistoryResponse>> getUserLoginHistoryByAdmin(
+            @PathVariable String id) {
+        return ResponseEntity.ok(userService.getUserLoginHistory(id));
     }
 
     @DeleteMapping("/{id}")

@@ -1,5 +1,6 @@
 package com.api.bedhcd.dto.response;
 
+import com.api.bedhcd.entity.enums.VotingOptionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,6 +13,7 @@ import lombok.NoArgsConstructor;
 public class VotingOptionResponse {
     private String id;
     private String name;
+    private VotingOptionType type;
     private String position;
     private String bio;
     private String photoUrl;

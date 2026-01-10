@@ -57,8 +57,7 @@ public class ProxyService {
                                                 proxyUser.getId(), DelegationStatus.ACTIVE);
 
                 ProxyDelegation delegation;
-                long sharesToUpdate = request.getSharesDelegated(); // Store the shares from the current request
-
+                long sharesToUpdate = request.getSharesDelegated();
                 if (existingDelegation.isPresent()) {
                         // GỘP: Cập nhật bản ghi cũ
                         delegation = existingDelegation.get();

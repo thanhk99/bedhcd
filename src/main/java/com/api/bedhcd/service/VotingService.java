@@ -6,14 +6,17 @@ import com.api.bedhcd.dto.request.VoteRequest;
 import com.api.bedhcd.dto.response.VotingOptionResponse;
 import com.api.bedhcd.dto.response.ResolutionResponse;
 import com.api.bedhcd.dto.response.UserVoteResponse;
+import com.api.bedhcd.dto.response.VoteHistoryResponse;
 import com.api.bedhcd.dto.response.VotingResultResponse;
 import com.api.bedhcd.entity.*;
 import com.api.bedhcd.entity.MeetingParticipant;
 import com.api.bedhcd.entity.enums.VoteAction;
+import com.api.bedhcd.entity.enums.VotingOptionType;
 import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.repository.*;
 import com.api.bedhcd.util.RandomUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -38,12 +41,6 @@ public class VotingService {
         private final VoteLogRepository voteLogRepository;
         private final MeetingParticipantRepository meetingParticipantRepository;
 
-        // Semantic IDs for default resolution voting options
-        private static final Map<String, String> RESOLUTION_OPTION_IDS = Map.of(
-                        "Đồng ý", "yes",
-                        "Không đồng ý", "no",
-                        "Không ý kiến", "not_agree");
-
         @Transactional
         public ResolutionResponse createResolution(String meetingId, ResolutionRequest request) {
                 Meeting meeting = meetingRepository.findById(meetingId)
@@ -60,9 +57,9 @@ public class VotingService {
                 resolution = resolutionRepository.save(resolution);
 
                 // Tự động tạo 3 lựa chọn cố định cho nghị quyết
-                createVotingOption(resolution, "Đồng ý", 1);
-                createVotingOption(resolution, "Không đồng ý", 2);
-                createVotingOption(resolution, "Không ý kiến", 3);
+                createVotingOption(resolution, "Đồng ý", VotingOptionType.AGREE, 1);
+                createVotingOption(resolution, "Không đồng ý", VotingOptionType.DISAGREE, 2);
+                createVotingOption(resolution, "Không ý kiến", VotingOptionType.NO_IDEA, 3);
 
                 return mapResolutionToResponse(resolution);
         }
@@ -71,6 +68,14 @@ public class VotingService {
         public ResolutionResponse updateResolution(String resolutionId, ResolutionRequest request) {
                 Resolution resolution = resolutionRepository.findById(resolutionId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
+
+                // Validation
+                if (request.getTitle() == null || request.getTitle().trim().isEmpty()) {
+                        throw new BadRequestException("Resolution title cannot be empty");
+                }
+                if (request.getDisplayOrder() != null && request.getDisplayOrder() < 0) {
+                        throw new BadRequestException("Display order cannot be negative");
+                }
 
                 resolution.setTitle(request.getTitle());
                 resolution.setDescription(request.getDescription());
@@ -86,6 +91,17 @@ public class VotingService {
         public void deleteResolution(String resolutionId) {
                 Resolution resolution = resolutionRepository.findById(resolutionId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
+
+                // Check if there are any votes cast for this resolution
+                long voteCount = voteRepository.findByResolution_Id(resolutionId).stream()
+                                .filter(v -> v.getVoteWeight() > 0)
+                                .count();
+
+                if (voteCount > 0) {
+                        throw new BadRequestException(
+                                        "Cannot delete resolution with existing votes. Found " + voteCount
+                                                        + " vote(s).");
+                }
 
                 // Xóa các dữ liệu liên quan
                 voteRepository.deleteAllByResolution_Id(resolutionId);
@@ -116,15 +132,15 @@ public class VotingService {
                 return name.equals("Đồng ý") || name.equals("Không đồng ý") || name.equals("Không ý kiến");
         }
 
-        private void createVotingOption(Resolution resolution, String name, int order) {
-                // Use semantic ID for default options, random ID for custom options
-                String id = RESOLUTION_OPTION_IDS.getOrDefault(name,
-                                RandomUtil.generate6DigitId(votingOptionRepository::existsById));
+        private void createVotingOption(Resolution resolution, String name, VotingOptionType type, int order) {
+                // Always generate unique ID
+                String id = RandomUtil.generate6DigitId(votingOptionRepository::existsById);
 
                 VotingOption option = VotingOption.builder()
                                 .id(id)
                                 .resolution(resolution)
                                 .name(name)
+                                .type(type)
                                 .displayOrder(order)
                                 .build();
                 votingOptionRepository.save(option);
@@ -134,6 +150,18 @@ public class VotingService {
                 Resolution resolution = resolutionRepository.findById(resolutionId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
                 return mapResolutionToResponse(resolution);
+        }
+
+        public List<ResolutionResponse> getResolutionsByMeetingId(String meetingId) {
+                // Verify meeting exists
+                if (!meetingRepository.existsById(meetingId)) {
+                        throw new ResourceNotFoundException("Meeting not found");
+                }
+
+                List<Resolution> resolutions = resolutionRepository.findByMeetingIdOrderByDisplayOrderAsc(meetingId);
+                return resolutions.stream()
+                                .map(this::mapResolutionToResponse)
+                                .collect(Collectors.toList());
         }
 
         public VotingOptionResponse getVotingOptionById(String votingOptionId) {
@@ -160,9 +188,48 @@ public class VotingService {
         }
 
         @Transactional
-        public void castVote(String resolutionId, VoteRequest request) {
+        public VotingOptionResponse addVotingOptionToResolution(String resolutionId, VotingOptionRequest request) {
                 Resolution resolution = resolutionRepository.findById(resolutionId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
+
+                String id = RandomUtil.generate6DigitId(votingOptionRepository::existsById);
+
+                VotingOption option = VotingOption.builder()
+                                .id(id)
+                                .resolution(resolution)
+                                .name(request.getName())
+                                .type(VotingOptionType.AGREE) // Custom options default to AGREE type
+                                .position(request.getPosition())
+                                .bio(request.getBio())
+                                .photoUrl(request.getPhotoUrl())
+                                .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
+                                .build();
+
+                option = votingOptionRepository.save(option);
+                return mapVotingOptionToResponse(option);
+        }
+
+        @Transactional
+        public void castVote(String resolutionId, VoteRequest request, HttpServletRequest servletRequest) {
+                Resolution resolution = resolutionRepository.findById(resolutionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
+
+                // Get IP and User-Agent
+                String ipAddress = servletRequest.getHeader("X-Forwarded-For");
+                if (ipAddress == null || ipAddress.isEmpty()) {
+                        ipAddress = servletRequest.getRemoteAddr();
+                }
+                String userAgent = servletRequest.getHeader("User-Agent");
+
+                // Check if meeting is ongoing
+
+                // Check if meeting is ongoing
+                Meeting meeting = resolution.getMeeting();
+                if (meeting.getStatus() != com.api.bedhcd.entity.enums.MeetingStatus.ONGOING) {
+                        throw new BadRequestException(
+                                        "Cannot vote on resolution. Meeting status is: " + meeting.getStatus() +
+                                                        ". Voting is only allowed during ONGOING meetings.");
+                }
 
                 User currentUser = getCurrentUser();
                 long votingPower = calculateVotingPower(currentUser.getId(), resolution.getMeeting().getId());
@@ -190,15 +257,30 @@ public class VotingService {
                                                 "Voting option not found: " + selectedOptionId));
 
                 Vote vote;
-                VoteAction action;
+                VoteAction action = VoteAction.VOTE_CAST;
+                String previousVotingOptionId = null;
 
-                // Check if vote exists for this option
+                // 1. Identify previous vote (if any) and handle deletion
+                for (Vote oldVote : existingVotes) {
+                        String oldOptionId = oldVote.getVotingOption().getId();
+                        if (!oldOptionId.equals(selectedOptionId)) {
+                                action = VoteAction.VOTE_CHANGED;
+                                previousVotingOptionId = oldOptionId;
+
+                                // Unlink and Delete old vote
+                                voteLogRepository.unlinkVote(oldVote.getId());
+                                voteRepository.delete(oldVote);
+                        }
+                }
+
+                // 2. Create or Update current vote
                 if (existingVoteMap.containsKey(selectedOptionId)) {
-                        // UPDATE existing vote
+                        // UPDATE existing vote (re-voting for same option)
                         vote = existingVoteMap.get(selectedOptionId);
                         vote.setVoteWeight(votingPower);
                         vote.setVotedAt(now);
-                        action = VoteAction.VOTE_CHANGED;
+                        vote.setIpAddress(ipAddress);
+                        vote.setUserAgent(userAgent);
                 } else {
                         // INSERT new vote
                         vote = Vote.builder()
@@ -207,41 +289,26 @@ public class VotingService {
                                         .votingOption(option)
                                         .voteWeight(votingPower)
                                         .votedAt(now)
+                                        .ipAddress(ipAddress)
+                                        .userAgent(userAgent)
                                         .build();
-                        action = VoteAction.VOTE_CAST;
                 }
 
                 vote = voteRepository.save(vote);
 
-                // Log the action
+                // 3. Log ONCE
                 VoteLog log = VoteLog.builder()
                                 .user(currentUser)
                                 .resolution(resolution)
                                 .vote(vote)
                                 .action(action)
                                 .votingOption(option)
+                                .voteWeight(vote.getVoteWeight())
+                                .previousVotingOptionId(previousVotingOptionId)
+                                .ipAddress(ipAddress)
+                                .userAgent(userAgent)
                                 .build();
                 voteLogRepository.save(log);
-
-                // Set weight = 0 for options no longer selected
-                for (Vote oldVote : existingVotes) {
-                        String oldOptionId = oldVote.getVotingOption().getId();
-                        if (!oldOptionId.equals(selectedOptionId) && oldVote.getVoteWeight() > 0) {
-                                oldVote.setVoteWeight(0L);
-                                oldVote.setVotedAt(now);
-                                voteRepository.save(oldVote);
-
-                                // Log VOTE_CHANGED with weight 0
-                                VoteLog zeroLog = VoteLog.builder()
-                                                .user(currentUser)
-                                                .resolution(resolution)
-                                                .vote(oldVote)
-                                                .action(VoteAction.VOTE_CHANGED)
-                                                .votingOption(oldVote.getVotingOption())
-                                                .build();
-                                voteLogRepository.save(zeroLog);
-                        }
-                }
         }
 
         @Transactional
@@ -370,6 +437,7 @@ public class VotingService {
                 return VotingOptionResponse.builder()
                                 .id(option.getId())
                                 .name(option.getName())
+                                .type(option.getType())
                                 .position(option.getPosition())
                                 .bio(option.getBio())
                                 .photoUrl(option.getPhotoUrl())
@@ -403,6 +471,7 @@ public class VotingService {
 
                 return ResolutionResponse.builder()
                                 .id(resolution.getId())
+                                .meetingId(resolution.getMeeting().getId())
                                 .title(resolution.getTitle())
                                 .description(resolution.getDescription())
                                 .displayOrder(resolution.getDisplayOrder())
@@ -410,6 +479,52 @@ public class VotingService {
                                                 .map(this::mapVotingOptionToResponse)
                                                 .collect(Collectors.toList()))
                                 .userVotes(userVotes)
+                                .createdAt(resolution.getCreatedAt())
                                 .build();
+        }
+
+        public List<VoteHistoryResponse> getUserVoteHistory(String userId) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                // Fetch logs instead of current votes to get full history
+                List<VoteLog> logs = voteLogRepository.findByUser_Id(userId);
+
+                // Sort by creation time descending (newest first)
+                logs.sort((v1, v2) -> v2.getCreatedAt().compareTo(v1.getCreatedAt()));
+
+                return logs.stream()
+                                .map(log -> VoteHistoryResponse.builder()
+                                                .voteId(log.getVote() != null ? String.valueOf(log.getVote().getId())
+                                                                : null)
+                                                .resolutionId(log.getResolution() != null ? log.getResolution().getId()
+                                                                : null)
+                                                .resolutionTitle(log.getResolution() != null
+                                                                ? log.getResolution().getTitle()
+                                                                : null)
+                                                .meetingId(log.getResolution() != null
+                                                                && log.getResolution().getMeeting() != null
+                                                                                ? log.getResolution().getMeeting()
+                                                                                                .getId()
+                                                                                : null)
+                                                .meetingTitle(log.getResolution() != null
+                                                                && log.getResolution().getMeeting() != null
+                                                                                ? log.getResolution().getMeeting()
+                                                                                                .getTitle()
+                                                                                : null)
+                                                .votingOptionId(log.getVotingOption() != null
+                                                                ? log.getVotingOption().getId()
+                                                                : null)
+                                                .votingOptionName(log.getVotingOption() != null
+                                                                ? log.getVotingOption().getName()
+                                                                : null)
+                                                .voteWeight(log.getVoteWeight()) // Use the snapshot weight
+                                                .votedAt(log.getCreatedAt()) // Use log creation time
+                                                .ipAddress(log.getIpAddress())
+                                                .userAgent(log.getUserAgent())
+                                                .action(log.getAction()) // Add action to response if DTO supports it,
+                                                                         // otherwise just basic info
+                                                .build())
+                                .collect(Collectors.toList());
         }
 }

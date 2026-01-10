@@ -109,6 +109,76 @@ Làm mới access token sử dụng refresh token từ cookie.
 
 ---
 
+### 1.5. Đăng nhập bằng mã QR (Magic Login)
+
+#### 1.5.1. Tạo mã QR (Admin)
+
+**POST** `/auth/qr/generate`
+
+🔒 Yêu cầu: `ROLE_ADMIN`
+
+Action Admin tạo mã QR (Magic Link) cho một người dùng cụ thể.
+
+**Request Body:**
+```json
+{
+  "userId": "string",
+  "expiresAt": "2026-03-25T17:00:00" 
+}
+```
+*(`expiresAt` là tùy chọn, nếu không gửi sẽ mặc định hết hạn sau 24h)*
+
+**Response:**
+```json
+{
+  "token": "string",
+  "qrContent": "http://frontend-url/login/qr?token=..."
+}
+```
+
+#### 1.5.2. Đăng nhập bằng Magic Token
+
+**POST** `/auth/qr/magic-login`
+
+Người dùng (hoặc thiết bị) sử dụng token từ mã QR để đăng nhập không cần mật khẩu.
+
+**Request Body:**
+```json
+{
+  "token": "string"
+}
+```
+
+**Response:**
+```json
+{
+  "accessToken": "string",
+  "tokenType": "Bearer",
+  "refreshToken": "string",
+  "userId": "string",
+  "email": "string",
+  "roles": ["ROLE_USER"]
+}
+```
+
+### 1.5.3. Lấy lại Token QR (Admin)
+
+**GET** `/auth/qr/token/{userId}`
+
+🔒 Yêu cầu: `ROLE_ADMIN`
+
+Admin lấy token QR đang còn hiệu lực của người dùng (nếu có) để tạo lại mã QR mà không cần tạo token mới.
+
+**Response:**
+```json
+{
+  "token": "string",
+  "qrContent": "http://frontend-url/login/qr?token=..."
+}
+```
+
+---
+
 ## 2. Users
 
 Base URL: `/users`
@@ -263,6 +333,81 @@ Base URL: `/users`
 🔒 Yêu cầu: `ROLE_ADMIN`
 
 **Response:** 204 No Content
+
+### 2.10. Cấp lại mật khẩu (Admin)
+
+**POST** `/users/{id}/reset-password`
+
+🔒 Yêu cầu: `ROLE_ADMIN`
+
+Sinh mật khẩu mới cho người dùng.
+
+**Response:**
+```json
+{
+  "newPassword": "string"
+}
+```
+
+### 2.11. Lấy lịch sử biểu quyết của tôi
+
+**GET** `/users/me/votes`
+
+**Response:**
+```json
+[
+  {
+    "voteId": "string",
+    "resolutionId": "string",
+    "resolutionTitle": "string",
+    "meetingId": "string",
+    "meetingTitle": "string",
+    "votingOptionId": "string",
+    "votingOptionName": "string",
+    "voteWeight": 1000,
+    "ipAddress": "192.168.1.1",
+    "userAgent": "Mozilla/5.0...",
+    "votedAt": "2026-01-10T10:00:00",
+    "action": "VOTE_CAST"
+  }
+]
+```
+
+### 2.12. Lấy lịch sử đăng nhập của tôi
+
+**GET** `/users/me/login-history`
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "loginTime": "2026-01-10T09:00:00",
+    "logoutTime": "2026-01-10T11:00:00",
+    "ipAddress": "192.168.1.1",
+    "userAgent": "Mozilla/5.0...",
+    "location": "Unknown",
+    "status": "SUCCESS",
+    "failureReason": null
+  }
+]
+```
+
+### 2.13. Lấy lịch sử biểu quyết của người dùng (Admin)
+
+**GET** `/users/{id}/votes`
+
+🔒 Yêu cầu: `ROLE_ADMIN`
+
+**Response:** Giống như `/users/me/votes`
+
+### 2.14. Lấy lịch sử đăng nhập của người dùng (Admin)
+
+**GET** `/users/{id}/login-history`
+
+🔒 Yêu cầu: `ROLE_ADMIN`
+
+**Response:** Giống như `/users/me/login-history`
 
 ---
 
@@ -868,6 +1013,42 @@ Lấy danh sách các uỷ quyền mà người dùng này là NGƯỜI ĐƯỢC
 
 **Response:** 204 No Content
 
+### 6.6. Thêm người được uỷ quyền (không phải cổ đông)
+
+**POST** `/api/representatives`
+
+🔒 Yêu cầu: `ROLE_ADMIN`
+
+Tạo tài khoản người đại diện mới (nếu chưa có) và thực hiện uỷ quyền từ cổ đông sang người này. Hệ thống sẽ tự động sinh mật khẩu cho người đại diện.
+
+**Request Body:**
+```json
+{
+  "fullName": "Nguyễn Văn Đại Diện",
+  "cccd": "012345678901",
+  "dateOfIssue": "2020-01-01",
+  "address": "Hà Nội",
+  "meetingId": "123456",
+  "delegatorCccd": "987654321098",
+  "sharesDelegated": 500
+}
+```
+
+**Response:**
+```json
+{
+  "id": "654321",
+  "fullName": "Nguyễn Văn Đại Diện",
+  "cccd": "012345678901",
+  "generatedPassword": "87654321",
+  "meetingId": "123456",
+  "sharesDelegated": 500
+}
+```
+
+> [!CAUTION]
+> `generatedPassword` chỉ trả về một lần duy nhất trong phản hồi này. Admin cần lưu lại để cấp cho người đại diện.
+
 ---
 
 ## 7. Dashboard
@@ -943,7 +1124,8 @@ public enum DelegationStatus {
 
 ```java
 public enum Role {
-    ROLE_USER,    // Người dùng thường (Cổ đông)
-    ROLE_ADMIN    // Quản trị viên
+    ADMIN,
+    SHAREHOLDER,
+    REPRESENTATIVE
 }
 ```

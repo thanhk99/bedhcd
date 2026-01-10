@@ -50,6 +50,12 @@ public class Vote {
     @JoinColumn(name = "proxy_from_user_id")
     private User proxyFromUser;
 
+    @Column(name = "ip_address")
+    private String ipAddress;
+
+    @Column(name = "user_agent")
+    private String userAgent;
+
     @Column(nullable = false)
     private LocalDateTime votedAt;
 

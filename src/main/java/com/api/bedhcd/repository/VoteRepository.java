@@ -11,6 +11,8 @@ import java.util.List;
 public interface VoteRepository extends JpaRepository<Vote, Long> {
         List<Vote> findByResolution_IdAndUser_Id(String resolutionId, String userId);
 
+        List<Vote> findByUser_IdOrderByVotedAtDesc(String userId);
+
         List<Vote> findByResolution_Id(String resolutionId);
 
         long countByResolutionIdAndVotingOptionId(@Param("resolutionId") String resolutionId,

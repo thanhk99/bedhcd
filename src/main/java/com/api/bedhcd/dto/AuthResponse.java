@@ -18,15 +18,13 @@ public class AuthResponse {
     @Builder.Default
     private String tokenType = "Bearer";
     private String userId;
-    private String username;
     private String email;
     private String refreshToken;
     private Set<Role> roles;
 
-    public AuthResponse(String accessToken, String userId, String username, String email, Set<Role> roles) {
+    public AuthResponse(String accessToken, String userId, String email, Set<Role> roles) {
         this.accessToken = accessToken;
         this.userId = userId;
-        this.username = username;
         this.email = email;
         this.roles = roles;
     }

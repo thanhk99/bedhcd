@@ -46,4 +46,8 @@ public class LoginHistory {
 
     @Column(name = "session_token", length = 500)
     private String sessionToken;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "login_method")
+    private com.api.bedhcd.entity.enums.LoginMethod loginMethod;
 }
