@@ -259,30 +259,44 @@ public class VotingService {
                 Vote vote;
                 VoteAction action = VoteAction.VOTE_CAST;
                 String previousVotingOptionId = null;
+                boolean shouldLog = false;
 
-                // 1. Identify previous vote (if any) and handle deletion
-                for (Vote oldVote : existingVotes) {
-                        String oldOptionId = oldVote.getVotingOption().getId();
-                        if (!oldOptionId.equals(selectedOptionId)) {
-                                action = VoteAction.VOTE_CHANGED;
-                                previousVotingOptionId = oldOptionId;
-
-                                // Unlink and Delete old vote
-                                voteLogRepository.unlinkVote(oldVote.getId());
-                                voteRepository.delete(oldVote);
-                        }
-                }
-
-                // 2. Create or Update current vote
+                // 1. Check if we have an existing vote for the SELECTED option
                 if (existingVoteMap.containsKey(selectedOptionId)) {
-                        // UPDATE existing vote (re-voting for same option)
                         vote = existingVoteMap.get(selectedOptionId);
-                        vote.setVoteWeight(votingPower);
-                        vote.setVotedAt(now);
-                        vote.setIpAddress(ipAddress);
-                        vote.setUserAgent(userAgent);
+
+                        // If weight changed, we update and log
+                        if (vote.getVoteWeight() != votingPower) {
+                                vote.setVoteWeight(votingPower);
+                                vote.setVotedAt(now);
+                                vote.setIpAddress(ipAddress);
+                                vote.setUserAgent(userAgent);
+                                action = VoteAction.VOTE_CHANGED;
+                                shouldLog = true;
+                                previousVotingOptionId = selectedOptionId;
+                        } else {
+                                // No change in weight for same option.
+                                // Update metadata but NO LOG.
+                                vote.setVotedAt(now);
+                                vote.setIpAddress(ipAddress);
+                                vote.setUserAgent(userAgent);
+                                shouldLog = false;
+                        }
                 } else {
-                        // INSERT new vote
+                        // New vote for this option.
+                        // Check if we are switching from another option
+                        for (Vote oldVote : existingVotes) {
+                                if (!oldVote.getVotingOption().getId().equals(selectedOptionId)) {
+                                        // Yes, switching
+                                        previousVotingOptionId = oldVote.getVotingOption().getId();
+                                        action = VoteAction.VOTE_CHANGED;
+
+                                        // Unlink and Delete old vote
+                                        voteLogRepository.unlinkVote(oldVote.getId());
+                                        voteRepository.delete(oldVote);
+                                }
+                        }
+
                         vote = Vote.builder()
                                         .resolution(resolution)
                                         .user(currentUser)
@@ -292,23 +306,26 @@ public class VotingService {
                                         .ipAddress(ipAddress)
                                         .userAgent(userAgent)
                                         .build();
+                        shouldLog = true;
                 }
 
                 vote = voteRepository.save(vote);
 
-                // 3. Log ONCE
-                VoteLog log = VoteLog.builder()
-                                .user(currentUser)
-                                .resolution(resolution)
-                                .vote(vote)
-                                .action(action)
-                                .votingOption(option)
-                                .voteWeight(vote.getVoteWeight())
-                                .previousVotingOptionId(previousVotingOptionId)
-                                .ipAddress(ipAddress)
-                                .userAgent(userAgent)
-                                .build();
-                voteLogRepository.save(log);
+                // 3. Log Only if needed
+                if (shouldLog) {
+                        VoteLog log = VoteLog.builder()
+                                        .user(currentUser)
+                                        .resolution(resolution)
+                                        .vote(vote)
+                                        .action(action)
+                                        .votingOption(option)
+                                        .voteWeight(vote.getVoteWeight())
+                                        .previousVotingOptionId(previousVotingOptionId)
+                                        .ipAddress(ipAddress)
+                                        .userAgent(userAgent)
+                                        .build();
+                        voteLogRepository.save(log);
+                }
         }
 
         @Transactional

@@ -10,6 +10,7 @@ import com.api.bedhcd.dto.response.VotingResultResponse;
 import com.api.bedhcd.entity.*;
 import com.api.bedhcd.entity.MeetingParticipant;
 import com.api.bedhcd.entity.enums.VoteAction;
+import com.api.bedhcd.entity.enums.VotingOptionType;
 import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.repository.*;
@@ -73,6 +74,7 @@ public class ElectionService {
                                 .id(RandomUtil.generate6DigitId(votingOptionRepository::existsById))
                                 .election(election)
                                 .name(request.getName())
+                                .type(VotingOptionType.CANDIDATE)
                                 .position(request.getPosition())
                                 .bio(request.getBio())
                                 .photoUrl(request.getPhotoUrl())
@@ -84,9 +86,17 @@ public class ElectionService {
         }
 
         @Transactional
-        public void castVote(String electionId, VoteRequest request) {
+        public void castVote(String electionId, VoteRequest request,
+                        jakarta.servlet.http.HttpServletRequest servletRequest) {
                 Election election = electionRepository.findById(electionId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Election not found"));
+
+                // Get IP and User-Agent
+                String ipAddress = servletRequest.getHeader("X-Forwarded-For");
+                if (ipAddress == null || ipAddress.isEmpty()) {
+                        ipAddress = servletRequest.getRemoteAddr();
+                }
+                String userAgent = servletRequest.getHeader("User-Agent");
 
                 User currentUser = getCurrentUser();
                 int multiplier = election.getVotingOptions() != null ? election.getVotingOptions().size() : 0;
@@ -124,14 +134,27 @@ public class ElectionService {
 
                         Vote vote;
                         VoteAction action;
+                        boolean shouldLog = false;
+                        String previousVotingOptionId = null;
 
                         // Check if vote exists for this option
                         if (existingVoteMap.containsKey(optionId)) {
                                 // UPDATE existing vote
                                 vote = existingVoteMap.get(optionId);
-                                vote.setVoteWeight(assignedWeight);
-                                vote.setVotedAt(now);
-                                action = VoteAction.VOTE_CHANGED;
+
+                                // Only update and log if weight actually changed
+                                if (vote.getVoteWeight() != assignedWeight) {
+                                        vote.setVoteWeight(assignedWeight);
+                                        vote.setVotedAt(now);
+                                        vote.setIpAddress(ipAddress);
+                                        vote.setUserAgent(userAgent);
+                                        action = VoteAction.VOTE_CHANGED;
+                                        shouldLog = true;
+                                        previousVotingOptionId = optionId;
+                                } else {
+                                        // No change, skip processing
+                                        continue;
+                                }
                         } else {
                                 // INSERT new vote
                                 vote = Vote.builder()
@@ -140,21 +163,30 @@ public class ElectionService {
                                                 .votingOption(option)
                                                 .voteWeight(assignedWeight)
                                                 .votedAt(now)
+                                                .ipAddress(ipAddress)
+                                                .userAgent(userAgent)
                                                 .build();
                                 action = VoteAction.VOTE_CAST;
+                                shouldLog = true;
                         }
 
-                        vote = voteRepository.save(vote);
+                        if (shouldLog) {
+                                vote = voteRepository.save(vote);
 
-                        // Log the action
-                        VoteLog log = VoteLog.builder()
-                                        .user(currentUser)
-                                        .election(election)
-                                        .vote(vote)
-                                        .action(action)
-                                        .votingOption(option)
-                                        .build();
-                        voteLogRepository.save(log);
+                                // Log the action
+                                VoteLog log = VoteLog.builder()
+                                                .user(currentUser)
+                                                .election(election)
+                                                .vote(vote)
+                                                .action(action)
+                                                .votingOption(option)
+                                                .voteWeight(vote.getVoteWeight()) // Ensure weight is saved
+                                                .previousVotingOptionId(previousVotingOptionId)
+                                                .ipAddress(ipAddress)
+                                                .userAgent(userAgent)
+                                                .build();
+                                voteLogRepository.save(log);
+                        }
                 }
 
                 // Set weight = 0 for options no longer selected
@@ -172,6 +204,10 @@ public class ElectionService {
                                                 .vote(oldVote)
                                                 .action(VoteAction.VOTE_CHANGED)
                                                 .votingOption(oldVote.getVotingOption())
+                                                .voteWeight(0L) // Ensure weight is saved as 0
+                                                .previousVotingOptionId(oldOptionId)
+                                                .ipAddress(ipAddress)
+                                                .userAgent(userAgent)
                                                 .build();
                                 voteLogRepository.save(zeroLog);
                         }
@@ -324,9 +360,16 @@ public class ElectionService {
 
         public ElectionResponse mapElectionToResponse(Election election) {
                 List<UserVoteResponse> userVotes = null;
+                Long votingPower = null;
                 try {
                         User currentUser = getCurrentUser();
                         if (currentUser != null) {
+                                int multiplier = election.getVotingOptions() != null
+                                                ? election.getVotingOptions().size()
+                                                : 0;
+                                votingPower = calculateVotingPower(currentUser.getId(), election.getMeeting().getId(),
+                                                multiplier);
+
                                 userVotes = voteRepository
                                                 .findByElection_IdAndUser_Id(election.getId(), currentUser.getId())
                                                 .stream()
@@ -353,6 +396,7 @@ public class ElectionService {
                                                 .map(this::mapVotingOptionToResponse)
                                                 .collect(Collectors.toList()))
                                 .userVotes(userVotes)
+                                .votingPower(votingPower)
                                 .build();
         }
 }

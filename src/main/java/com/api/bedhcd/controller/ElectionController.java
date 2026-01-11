@@ -46,8 +46,9 @@ public class ElectionController {
     @PostMapping("/elections/{electionId}/vote")
     public ResponseEntity<Void> castVote(
             @PathVariable String electionId,
-            @RequestBody VoteRequest request) {
-        electionService.castVote(electionId, request);
+            @RequestBody VoteRequest request,
+            jakarta.servlet.http.HttpServletRequest servletRequest) {
+        electionService.castVote(electionId, request, servletRequest);
         return ResponseEntity.ok().build();
     }
 

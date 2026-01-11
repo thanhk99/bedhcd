@@ -20,4 +20,5 @@ public class ElectionResponse {
     private Integer displayOrder;
     private List<VotingOptionResponse> votingOptions;
     private List<UserVoteResponse> userVotes;
+    private Long votingPower;
 }

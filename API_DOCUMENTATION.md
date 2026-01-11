@@ -836,7 +836,8 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
       "voteWeight": 500,
       "votedAt": "2026-01-07T22:10:00"
     }
-  ]
+  ],
+  "votingPower": 1500
 }
 ```
 
