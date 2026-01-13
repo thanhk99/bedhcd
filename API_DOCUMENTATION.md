@@ -689,7 +689,34 @@ Trả về dữ liệu tổng hợp kết quả biểu quyết và bầu cử hi
 }
 ```
 
-### 4.3. Lấy thông tin lựa chọn biểu quyết
+### 4.3. Cập nhật nghị quyết
+
+**PUT** `/resolutions/{resolutionId}`
+
+🔒 Yêu cầu: `ROLE_ADMIN`
+
+**Request Body:**
+```json
+{
+  "title": "string",
+  "description": "string",
+  "displayOrder": 1
+}
+```
+
+**Response:**
+```json
+{
+  "id": "654321",
+  "title": "Nghị quyết...",
+  "description": "...",
+  "displayOrder": 1,
+  "createdAt": "..."
+}
+```
+*(Chỉ trả về thông tin cơ bản)*
+
+### 4.4. Lấy thông tin lựa chọn biểu quyết
 
 **GET** `/options/{optionId}`
 
@@ -705,7 +732,7 @@ Trả về dữ liệu tổng hợp kết quả biểu quyết và bầu cử hi
 }
 ```
 
-### 4.4. Cập nhật lựa chọn/ứng viên
+### 4.5. Cập nhật lựa chọn/ứng viên
 
 **PUT** `/options/{optionId}`
 
@@ -726,7 +753,7 @@ Cập nhật thông tin của một lựa chọn biểu quyết hoặc ứng vi�
 
 **Response:** [VotingOptionResponse](#8-enums--models)
 
-### 4.5. Xóa lựa chọn/ứng viên
+### 4.6. Xóa lựa chọn/ứng viên
 
 **DELETE** `/options/{optionId}`
 
@@ -737,7 +764,7 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 
 **Response:** 204 No Content
 
-### 4.6. Biểu quyết nghị quyết
+### 4.7. Biểu quyết nghị quyết
 
 **POST** `/resolutions/{resolutionId}/vote`
 
@@ -759,7 +786,7 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 
 **Response:** 200 OK
 
-### 4.5. Lưu nháp biểu quyết
+### 4.8. Lưu nháp biểu quyết
 
 **POST** `/resolutions/{resolutionId}/draft`
 
@@ -767,7 +794,7 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 
 **Response:** 200 OK
 
-### 4.6. Xem kết quả biểu quyết
+### 4.9. Xem kết quả biểu quyết
 
 **GET** `/resolutions/{resolutionId}/results`
 
@@ -866,7 +893,35 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 }
 ```
 
-### 5.3. Thêm ứng viên/lựa chọn vào bầu cử
+### 5.3. Cập nhật bầu cử
+
+**POST** `/elections/{electionId}/edit`
+
+🔒 Yêu cầu: `ROLE_ADMIN`
+
+**Request Body:**
+```json
+{
+  "title": "string",
+  "description": "string",
+  "electionType": "BOARD_OF_DIRECTORS",
+  "displayOrder": 1
+}
+```
+
+**Response:**
+```json
+{
+  "id": "111222",
+  "title": "Bầu cử...",
+  "description": "...",
+  "electionType": "BOARD_OF_DIRECTORS",
+  "displayOrder": 1
+}
+```
+*(Chỉ trả về thông tin cơ bản)*
+
+### 5.4. Thêm ứng viên/lựa chọn vào bầu cử
 
 **POST** `/elections/{electionId}/options`
 
@@ -895,7 +950,7 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 }
 ```
 
-### 5.4. Bỏ phiếu bầu cử
+### 5.5. Bỏ phiếu bầu cử
 
 **POST** `/elections/{electionId}/vote`
 
@@ -922,7 +977,7 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 
 **Response:** 200 OK
 
-### 5.5. Lưu nháp bỏ phiếu
+### 5.6. Lưu nháp bỏ phiếu
 
 **POST** `/elections/{electionId}/draft`
 
@@ -930,7 +985,7 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 
 **Response:** 200 OK
 
-### 5.6. Xem kết quả bầu cử
+### 5.7. Xem kết quả bầu cử
 
 **GET** `/elections/{electionId}/results`
 

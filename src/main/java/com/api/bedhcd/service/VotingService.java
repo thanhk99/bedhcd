@@ -89,7 +89,16 @@ public class VotingService {
                 }
 
                 resolution = resolutionRepository.save(resolution);
-                return mapResolutionToResponse(resolution);
+
+                // Return basic info only
+                return ResolutionResponse.builder()
+                                .id(resolution.getId())
+                                .meetingId(resolution.getMeeting().getId())
+                                .title(resolution.getTitle())
+                                .description(resolution.getDescription())
+                                .displayOrder(resolution.getDisplayOrder())
+                                .createdAt(resolution.getCreatedAt())
+                                .build();
         }
 
         @Transactional
