@@ -5,7 +5,9 @@ import com.api.bedhcd.dto.response.MeetingResponse;
 import com.api.bedhcd.entity.enums.MeetingStatus;
 import com.api.bedhcd.service.MeetingService;
 import com.api.bedhcd.service.UserService;
+import com.api.bedhcd.service.VotingService;
 import com.api.bedhcd.dto.UserResponse;
+import com.api.bedhcd.dto.response.MeetingRealtimeStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,6 +22,7 @@ public class MeetingController {
 
     private final MeetingService meetingService;
     private final UserService userService;
+    private final VotingService votingService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -69,5 +72,10 @@ public class MeetingController {
     @GetMapping("/{id}/shareholders")
     public ResponseEntity<List<UserResponse>> getShareholders(@PathVariable String id) {
         return ResponseEntity.ok(userService.getShareholdersByMeeting(id));
+    }
+
+    @GetMapping("/{id}/realtime")
+    public ResponseEntity<MeetingRealtimeStatus> getRealtimeStatus(@PathVariable String id) {
+        return ResponseEntity.ok(votingService.getMeetingRealtimeStatus(id));
     }
 }

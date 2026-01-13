@@ -1,6 +1,6 @@
 package com.api.bedhcd.service.kafka;
 
-import com.api.bedhcd.dto.response.VotingResultResponse;
+import com.api.bedhcd.dto.response.MeetingRealtimeStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -15,12 +15,12 @@ public class VoteConsumer {
     private final SimpMessagingTemplate messagingTemplate;
 
     @KafkaListener(topics = "vote_updates", groupId = "voting-group")
-    public void consumeVoteUpdate(VotingResultResponse votingResult) {
-        log.info("Received vote update for resolution: {}", votingResult.getResolutionId());
+    public void consumeVoteUpdate(MeetingRealtimeStatus meetingStatus) {
+        log.info("Received vote update for meeting: {}", meetingStatus.getMeetingId());
 
-        // Broadcast to WebSocket topic: /topic/voting-session/{resolutionId}
-        String destination = "/topic/voting-session/" + votingResult.getResolutionId();
-        messagingTemplate.convertAndSend(destination, votingResult);
+        // Broadcast to WebSocket topic: /topic/meeting/{meetingId}
+        String destination = "/topic/meeting/" + meetingStatus.getMeetingId();
+        messagingTemplate.convertAndSend(destination, meetingStatus);
         log.info("Broadcasted to WebSocket: {}", destination);
     }
 }

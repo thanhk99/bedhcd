@@ -594,6 +594,31 @@ Lấy danh sách tất cả người dùng kèm theo thông tin cổ phần và 
 > [!NOTE]
 > Thông tin `receivedProxyShares` và `delegatedShares` được tính toán riêng biệt cho từng cuộc họp.
 
+### 3.9. Lấy trạng thái biểu quyết Realtime (Snapshot)
+
+**GET** `/meetings/{id}/realtime`
+
+Trả về dữ liệu tổng hợp kết quả biểu quyết và bầu cử hiện tại. API này dùng để load dữ liệu ban đầu trước khi kết nối WebSocket.
+
+**Response:**
+```json
+{
+  "meetingId": "123456",
+  "resolutionResults": [
+    {
+       "resolutionId": "...",
+       "results": [...]
+    }
+  ],
+  "electionResults": [
+    {
+       "electionId": "...",
+       "results": [...]
+    }
+  ]
+}
+```
+
 ---
 
 ## 4. Resolutions (Nghị quyết)
@@ -1128,5 +1153,56 @@ public enum Role {
     ADMIN,
     SHAREHOLDER,
     REPRESENTATIVE
+}
+```
+
+---
+
+## 9. Realtime WebSocket
+
+### 9.1. Thông tin kết nối
+- **URL**: `http://localhost:8085/api/ws`
+- **Protocol**: SockJS + STOMP
+- **Security**: Endpoint `/api/ws` is public (permitted in SecurityConfig as `/ws/**` relative to context, or `/api/ws/**` absolute).
+
+### 9.2. Subscribe Channels
+
+#### Meeting Updates
+- **Topic**: `/topic/meeting/{meetingId}`
+- **Payload**: `MeetingRealtimeStatus`
+- **Mô tả**: Nhận cập nhật kết quả vote realtime (Resolutions & Elections) khi có bất kỳ ai vote.
+
+**Example Payload:**
+```json
+{
+  "meetingId": "123456",
+  "resolutionResults": [...],
+  "electionResults": [...]
+}
+```
+
+### 9.3. Client Example (React/JS)
+
+```javascript
+/* npm install sockjs-client stompjs */
+import SockJS from 'sockjs-client';
+import Stomp from 'stompjs';
+
+const connectWebSocket = () => {
+    // Note: Must include /api prefix because server.servlet.context-path=/api
+    const socket = new SockJS('http://localhost:8085/api/ws');
+    const stompClient = Stomp.over(socket);
+
+    stompClient.connect({}, (frame) => {
+        console.log('Connected: ' + frame);
+        
+        // Subscribe to meeting updates
+        stompClient.subscribe('/topic/meeting/123456', (message) => {
+             const status = JSON.parse(message.body);
+             console.log("Realtime Update:", status);
+        });
+    }, (error) => {
+        console.error("Connection error:", error);
+    });
 }
 ```
