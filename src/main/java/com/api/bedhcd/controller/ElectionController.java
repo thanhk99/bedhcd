@@ -64,4 +64,9 @@ public class ElectionController {
     public ResponseEntity<VotingResultResponse> getResults(@PathVariable String electionId) {
         return ResponseEntity.ok(electionService.getVotingResults(electionId));
     }
+
+    @PostMapping("/elections/{electionId}/edit")
+    public ResponseEntity<?> editElection(@PathVariable String electionId, @RequestBody ElectionRequest request) {
+        return ResponseEntity.ok(electionService.editElection(electionId, request));
+    }
 }

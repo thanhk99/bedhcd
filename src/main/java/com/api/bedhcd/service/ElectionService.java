@@ -59,6 +59,16 @@ public class ElectionService {
                 return mapElectionToResponse(election);
         }
 
+        public ElectionResponse editElection(String electionId, ElectionRequest request) {
+                Election election = electionRepository.findById(electionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Election not found"));
+                election.setTitle(request.getTitle());
+                election.setDescription(request.getDescription());
+                election.setElectionType(request.getElectionType());
+                election.setDisplayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0);
+                return mapElectionToResponse(election);
+        }
+
         public ElectionResponse getElectionById(String electionId) {
                 Election election = electionRepository.findById(electionId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Election not found"));
@@ -399,4 +409,5 @@ public class ElectionService {
                                 .votingPower(votingPower)
                                 .build();
         }
+
 }
