@@ -64,7 +64,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public UserResponse getCurrentUser() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByCccdOrInvestorCode(username, username)
+        User user = userRepository.findByCccd(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         return mapToUserResponse(user);
@@ -82,7 +82,7 @@ public class UserService {
     @Transactional
     public UserResponse updateProfile(String fullName, String email) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByCccdOrInvestorCode(username, username)
+        User user = userRepository.findByCccd(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (fullName != null && !fullName.isEmpty()) {
@@ -100,7 +100,7 @@ public class UserService {
     @Transactional
     public void changePassword(String oldPassword, String newPassword) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByCccdOrInvestorCode(username, username)
+        User user = userRepository.findByCccd(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (!passwordEncoder.matches(oldPassword, user.getPassword())) {

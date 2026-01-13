@@ -15,7 +15,9 @@ import com.api.bedhcd.entity.enums.VotingOptionType;
 import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.repository.*;
+import com.api.bedhcd.service.kafka.VoteProducer;
 import com.api.bedhcd.util.RandomUtil;
+import com.api.bedhcd.dto.response.MeetingRealtimeStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -40,6 +43,8 @@ public class VotingService {
         private final UserRepository userRepository;
         private final VoteLogRepository voteLogRepository;
         private final MeetingParticipantRepository meetingParticipantRepository;
+        private final VoteProducer voteProducer;
+        private final ElectionRepository electionRepository;
 
         @Transactional
         public ResolutionResponse createResolution(String meetingId, ResolutionRequest request) {
@@ -326,6 +331,15 @@ public class VotingService {
                                         .build();
                         voteLogRepository.save(log);
                 }
+
+                // Broadcast realtime update
+                try {
+                        MeetingRealtimeStatus meetingStatus = getMeetingRealtimeStatus(meeting.getId());
+                        voteProducer.sendVoteUpdate(meetingStatus);
+                } catch (Exception e) {
+                        // Log error but do not fail the transaction
+                        System.err.println("Failed to broadcast vote update: " + e.getMessage());
+                }
         }
 
         @Transactional
@@ -543,5 +557,85 @@ public class VotingService {
                                                                          // otherwise just basic info
                                                 .build())
                                 .collect(Collectors.toList());
+        }
+
+        public MeetingRealtimeStatus getMeetingRealtimeStatus(String meetingId) {
+                // 1. Get all Resolutions
+                List<Resolution> resolutions = resolutionRepository.findByMeetingIdOrderByDisplayOrderAsc(meetingId);
+                List<VotingResultResponse> resolutionResults = resolutions.stream()
+                                .map(res -> getVotingResults(res.getId()))
+                                .collect(Collectors.toList());
+
+                // 2. Get all Elections
+                List<Election> elections = electionRepository.findByMeetingId(meetingId);
+                List<VotingResultResponse> electionResults = elections.stream()
+                                .map(election -> getElectionVotingResults(election.getId()))
+                                .collect(Collectors.toList());
+
+                return MeetingRealtimeStatus.builder()
+                                .meetingId(meetingId)
+                                .resolutionResults(resolutionResults)
+                                .electionResults(electionResults)
+                                .build();
+        }
+
+        public VotingResultResponse getElectionVotingResults(String electionId) {
+                Election election = electionRepository.findById(electionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Election not found"));
+
+                List<Vote> votes = voteRepository.findByVotingOption_Election_Id(electionId);
+                List<VotingOption> options = votingOptionRepository.findByElection_IdOrderByDisplayOrder(electionId);
+
+                // Calculate (similar logic to Resolution)
+                long totalVoters = votes.stream()
+                                .filter(v -> v.getVoteWeight() > 0)
+                                .map(v -> v.getUser().getId())
+                                .distinct()
+                                .count();
+
+                List<VotingResultResponse.VotingOptionResult> results = options.stream()
+                                .map(option -> {
+                                        long totalOptionWeight = votes.stream()
+                                                        .filter(v -> v.getVoteWeight() > 0)
+                                                        .filter(v -> v.getVotingOption() != null && v.getVotingOption()
+                                                                        .getId().equals(option.getId()))
+                                                        .mapToLong(Vote::getVoteWeight)
+                                                        .sum();
+
+                                        long votersForOption = votes.stream()
+                                                        .filter(v -> v.getVoteWeight() > 0)
+                                                        .filter(v -> v.getVotingOption() != null && v.getVotingOption()
+                                                                        .getId().equals(option.getId()))
+                                                        .map(v -> v.getUser().getId())
+                                                        .distinct()
+                                                        .count();
+
+                                        return VotingResultResponse.VotingOptionResult.builder()
+                                                        .votingOptionId(option.getId())
+                                                        .votingOptionName(option.getName())
+                                                        .voteCount(votersForOption)
+                                                        .totalWeight(totalOptionWeight)
+                                                        .build();
+                                })
+                                .collect(Collectors.toList());
+
+                long totalWeight = results.stream().mapToLong(VotingResultResponse.VotingOptionResult::getTotalWeight)
+                                .sum();
+                results.forEach(r -> {
+                        if (totalWeight > 0) {
+                                r.setPercentage((double) r.getTotalWeight() / totalWeight * 100);
+                        }
+                });
+
+                return VotingResultResponse.builder()
+                                .meetingId(election.getMeeting().getId())
+                                .meetingTitle(election.getMeeting().getTitle())
+                                .electionId(election.getId())
+                                .electionTitle(election.getTitle())
+                                .results(results)
+                                .totalVoters(totalVoters)
+                                .totalWeight(totalWeight)
+                                .createdAt(LocalDateTime.now())
+                                .build();
         }
 }

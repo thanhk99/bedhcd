@@ -28,4 +28,6 @@ public interface VoteRepository extends JpaRepository<Vote, Long> {
         void deleteAllByResolution_Id(String resolutionId);
 
         void deleteAllByVotingOption_Id(String votingOptionId);
+
+        List<Vote> findByVotingOption_Election_Id(String electionId);
 }

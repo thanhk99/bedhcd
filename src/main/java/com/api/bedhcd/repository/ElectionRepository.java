@@ -11,4 +11,6 @@ public interface ElectionRepository extends JpaRepository<Election, String> {
     List<Election> findByMeetingIdOrderByDisplayOrderAsc(String meetingId);
 
     boolean existsById(String id);
+
+    List<Election> findByMeetingId(String meetingId);
 }

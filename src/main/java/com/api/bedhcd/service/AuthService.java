@@ -119,7 +119,7 @@ public class AuthService {
         @Transactional
         public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse response) {
                 // Get user details first
-                User user = userRepository.findByCccdOrInvestorCode(request.getIdentifier(), request.getIdentifier())
+                User user = userRepository.findByCccd(request.getIdentifier())
                                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
                 try {

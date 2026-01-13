@@ -18,8 +18,6 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     Optional<User> findByInvestorCode(String investorCode);
 
-    Optional<User> findByCccdOrInvestorCode(String cccd, String investorCode);
-
     // existsByUsername removed
 
     Boolean existsByEmail(String email);
