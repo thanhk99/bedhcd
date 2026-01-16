@@ -60,6 +60,12 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
+    @GetMapping("/search")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<java.util.List<UserResponse>> searchUsersByCccd(@RequestParam String keyword) {
+        return ResponseEntity.ok(userService.searchUsersByCccd(keyword));
+    }
+
     @PutMapping("/profile")
     public ResponseEntity<UserResponse> updateProfile(
             @RequestParam(required = false) String fullName,

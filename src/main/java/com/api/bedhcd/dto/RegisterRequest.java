@@ -2,7 +2,6 @@ package com.api.bedhcd.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,8 +15,6 @@ public class RegisterRequest {
     @Email(message = "Email should be valid")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
     @NotBlank(message = "Full name is required")
@@ -35,11 +32,11 @@ public class RegisterRequest {
     @NotBlank(message = "Date of issue is required")
     private String dateOfIssue;
 
-    @NotBlank(message = "Place of issue is required")
-    private String placeOfIssue;
-
     @NotBlank(message = "Address is required")
     private String address;
+
+    @NotBlank(message = "Nation is required")
+    private String nation;
 
     @jakarta.validation.constraints.NotNull(message = "Shares owned is required")
     private Long sharesOwned;

@@ -16,11 +16,15 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     Optional<User> findByCccd(String cccd);
 
+    java.util.List<User> findTop10ByCccdContaining(String cccd);
+
     Optional<User> findByInvestorCode(String investorCode);
 
     // existsByUsername removed
 
     Boolean existsByEmail(String email);
+
+    Boolean existsByCccd(String cccd);
 
     Boolean existsByRolesContaining(Role role);
 

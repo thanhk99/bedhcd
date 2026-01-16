@@ -213,7 +213,6 @@ Base URL: `/users`
 **Request Body:**
 ```json
 {
-  "username": "string",
   "email": "string",
   "password": "string",
   "fullName": "string",
@@ -221,14 +220,40 @@ Base URL: `/users`
   "investorCode": "string",
   "cccd": "string",
   "dateOfIssue": "string",
-  "placeOfIssue": "string",
   "address": "string",
+  "nation": "string",
   "sharesOwned": 1000,
   "meetingId": "string"
 }
 ```
 
-### 2.3. Lấy thông tin profile hiện tại
+}
+```
+
+### 2.3. Tìm kiếm người dùng theo CCCD
+**GET** `/users/search`
+
+🔒 Yêu cầu: `ROLE_ADMIN`
+
+**Query Parameters:**
+- `keyword`: string (Số CCCD hoặc một phần số CCCD)
+
+**Response:**
+```json
+[
+  {
+    "id": "string",
+    "cccd": "string",
+    "investorCode": "string",
+    "fullName": "string",
+    "email": "string",
+    "sharesOwned": 1000,
+    "roles": ["ROLE_USER"]
+  }
+]
+```
+
+### 2.4. Lấy thông tin profile hiện tại
 
 **GET** `/users/profile`
 
@@ -322,6 +347,10 @@ Base URL: `/users`
   "investorCode": "string",
   "fullName": "string",
   "email": "string",
+  "phoneNumber": "string",
+  "dateOfIssue": "string",
+  "address": "string",
+  "nation": "string",
   "sharesOwned": 1000
 }
 ```
@@ -1109,6 +1138,8 @@ Tạo tài khoản người đại diện mới (nếu chưa có) và thực hi�
   "cccd": "012345678901",
   "dateOfIssue": "2020-01-01",
   "address": "Hà Nội",
+  "email": "daidien@example.com",
+  "phoneNumber": "0987654321",
   "meetingId": "123456",
   "delegatorCccd": "987654321098",
   "sharesDelegated": 500

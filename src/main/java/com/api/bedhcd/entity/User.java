@@ -34,13 +34,13 @@ public class User implements UserDetails {
     @Id
     private String id;
 
-    @Column(unique = true, nullable = false, length = 100)
+    @Column(nullable = false, length = 100)
     private String email;
 
-    @Column(unique = true, nullable = false, length = 100)
+    @Column(nullable = false, length = 100)
     private String phoneNumber;
 
-    @Column(unique = true, nullable = false, length = 100)
+    @Column(nullable = false, length = 100)
     private String investorCode;
 
     @Column(unique = true, nullable = false, length = 100)
@@ -57,6 +57,9 @@ public class User implements UserDetails {
 
     @Column(length = 100)
     private String fullName;
+
+    @Column(name = "nation")
+    private String nation;
 
     @Column(name = "shares_owned")
     @Builder.Default

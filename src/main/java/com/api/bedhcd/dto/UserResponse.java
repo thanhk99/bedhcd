@@ -26,8 +26,8 @@ public class UserResponse {
     private String investorCode;
     private String cccd;
     private String dateOfIssue;
-    private String placeOfIssue;
     private String address;
+    private String nation;
     private Set<Role> roles;
     private java.util.List<com.api.bedhcd.dto.response.ProxyDelegationResponse> delegationsMade;
     private java.util.List<com.api.bedhcd.dto.response.ProxyDelegationResponse> delegationsReceived;

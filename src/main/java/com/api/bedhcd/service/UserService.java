@@ -128,10 +128,24 @@ public class UserService {
                 .collect(java.util.stream.Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public java.util.List<UserResponse> searchUsersByCccd(String keyword) {
+        if (keyword == null || keyword.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return userRepository.findTop10ByCccdContaining(keyword).stream()
+                .map(this::mapToUserResponse)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     @Transactional
     public UserResponse createUser(com.api.bedhcd.dto.RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new com.api.bedhcd.exception.BadRequestException("Email is already registered");
+        if (userRepository.existsByCccd(request.getCccd())) {
+            throw new com.api.bedhcd.exception.BadRequestException("CCCD is already registered");
+        }
+
+        if (request.getPassword() == null || request.getPassword().length() < 6) {
+            throw new com.api.bedhcd.exception.BadRequestException("Password must be at least 6 characters");
         }
 
         java.util.Set<Role> roles = new java.util.HashSet<>();
@@ -147,6 +161,7 @@ public class UserService {
                 .cccd(request.getCccd())
                 .dateOfIssue(request.getDateOfIssue())
                 .address(request.getAddress())
+                .nation(request.getNation())
                 .sharesOwned(request.getSharesOwned() != null ? request.getSharesOwned() : 0L)
                 .roles(roles)
                 .enabled(true)
@@ -208,8 +223,8 @@ public class UserService {
                     .dateOfIssue(request.getDateOfIssue() != null ? request.getDateOfIssue() : "N/A")
                     .password(passwordEncoder.encode(rawPassword))
                     .roles(roles)
-                    .email(request.getCccd() + "@example.com") // Placeholder email
-                    .phoneNumber(request.getCccd()) // Dùng CCCD làm placeholder để đảm bảo duy nhất
+                    .email(request.getEmail() != null ? request.getEmail() : request.getCccd() + "@example.com")
+                    .phoneNumber(request.getPhoneNumber() != null ? request.getPhoneNumber() : request.getCccd())
                     .investorCode("REP-" + request.getCccd())
                     .sharesOwned(0L)
                     .enabled(true)
@@ -313,6 +328,8 @@ public class UserService {
             user.setDateOfIssue(request.getDateOfIssue());
         if (request.getSharesOwned() != null)
             user.setSharesOwned(request.getSharesOwned());
+        if (request.getNation() != null)
+            user.setNation(request.getNation());
 
         // Password update only if provided and not empty
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
@@ -389,6 +406,7 @@ public class UserService {
                 .cccd(user.getCccd())
                 .dateOfIssue(user.getDateOfIssue())
                 .address(user.getAddress())
+                .nation(user.getNation())
                 .roles(user.getRoles())
                 .enabled(user.getEnabled())
                 .createdAt(user.getCreatedAt())

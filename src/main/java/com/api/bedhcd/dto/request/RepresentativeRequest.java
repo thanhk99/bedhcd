@@ -14,6 +14,9 @@ public class RepresentativeRequest {
     @NotBlank(message = "Họ tên không được để trống")
     private String fullName;
 
+    private String email;
+    private String phoneNumber;
+
     @NotBlank(message = "CCCD không được để trống")
     private String cccd;
 

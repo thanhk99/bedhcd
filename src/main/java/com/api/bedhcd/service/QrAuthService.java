@@ -56,10 +56,6 @@ public class QrAuthService {
             throw new ResourceNotFoundException("QR token has expired");
         }
 
-        // Token is valid, return user.
-        // We DO NOT invalidate the token here to allow multiple logins (reusability)
-        // until it expires or is manually revoked.
-
         return magicLinkToken.getUser();
     }
 
