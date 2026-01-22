@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 public class User implements UserDetails {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
     @Column(nullable = false, length = 100)
@@ -48,6 +49,9 @@ public class User implements UserDetails {
 
     @Column(nullable = false, length = 100)
     private String dateOfIssue;
+
+    @Column(length = 200)
+    private String placeOfIssue;
 
     @Column(nullable = false, length = 200)
     private String address;

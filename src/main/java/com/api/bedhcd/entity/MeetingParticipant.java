@@ -10,6 +10,8 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
 @Entity
 @Table(name = "meeting_participants", uniqueConstraints = {
         @UniqueConstraint(columnNames = { "meeting_id", "user_id" })
@@ -18,6 +20,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EntityListeners(AuditingEntityListener.class)
 public class MeetingParticipant {
 
     @Id
@@ -48,6 +51,10 @@ public class MeetingParticipant {
     @Builder.Default
     private Long sharesOwned = 0L;
 
+    @Column(name = "total_shares")
+    @Builder.Default
+    private Long totalShares = 0L;
+
     @Column(name = "received_proxy_shares")
     @Builder.Default
     private Long receivedProxyShares = 0L;
@@ -55,4 +62,18 @@ public class MeetingParticipant {
     @Column(name = "delegated_shares")
     @Builder.Default
     private Long delegatedShares = 0L;
+
+    @org.hibernate.annotations.CreationTimestamp
+    @Column(updatable = false)
+    private java.time.LocalDateTime createdAt;
+
+    @org.springframework.data.annotation.CreatedBy
+    @Column(updatable = false)
+    private String createdBy;
+
+    @org.hibernate.annotations.UpdateTimestamp
+    private java.time.LocalDateTime updatedAt;
+
+    @org.springframework.data.annotation.LastModifiedBy
+    private String updatedBy;
 }
