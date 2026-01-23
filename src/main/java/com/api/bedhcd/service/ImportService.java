@@ -10,17 +10,23 @@ import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.repository.*;
 import com.api.bedhcd.util.ExcelHelper;
+import com.api.bedhcd.util.RandomUtil;
+
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ImportService {
 
     private final UserRepository userRepository;
@@ -32,63 +38,99 @@ public class ImportService {
 
     @Transactional
     public void importShareholders(String meetingId, MultipartFile file) {
+        log.info("Start importing shareholders for meetingId={}, file={}", meetingId, file.getOriginalFilename());
+
         Meeting meeting = meetingRepository.findById(meetingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+                .orElseThrow(() -> {
+                    log.error("Meeting not found: {}", meetingId);
+                    return new ResourceNotFoundException("Meeting not found");
+                });
 
         List<ShareholderImportRecord> records = ExcelHelper.parseShareholders(file);
+        log.info("Parsed {} shareholder records", records.size());
 
         for (ShareholderImportRecord record : records) {
-            User user = userRepository.findByCccd(record.getCccd())
-                    .orElseGet(() -> {
-                        User newUser = User.builder()
-                                .cccd(record.getCccd())
-                                .fullName(record.getFullName())
-                                .email(record.getEmail() != null ? record.getEmail() : record.getCccd() + "@bedhcd.com")
-                                .phoneNumber(record.getPhoneNumber() != null ? record.getPhoneNumber() : "0000000000")
-                                .address(record.getAddress() != null ? record.getAddress() : "N/A")
-                                .investorCode(record.getInvestorCode())
-                                .dateOfIssue(record.getDateOfIssue() != null ? record.getDateOfIssue() : "N/A")
-                                .placeOfIssue(record.getPlaceOfIssue())
-                                .nation(record.getNation() != null ? record.getNation() : "Việt Nam")
-                                .password(passwordEncoder
-                                        .encode(record.getPassword() != null && !record.getPassword().isEmpty()
-                                                ? record.getPassword()
-                                                : record.getCccd()))
-                                .roles(Set.of(Role.SHAREHOLDER))
-                                .sharesOwned(0L)
-                                .build();
-                        return userRepository.save(newUser);
-                    });
+            try {
+                log.info("Processing shareholder CCCD={}", record.getCccd());
 
-            // Update user info if changed
-            user.setFullName(record.getFullName());
-            if (record.getInvestorCode() != null)
-                user.setInvestorCode(record.getInvestorCode());
-            if (record.getDateOfIssue() != null)
-                user.setDateOfIssue(record.getDateOfIssue());
-            if (record.getPlaceOfIssue() != null)
-                user.setPlaceOfIssue(record.getPlaceOfIssue());
-            if (record.getNation() != null)
-                user.setNation(record.getNation());
-            userRepository.save(user);
+                User user = userRepository.findByCccd(record.getCccd())
+                        .orElseGet(() -> {
+                            log.info("Creating new user for CCCD={}", record.getCccd());
+                            Set<Role> roles = new HashSet<>();
+                            roles.add(Role.SHAREHOLDER);
+                            User newUser = User.builder()
+                                    .id(RandomUtil.generate6DigitId(userRepository::existsById))
+                                    .cccd(record.getCccd())
+                                    .fullName(record.getFullName())
+                                    .email(record.getEmail() != null
+                                            ? record.getEmail()
+                                            : record.getCccd() + "@bedhcd.com")
+                                    .phoneNumber(record.getPhoneNumber() != null
+                                            ? record.getPhoneNumber()
+                                            : "0000000000")
+                                    .address(record.getAddress() != null
+                                            ? record.getAddress()
+                                            : "N/A")
+                                    .investorCode(record.getInvestorCode())
+                                    .dateOfIssue(record.getDateOfIssue() != null
+                                            ? record.getDateOfIssue()
+                                            : "N/A")
+                                    .placeOfIssue(record.getPlaceOfIssue())
+                                    .nation(record.getNation() != null
+                                            ? record.getNation()
+                                            : "Việt Nam")
+                                    .password(passwordEncoder.encode(
+                                            record.getPassword() != null && !record.getPassword().isEmpty()
+                                                    ? record.getPassword()
+                                                    : record.getCccd()))
+                                    .roles(roles)
+                                    .enabled(true)
+                                    .sharesOwned(0L)
+                                    .build();
+                            return userRepository.save(newUser);
+                        });
 
-            // Upsert MeetingParticipant
-            MeetingParticipant participant = participantRepository.findByMeeting_IdAndUser_Id(meetingId, user.getId())
-                    .orElse(MeetingParticipant.builder()
-                            .meeting(meeting)
-                            .user(user)
-                            .participationType(ParticipationType.DIRECT)
-                            .status(ParticipantStatus.PENDING)
-                            .build());
+                // update user
+                user.setFullName(record.getFullName());
+                if (record.getInvestorCode() != null)
+                    user.setInvestorCode(record.getInvestorCode());
+                if (record.getDateOfIssue() != null)
+                    user.setDateOfIssue(record.getDateOfIssue());
+                if (record.getPlaceOfIssue() != null)
+                    user.setPlaceOfIssue(record.getPlaceOfIssue());
+                if (record.getNation() != null)
+                    user.setNation(record.getNation());
 
-            participant.setTotalShares(record.getShares());
-            participant.setSharesOwned(record.getShares()); // Initially, owned = total
-            participant.setDelegatedShares(0L);
-            participant.setReceivedProxyShares(0L);
-            participantRepository.save(participant);
+                userRepository.save(user);
+
+                MeetingParticipant participant = participantRepository
+                        .findByMeeting_IdAndUser_Id(meetingId, user.getId())
+                        .orElse(MeetingParticipant.builder()
+                                .meeting(meeting)
+                                .user(user)
+                                .participationType(ParticipationType.DIRECT)
+                                .status(ParticipantStatus.PENDING)
+                                .build());
+
+                participant.setTotalShares(record.getShares());
+                participant.setSharesOwned(record.getShares());
+                participant.setDelegatedShares(0L);
+                participant.setReceivedProxyShares(0L);
+
+                participantRepository.save(participant);
+
+            } catch (Exception e) {
+                log.error(
+                        "Error importing shareholder CCCD={}, meetingId={}",
+                        record.getCccd(),
+                        meetingId,
+                        e);
+                throw e; // để rollback transaction
+            }
         }
 
         saveLog(meetingId, "SHAREHOLDERS", file.getOriginalFilename(), records.size());
+        log.info("Finished importing shareholders for meetingId={}", meetingId);
     }
 
     @Transactional
