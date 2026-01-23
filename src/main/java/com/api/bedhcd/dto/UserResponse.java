@@ -26,6 +26,7 @@ public class UserResponse {
     private String investorCode;
     private String cccd;
     private String dateOfIssue;
+    private String placeOfIssue;
     private String address;
     private String nation;
     private Set<Role> roles;

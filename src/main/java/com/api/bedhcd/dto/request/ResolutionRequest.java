@@ -1,6 +1,5 @@
 package com.api.bedhcd.dto.request;
 
-import com.api.bedhcd.entity.enums.VotingType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

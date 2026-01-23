@@ -7,9 +7,10 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class ExcelHelper {
 
@@ -45,7 +46,9 @@ public class ExcelHelper {
                     records.add(record);
                 }
             }
-            return records;
+
+            // Nhóm các bản ghi theo họ tên và gộp lại
+            return mergeShareholderRecords(records);
         } catch (Exception e) {
             throw new RuntimeException("Fail to parse Excel file: " + e.getMessage());
         }
@@ -65,18 +68,26 @@ public class ExcelHelper {
                     continue;
                 }
 
-                ProxyImportRecord record = ProxyImportRecord.builder()
-                        .delegatorCccd(getCellValueAsString(currentRow.getCell(0)))
-                        .proxyCccd(getCellValueAsString(currentRow.getCell(1)))
-                        .sharesDelegated(getCellValueAsLong(currentRow.getCell(2)))
-                        .authorizationDocument(getCellValueAsString(currentRow.getCell(3)))
-                        .authorizationDate(getCellValueAsLocalDate(currentRow.getCell(4)))
-                        .description(getCellValueAsString(currentRow.getCell(5)))
-                        .build();
+                try {
+                    ProxyImportRecord record = ProxyImportRecord.builder()
+                            .delegatorCccd(getCellValueAsString(currentRow.getCell(0)))
+                            .proxyCccd(getCellValueAsString(currentRow.getCell(1)))
+                            .sharesDelegated(getCellValueAsLong(currentRow.getCell(2)))
+                            .authorizationDocument(getCellValueAsString(currentRow.getCell(3)))
+                            .authorizationDate(getCellValueAsLocalDate(currentRow.getCell(4)))
+                            .description(getCellValueAsString(currentRow.getCell(5)))
+                            .fullName(getCellValueAsString(currentRow.getCell(6)))
+                            .email(getCellValueAsString(currentRow.getCell(7)))
+                            .dateOfIssue(getCellValueAsString(currentRow.getCell(8)))
+                            .build();
 
-                if (record.getDelegatorCccd() != null && !record.getDelegatorCccd().isEmpty()) {
-                    records.add(record);
+                    if (record.getDelegatorCccd() != null && !record.getDelegatorCccd().isEmpty()) {
+                        records.add(record);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error parsing row " + rowNumber + ": " + e.getMessage());
                 }
+                rowNumber++;
             }
             return records;
         } catch (Exception e) {
@@ -89,7 +100,7 @@ public class ExcelHelper {
             return "";
         switch (cell.getCellType()) {
             case STRING:
-                return cell.getStringCellValue();
+                return cell.getStringCellValue().trim();
             case NUMERIC:
                 if (DateUtil.isCellDateFormatted(cell))
                     return cell.getDateCellValue().toString();
@@ -97,7 +108,11 @@ public class ExcelHelper {
             case BOOLEAN:
                 return String.valueOf(cell.getBooleanCellValue());
             case FORMULA:
-                return cell.getCellFormula();
+                try {
+                    return cell.getStringCellValue();
+                } catch (Exception e) {
+                    return String.valueOf(cell.getNumericCellValue());
+                }
             default:
                 return "";
         }
@@ -110,7 +125,8 @@ public class ExcelHelper {
             return (long) cell.getNumericCellValue();
         } else if (cell.getCellType() == CellType.STRING) {
             try {
-                return Long.parseLong(cell.getStringCellValue());
+                String val = cell.getStringCellValue().replaceAll("[^0-9]", "");
+                return val.isEmpty() ? 0L : Long.parseLong(val);
             } catch (NumberFormatException e) {
                 return 0L;
             }
@@ -124,12 +140,117 @@ public class ExcelHelper {
         if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
             return cell.getLocalDateTimeCellValue().toLocalDate();
         } else if (cell.getCellType() == CellType.STRING) {
-            try {
-                return java.time.LocalDate.parse(cell.getStringCellValue());
-            } catch (Exception e) {
+            String dateStr = cell.getStringCellValue().trim();
+            if (dateStr.isEmpty())
                 return null;
+
+            // Try different formats
+            String[] patterns = { "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy" };
+            for (String pattern : patterns) {
+                try {
+                    return java.time.LocalDate.parse(dateStr, java.time.format.DateTimeFormatter.ofPattern(pattern));
+                } catch (Exception ignored) {
+                }
+            }
+            System.err.println("Could not parse date: " + dateStr);
+        }
+        return null;
+    }
+
+    private static List<ShareholderImportRecord> mergeShareholderRecords(List<ShareholderImportRecord> records) {
+        // Nhóm theo họ tên đã chuẩn hóa
+        Map<String, List<ShareholderImportRecord>> groupedByName = records.stream()
+                .collect(Collectors.groupingBy(r -> normalizeFullName(r.getFullName())));
+
+        List<ShareholderImportRecord> mergedRecords = new ArrayList<>();
+
+        for (Map.Entry<String, List<ShareholderImportRecord>> entry : groupedByName.entrySet()) {
+            List<ShareholderImportRecord> group = entry.getValue();
+
+            if (group.size() == 1) {
+                // Chỉ có 1 bản ghi, giữ nguyên
+                mergedRecords.add(group.get(0));
+            } else {
+                // Có nhiều bản ghi cùng họ tên, cần gộp lại
+                System.out.println("Found " + group.size() + " records for: " + entry.getKey());
+
+                // Tìm bản ghi có dateOfIssue mới nhất
+                ShareholderImportRecord latestRecord = findLatestRecord(group);
+
+                // Tổng số cổ phần từ tất cả các bản ghi
+                Long totalShares = group.stream()
+                        .mapToLong(r -> r.getShares() != null ? r.getShares() : 0L)
+                        .sum();
+
+                // Cập nhật số cổ phần tổng hợp
+                latestRecord.setShares(totalShares);
+
+                System.out.println("Merged into CCCD: " + latestRecord.getCccd() +
+                        ", Total shares: " + totalShares +
+                        ", DateOfIssue: " + latestRecord.getDateOfIssue());
+
+                mergedRecords.add(latestRecord);
             }
         }
+
+        return mergedRecords;
+    }
+
+    /**
+     * Chuẩn hóa họ tên để so sánh
+     */
+    private static String normalizeFullName(String fullName) {
+        if (fullName == null) {
+            return "";
+        }
+        // Chuyển về lowercase, trim, loại bỏ khoảng trắng thừa
+        return fullName.trim().toLowerCase().replaceAll("\\s+", " ");
+    }
+
+    /**
+     * Tìm bản ghi có dateOfIssue mới nhất trong nhóm
+     */
+    private static ShareholderImportRecord findLatestRecord(List<ShareholderImportRecord> records) {
+        return records.stream()
+                .max((r1, r2) -> {
+                    LocalDate date1 = parseDateOfIssue(r1.getDateOfIssue());
+                    LocalDate date2 = parseDateOfIssue(r2.getDateOfIssue());
+
+                    // Nếu cả 2 đều null, coi như bằng nhau
+                    if (date1 == null && date2 == null)
+                        return 0;
+                    // Nếu date1 null, date2 mới hơn
+                    if (date1 == null)
+                        return -1;
+                    // Nếu date2 null, date1 mới hơn
+                    if (date2 == null)
+                        return 1;
+                    // So sánh 2 ngày
+                    return date1.compareTo(date2);
+                })
+                .orElse(records.get(0)); // Fallback về bản ghi đầu tiên nếu không tìm được
+    }
+
+    /**
+     * Parse dateOfIssue string thành LocalDate
+     */
+    private static LocalDate parseDateOfIssue(String dateStr) {
+        if (dateStr == null || dateStr.trim().isEmpty() || "N/A".equals(dateStr)) {
+            return null;
+        }
+
+        // Thử các định dạng phổ biến
+        String[] patterns = { "dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "dd-MM-yyyy" };
+
+        for (String pattern : patterns) {
+            try {
+                return LocalDate.parse(dateStr.trim(), DateTimeFormatter.ofPattern(pattern));
+            } catch (Exception ignored) {
+                // Thử pattern tiếp theo
+            }
+        }
+
+        System.err.println("Could not parse dateOfIssue: " + dateStr);
         return null;
     }
 }

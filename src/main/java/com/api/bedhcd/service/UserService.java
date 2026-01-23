@@ -160,6 +160,7 @@ public class UserService {
                 .investorCode(request.getInvestorCode())
                 .cccd(request.getCccd())
                 .dateOfIssue(request.getDateOfIssue())
+                .placeOfIssue(request.getPlaceOfIssue())
                 .address(request.getAddress())
                 .nation(request.getNation())
                 .sharesOwned(request.getSharesOwned() != null ? request.getSharesOwned() : 0L)
@@ -326,6 +327,8 @@ public class UserService {
             user.setCccd(request.getCccd());
         if (request.getDateOfIssue() != null)
             user.setDateOfIssue(request.getDateOfIssue());
+        if (request.getPlaceOfIssue() != null)
+            user.setPlaceOfIssue(request.getPlaceOfIssue());
         if (request.getSharesOwned() != null)
             user.setSharesOwned(request.getSharesOwned());
         if (request.getNation() != null)
@@ -405,6 +408,7 @@ public class UserService {
                 .investorCode(user.getInvestorCode())
                 .cccd(user.getCccd())
                 .dateOfIssue(user.getDateOfIssue())
+                .placeOfIssue(user.getPlaceOfIssue())
                 .address(user.getAddress())
                 .nation(user.getNation())
                 .roles(user.getRoles())

@@ -90,7 +90,6 @@ public class ImportService {
                             return userRepository.save(newUser);
                         });
 
-                // update user
                 user.setFullName(record.getFullName());
                 if (record.getInvestorCode() != null)
                     user.setInvestorCode(record.getInvestorCode());
@@ -100,6 +99,11 @@ public class ImportService {
                     user.setPlaceOfIssue(record.getPlaceOfIssue());
                 if (record.getNation() != null)
                     user.setNation(record.getNation());
+
+                // Cập nhật số cổ phần master của user
+                if (record.getShares() != null) {
+                    user.setSharesOwned(record.getShares());
+                }
 
                 userRepository.save(user);
 
@@ -141,45 +145,127 @@ public class ImportService {
         List<ProxyImportRecord> records = ExcelHelper.parseProxies(file);
 
         for (ProxyImportRecord record : records) {
-            User delegatorUser = userRepository.findByCccd(record.getDelegatorCccd())
-                    .orElseThrow(() -> new BadRequestException("Delegator not found: " + record.getDelegatorCccd()));
-            User proxyUser = userRepository.findByCccd(record.getProxyCccd())
-                    .orElseThrow(() -> new BadRequestException("Proxy not found: " + record.getProxyCccd()));
+            try {
+                log.info("Processing proxy delegation: Delegator={}, Proxy={}, Shares={}",
+                        record.getDelegatorCccd(), record.getProxyCccd(), record.getSharesDelegated());
 
-            MeetingParticipant delegator = participantRepository
-                    .findByMeeting_IdAndUser_Id(meetingId, delegatorUser.getId())
-                    .orElseThrow(
-                            () -> new BadRequestException("Delegator not in meeting: " + record.getDelegatorCccd()));
-            MeetingParticipant proxy = participantRepository.findByMeeting_IdAndUser_Id(meetingId, proxyUser.getId())
-                    .orElseThrow(() -> new BadRequestException("Proxy not in meeting: " + record.getProxyCccd()));
+                User delegatorUser = userRepository.findByCccd(record.getDelegatorCccd())
+                        .orElseThrow(
+                                () -> new BadRequestException("Delegator not found: " + record.getDelegatorCccd()));
 
-            if (record.getSharesDelegated() > delegator.getSharesOwned()) {
-                throw new BadRequestException("Not enough shares for delegation by " + record.getDelegatorCccd());
+                User proxyUser = userRepository.findByCccd(record.getProxyCccd())
+                        .orElseGet(() -> {
+                            log.info("Creating new proxy user for CCCD={}", record.getProxyCccd());
+                            log.debug("Proxy user details - FullName: {}, Email: {}, DateOfIssue: {}",
+                                    record.getFullName(), record.getEmail(), record.getDateOfIssue());
+
+                            Set<Role> roles = new HashSet<>();
+                            roles.add(Role.REPRESENTATIVE);
+
+                            String generatedId = RandomUtil.generate6DigitId(userRepository::existsById);
+                            log.debug("Generated User ID: {}", generatedId);
+
+                            User newUser = User.builder()
+                                    .id(generatedId)
+                                    .cccd(record.getProxyCccd())
+                                    .fullName(record.getFullName())
+                                    .email(record.getEmail() != null && !record.getEmail().isEmpty()
+                                            ? record.getEmail()
+                                            : record.getProxyCccd() + "@bedhcd.com")
+                                    .phoneNumber(record.getProxyCccd()) // Dùng CCCD làm phone để tránh duplicate
+                                    .address("N/A")
+                                    .investorCode("PROXY_" + record.getProxyCccd())
+                                    .dateOfIssue(record.getDateOfIssue() != null && !record.getDateOfIssue().isEmpty()
+                                            ? record.getDateOfIssue()
+                                            : "N/A")
+                                    .nation("Việt Nam")
+                                    .password(passwordEncoder.encode(record.getProxyCccd()))
+                                    .roles(roles)
+                                    .enabled(true)
+                                    .sharesOwned(0L)
+                                    .build();
+
+                            log.debug("Built User object - ID: {}, CCCD: {}, FullName: {}",
+                                    newUser.getId(), newUser.getCccd(), newUser.getFullName());
+
+                            User savedUser = userRepository.save(newUser);
+                            log.info("Successfully saved proxy user - ID: {}, CCCD: {}",
+                                    savedUser.getId(), savedUser.getCccd());
+
+                            return savedUser;
+                        });
+
+                log.debug("ProxyUser retrieved/created - ID: {}, CCCD: {}",
+                        proxyUser.getId(), proxyUser.getCccd());
+
+                MeetingParticipant delegator = participantRepository
+                        .findByMeeting_IdAndUser_Id(meetingId, delegatorUser.getId())
+                        .orElseThrow(
+                                () -> new BadRequestException(
+                                        "Delegator not in meeting: " + record.getDelegatorCccd()));
+
+                MeetingParticipant proxy = participantRepository
+                        .findByMeeting_IdAndUser_Id(meetingId, proxyUser.getId())
+                        .orElseGet(() -> {
+                            log.info("Adding proxy user to meeting: {}", record.getProxyCccd());
+                            MeetingParticipant newParticipant = MeetingParticipant.builder()
+                                    .meeting(meeting)
+                                    .user(proxyUser)
+                                    .participationType(ParticipationType.PROXY)
+                                    .status(ParticipantStatus.PENDING)
+                                    .sharesOwned(0L)
+                                    .totalShares(0L)
+                                    .receivedProxyShares(0L)
+                                    .delegatedShares(0L)
+                                    .build();
+                            return participantRepository.save(newParticipant);
+                        });
+
+                if (record.getSharesDelegated() > delegator.getSharesOwned()) {
+                    log.error("Delegator {} has only {} shares, but tried to delegate {}",
+                            record.getDelegatorCccd(), delegator.getSharesOwned(), record.getSharesDelegated());
+                    throw new BadRequestException("Not enough shares for delegation by " + record.getDelegatorCccd());
+                }
+
+                // Create Proxy Delegation record
+                ProxyDelegation delegation = ProxyDelegation.builder()
+                        .meeting(meeting)
+                        .delegator(delegatorUser)
+                        .proxy(proxyUser)
+                        .sharesDelegated(record.getSharesDelegated())
+                        .authorizationDocument(record.getAuthorizationDocument())
+                        .authorizationDate(record.getAuthorizationDate())
+                        .description(record.getDescription())
+                        .status(DelegationStatus.ACTIVE)
+                        .build();
+                proxyRepository.save(delegation);
+
+                // Update participant counts
+                delegator.setSharesOwned(delegator.getSharesOwned() - record.getSharesDelegated());
+                delegator.setDelegatedShares(delegator.getDelegatedShares() + record.getSharesDelegated());
+                // Quyền biểu quyết (totalShares) của người uỷ quyền giảm đi
+                delegator.setTotalShares(delegator.getTotalShares() - record.getSharesDelegated());
+
+                proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() + record.getSharesDelegated());
+                // Quyền biểu quyết (totalShares) của người nhận uỷ quyền tăng lên
+                proxy.setTotalShares(proxy.getTotalShares() + record.getSharesDelegated());
+
+                participantRepository.save(delegator);
+                participantRepository.save(proxy);
+
+                log.info("Success: Delegated {} shares from {} to {}",
+                        record.getSharesDelegated(), record.getDelegatorCccd(), record.getProxyCccd());
+
+            } catch (Exception e) {
+                log.error("Error processing proxy record for delegator {}: {}", record.getDelegatorCccd(),
+                        e.getMessage());
+                throw e;
             }
-
-            // Create Proxy Delegation record
-            ProxyDelegation delegation = ProxyDelegation.builder()
-                    .meeting(meeting)
-                    .delegator(delegatorUser)
-                    .proxy(proxyUser)
-                    .sharesDelegated(record.getSharesDelegated())
-                    .authorizationDocument(record.getAuthorizationDocument())
-                    .authorizationDate(record.getAuthorizationDate())
-                    .description(record.getDescription())
-                    .status(DelegationStatus.ACTIVE)
-                    .build();
-            proxyRepository.save(delegation);
-
-            // Update participant counts
-            delegator.setSharesOwned(delegator.getSharesOwned() - record.getSharesDelegated());
-            delegator.setDelegatedShares(delegator.getDelegatedShares() + record.getSharesDelegated());
-            proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() + record.getSharesDelegated());
-
-            participantRepository.save(delegator);
-            participantRepository.save(proxy);
         }
 
+        log.info("Completed processing {} proxy records for meetingId={}", records.size(), meetingId);
         saveLog(meetingId, "PROXIES", file.getOriginalFilename(), records.size());
+        log.info("Finished importing proxies for meetingId={}", meetingId);
     }
 
     private void saveLog(String meetingId, String type, String fileName, int count) {

@@ -32,6 +32,8 @@ public class RegisterRequest {
     @NotBlank(message = "Date of issue is required")
     private String dateOfIssue;
 
+    private String placeOfIssue;
+
     @NotBlank(message = "Address is required")
     private String address;
 

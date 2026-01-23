@@ -16,4 +16,7 @@ public class ProxyImportRecord {
     private String authorizationDocument;
     private java.time.LocalDate authorizationDate;
     private String description;
+    private String dateOfIssue;
+    private String fullName;
+    private String email;
 }

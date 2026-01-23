@@ -59,7 +59,7 @@ Base URL: `/auth`
 **Request Body:**
 ```json
 {
-  "username": "string",
+  "identifier": "string",
   "password": "string"
 }
 ```
@@ -227,9 +227,6 @@ Base URL: `/users`
 }
 ```
 
-}
-```
-
 ### 2.3. Tìm kiếm người dùng theo CCCD
 **GET** `/users/search`
 
@@ -301,10 +298,24 @@ Base URL: `/users`
 **Response:**
 ```json
 {
-  "id": "string",
-  "fullName": "string",
-  "email": "string",
-  ...
+  "id": "123456",
+  "email": "user@example.com",
+  "fullName": "Nguyễn Văn A",
+  "sharesOwned": 1000,
+  "receivedProxyShares": 0,
+  "delegatedShares": 0,
+  "totalShares": 1000,
+  "phoneNumber": "0987654321",
+  "investorCode": "VIX123",
+  "cccd": "012345678901",
+  "dateOfIssue": "2020-01-01",
+  "placeOfIssue": "CA Hà Nội",
+  "address": "Số 1 Đại Cồ Việt, Hà Nội",
+  "nation": "Việt Nam",
+  "roles": ["ROLE_SHAREHOLDER"],
+  "enabled": true,
+  "createdAt": "2026-01-23T00:00:00",
+  "updatedAt": "2026-01-23T00:41:00"
 }
 ```
 
@@ -797,33 +808,33 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 
 **POST** `/resolutions/{resolutionId}/vote`
 
+Người dùng thực hiện biểu quyết cho nghị quyết.
+
 **Request Body:**
 ```json
 {
   "optionVotes": [
     {
-      "votingOptionId": "789012",
-      "voteWeight": 1000
+      "votingOptionId": "789012"
     }
   ]
 }
 ```
-
-**Note:** 
-- `voteWeight` là số cổ phiếu gán cho lựa chọn này
-- Nếu không truyền `voteWeight`, hệ thống sẽ tự động gán toàn bộ quyền biểu quyết (vì nghị quyết chỉ cho bầu 1 phương án)
+*(Ghi chú: Đối với Nghị quyết, chỉ được phép chọn duy nhất 1 lựa chọn: Đồng ý, Không đồng ý hoặc Không ý kiến. Nếu không truyền `voteWeight`, hệ thống tự động gán toàn bộ quyền biểu quyết)*
 
 **Response:** 200 OK
 
-### 4.8. Lưu nháp biểu quyết
+### 4.8. Lưu bản nháp biểu quyết
 
 **POST** `/resolutions/{resolutionId}/draft`
 
-**Request Body:** Giống như `/resolutions/{resolutionId}/vote`
+Lưu lại lựa chọn biểu quyết dưới dạng bản nháp (chưa tính vào kết quả chính thức).
+
+**Request Body:** Giống như API biểu quyết.
 
 **Response:** 200 OK
 
-### 4.9. Xem kết quả biểu quyết
+### 4.9. Lấy kết quả biểu quyết
 
 **GET** `/resolutions/{resolutionId}/results`
 
@@ -831,28 +842,28 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 ```json
 {
   "meetingId": "123456",
-  "meetingTitle": "Đại hội cổ đông thường niên 2026",
+  "meetingTitle": "Đại hội cổ đông 2026",
   "resolutionId": "654321",
-  "resolutionTitle": "Nghị quyết về thông qua báo cáo tài chính năm 2025",
+  "resolutionTitle": "Thông qua BCTC 2025",
   "results": [
     {
       "votingOptionId": "789012",
       "votingOptionName": "Đồng ý",
-      "voteCount": 45,
-      "totalWeight": 450000,
-      "percentage": 75.5
+      "voteCount": 150,
+      "totalWeight": 1500000,
+      "percentage": 75.0
     },
     {
       "votingOptionId": "789013",
       "votingOptionName": "Không đồng ý",
-      "voteCount": 12,
-      "totalWeight": 146000,
-      "percentage": 24.5
+      "voteCount": 50,
+      "totalWeight": 500000,
+      "percentage": 25.0
     }
   ],
-  "totalVoters": 57,
-  "totalWeight": 596000,
-  "createdAt": "2026-01-07T21:30:00"
+  "totalVoters": 200,
+  "totalWeight": 2000000,
+  "createdAt": "2026-01-23T01:00:00"
 }
 ```
 
@@ -884,7 +895,9 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
   "description": "Bầu cử 5 thành viên Hội đồng quản trị",
   "electionType": "BOARD_OF_DIRECTORS",
   "displayOrder": 1,
-  "votingOptions": []
+  "votingOptions": [],
+  "userVotes": null,
+  "votingPower": 0
 }
 ```
 
@@ -903,7 +916,7 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
   "votingOptions": [
     {
       "id": "333444",
-      "name": "Nguyễn Văn A",
+      "name": "Nguyên Văn A",
       "position": "Ứng viên HĐQT",
       "bio": "Kinh nghiệm 15 năm trong lĩnh vực tài chính...",
       "photoUrl": "https://example.com/photos/nguyen-van-a.jpg",
@@ -931,8 +944,8 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 **Request Body:**
 ```json
 {
-  "title": "string",
-  "description": "string",
+  "title": "Bầu cử HĐQT 2026-2030 (Cập nhật)",
+  "description": "Cập nhật mô tả",
   "electionType": "BOARD_OF_DIRECTORS",
   "displayOrder": 1
 }
@@ -942,13 +955,12 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 ```json
 {
   "id": "111222",
-  "title": "Bầu cử...",
-  "description": "...",
+  "title": "Bầu cử HĐQT 2026-2030 (Cập nhật)",
+  "description": "Cập nhật mô tả",
   "electionType": "BOARD_OF_DIRECTORS",
   "displayOrder": 1
 }
 ```
-*(Chỉ trả về thông tin cơ bản)*
 
 ### 5.4. Thêm ứng viên/lựa chọn vào bầu cử
 
@@ -959,29 +971,21 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 **Request Body:**
 ```json
 {
-  "name": "Nguyễn Văn A",
+  "name": "Trần Thị B",
   "position": "Ứng viên HĐQT",
-  "bio": "Kinh nghiệm 15 năm trong lĩnh vực tài chính...",
-  "photoUrl": "https://example.com/photos/nguyen-van-a.jpg",
-  "displayOrder": 1
+  "bio": "Thạc sĩ Kinh tế...",
+  "photoUrl": "http://...",
+  "displayOrder": 2
 }
 ```
 
-**Response:**
-```json
-{
-  "id": "333444",
-  "name": "Nguyễn Văn A",
-  "position": "Ứng viên HĐQT",
-  "bio": "...",
-  "photoUrl": "...",
-  "displayOrder": 1
-}
-```
+**Response:** [VotingOptionResponse](#8-enums--models)
 
 ### 5.5. Bỏ phiếu bầu cử
 
 **POST** `/elections/{electionId}/vote`
+
+Người dùng thực hiện bầu cử dồn phiếu hoặc bầu thông thường.
 
 **Request Body:**
 ```json
@@ -1000,17 +1004,17 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 ```
 
 **Note:**
-- Có thể bỏ phiếu cho nhiều lựa chọn/ứng viên
-- `voteWeight` là số cổ phiếu gán cho lựa chọn này
-- Tổng `voteWeight` không được vượt quá quyền biểu quyết của người dùng
+- Có thể bỏ phiếu cho nhiều lựa chọn/ứng viên.
+- `voteWeight` là số cổ phiếu gán cho lựa chọn này.
+- Tổng `voteWeight` không được vượt quá `votingPower` của người dùng.
 
 **Response:** 200 OK
 
-### 5.6. Lưu nháp bỏ phiếu
+### 5.6. Lưu nháp bỏ phiếu bầu cử
 
 **POST** `/elections/{electionId}/draft`
 
-**Request Body:** Giống như `/elections/{electionId}/vote`
+**Request Body:** Giống như API bỏ phiếu bầu cử.
 
 **Response:** 200 OK
 
@@ -1022,9 +1026,9 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
 ```json
 {
   "meetingId": "123456",
-  "meetingTitle": "Đại hội cổ đông thường niên 2026",
+  "meetingTitle": "Đại hội cổ đông 2026",
   "electionId": "111222",
-  "electionTitle": "Bầu cử Hội đồng quản trị nhiệm kỳ 2026-2030",
+  "electionTitle": "Bầu cử HĐQT",
   "results": [
     {
       "votingOptionId": "333444",
@@ -1037,15 +1041,16 @@ Xóa một lựa chọn hoặc ứng viên. Các phiếu bầu liên quan cũng 
       "votingOptionId": "333445",
       "votingOptionName": "Trần Thị B",
       "voteCount": 38,
-      "totalWeight": 720000,
-      "percentage": 29.8
+      "totalWeight": 750000,
+      "percentage": 31.0
     }
   ],
-  "totalVoters": 65,
-  "totalWeight": 2415000,
-  "createdAt": "2026-01-07T21:35:00"
+  "totalVoters": 80,
+  "totalWeight": 2400000,
+  "createdAt": "2026-01-23T01:10:00"
 }
 ```
+
 
 ---
 
