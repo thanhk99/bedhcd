@@ -79,6 +79,8 @@ public class ExcelHelper {
                             .fullName(getCellValueAsString(currentRow.getCell(6)))
                             .email(getCellValueAsString(currentRow.getCell(7)))
                             .dateOfIssue(getCellValueAsString(currentRow.getCell(8)))
+                            .address(getCellValueAsString(currentRow.getCell(9)))
+                            .placeOfIssue(getCellValueAsString(currentRow.getCell(10)))
                             .build();
 
                     if (record.getDelegatorCccd() != null && !record.getDelegatorCccd().isEmpty()) {

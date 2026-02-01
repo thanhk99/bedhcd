@@ -1,0 +1,31 @@
+
+@startuml Change_Vote_Flow
+title Luồng Thay Đổi Vote (Change Vote Flow)
+actor "User A" as U
+participant "Voting API" as API
+database "Database" as DB
+queue "Kafka (vote_events)" as K
+participant "Consumer" as C
+participant "Local Cache" as CA
+participant "WebSocket Clients" as WS
+note over U, CA: Trạng thái hiện tại: User A đang vote "AGREE"
+U -> API: POST /vote (Res_1, "DISAGREE")
+activate API
+API -> DB: Transaction: DELETE Old -> INSERT New
+activate DB
+DB --> API: Committed
+deactivate DB
+API -> K: Send Event {meetingId: "M1", itemId: "Res_1"}
+API --> U: 200 OK
+deactivate API
+K -> C: Consume Event
+activate C
+C -> DB: SELECT count(*) WHERE res_id="Res_1"
+activate DB
+note right of DB: DB đã có dữ liệu mới nhất\n(Agree: 0, Disagree: 1)
+DB --> C: Returns: {Agree: 0, Disagree: 1}
+deactivate DB
+C -> CA: Update Cache
+C -> WS: Broadcast New Result
+deactivate C
+@enduml

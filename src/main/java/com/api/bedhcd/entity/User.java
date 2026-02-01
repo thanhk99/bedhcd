@@ -34,13 +34,13 @@ public class User implements UserDetails {
     @Id
     private String id;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String email;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String phoneNumber;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String investorCode;
 
     @Column(unique = true, nullable = false, length = 100)
@@ -52,7 +52,7 @@ public class User implements UserDetails {
     @Column(length = 200)
     private String placeOfIssue;
 
-    @Column(nullable = false, length = 200)
+    @Column(length = 200)
     private String address;
 
     @Column(nullable = false)

@@ -1,6 +1,7 @@
 package com.api.bedhcd.service.kafka;
 
-import com.api.bedhcd.dto.response.MeetingRealtimeStatus;
+import com.api.bedhcd.dto.event.VoteEvent;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -11,14 +12,21 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class VoteProducer {
 
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    // private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    public void sendVoteUpdate(MeetingRealtimeStatus status) {
-        try {
-            log.info("Sending meeting update for meeting {}", status.getMeetingId());
-            kafkaTemplate.send("vote_updates", status.getMeetingId(), status);
-        } catch (Exception e) {
-            log.error("Error sending vote update to Kafka", e);
-        }
+    public void sendVoteEvent(VoteEvent event) {
+        log.info("Kafka is temporarily disabled. Skipping vote event for meeting {} - Item: {}",
+                event.getMeetingId(), event.getItemId());
+        /*
+         * try {
+         * log.info("Sending vote event for meeting {} - Item: {}",
+         * event.getMeetingId(), event.getItemId());
+         * // Sử dụng meetingId làm partition key để đảm bảo thứ tự xử lý cho cùng 1
+         * cuộc họp
+         * kafkaTemplate.send("vote_events", event.getMeetingId(), event);
+         * } catch (Exception e) {
+         * log.error("Error sending vote event to Kafka", e);
+         * }
+         */
     }
 }

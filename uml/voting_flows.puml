@@ -1,0 +1,35 @@
+@startuml Concurrency_Flow
+title Trường Hợp Đồng Thời (Concurrency Case)
+box "Parallel Requests" #LightBlue
+participant "API Thread 1" as API1
+participant "API Thread 2" as API2
+end box
+database "Database" as DB
+queue "Kafka (Partition 0)" as K
+participant "Consumer Thread" as C
+participant "Local Cache" as CA
+participant "WebSocket" as WS
+par Parallel Votes
+    API1 -> DB: Save Vote A
+    API2 -> DB: Save Vote B
+end
+par Send Events
+    API1 -> K: Send Event 1 (meetingId="M1")
+    API2 -> K: Send Event 2 (meetingId="M1")
+end
+note right of K: Kafka xếp hàng: [Event 1, Event 2]
+group Sequential Processing
+    K -> C: Event 1
+    activate C
+    C -> DB: Fetch Result
+    C -> CA: Update Cache
+    C -> WS: Broadcast
+    deactivate C
+    K -> C: Event 2
+    activate C
+    C -> DB: Fetch Result
+    C -> CA: Update Cache
+    C -> WS: Broadcast
+    deactivate C
+end
+@enduml

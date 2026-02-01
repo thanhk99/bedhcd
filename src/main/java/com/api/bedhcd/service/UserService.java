@@ -43,7 +43,6 @@ public class UserService {
     private final MeetingParticipantRepository meetingParticipantRepository;
     private final MeetingRepository meetingRepository;
 
-    // ... existing code ...
     public java.util.List<LoginHistoryResponse> getUserLoginHistory(String userId) {
         return loginHistoryRepository.findByUser_IdOrderByLoginTimeDesc(userId)
                 .stream()
@@ -276,9 +275,17 @@ public class UserService {
                 ? proxyParticipant.getReceivedProxyShares()
                 : 0L;
 
-        delegatorParticipant.setSharesOwned(currentDelegatorShares - sharesToDelegate);
+        // Giữ nguyên sharesOwned gốc của người uỷ quyền
+        // delegatorParticipant.setSharesOwned(currentDelegatorShares -
+        // sharesToDelegate);
         delegatorParticipant.setDelegatedShares(currentDelegatedCount + sharesToDelegate);
         proxyParticipant.setReceivedProxyShares(currentProxyReceived + sharesToDelegate);
+
+        // Cập nhật totalShares (quyền biểu quyết)
+        delegatorParticipant.setTotalShares(delegatorParticipant.getSharesOwned()
+                + delegatorParticipant.getReceivedProxyShares() - delegatorParticipant.getDelegatedShares());
+        proxyParticipant.setTotalShares(proxyParticipant.getSharesOwned() + proxyParticipant.getReceivedProxyShares()
+                - proxyParticipant.getDelegatedShares());
 
         meetingParticipantRepository.save(delegatorParticipant);
         meetingParticipantRepository.save(proxyParticipant);
@@ -425,8 +432,13 @@ public class UserService {
         response.setReceivedProxyShares(
                 participant.getReceivedProxyShares() != null ? participant.getReceivedProxyShares() : 0L);
         response.setDelegatedShares(participant.getDelegatedShares() != null ? participant.getDelegatedShares() : 0L);
-        response.setTotalShares((participant.getSharesOwned() != null ? participant.getSharesOwned() : 0L) +
-                (participant.getReceivedProxyShares() != null ? participant.getReceivedProxyShares() : 0L));
+
+        long sharesOwned = participant.getSharesOwned() != null ? participant.getSharesOwned() : 0L;
+        long receivedProxyShares = participant.getReceivedProxyShares() != null ? participant.getReceivedProxyShares()
+                : 0L;
+        long delegatedShares = participant.getDelegatedShares() != null ? participant.getDelegatedShares() : 0L;
+
+        response.setTotalShares(sharesOwned + receivedProxyShares - delegatedShares);
         return response;
     }
 

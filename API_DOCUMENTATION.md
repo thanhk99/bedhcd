@@ -1249,51 +1249,75 @@ public enum Role {
 
 ---
 
-## 9. Realtime WebSocket
+## 9. Realtime WebSocket (Socket.IO/STOMP)
+
+Hệ thống sử dụng cơ chế **Asynchronous Broadcasting** để đảm bảo tốc độ phản hồi API cực nhanh. Khi người dùng vote, API chỉ xác thực và lưu vào DB, sau đó bắn event lên Kafka. Consumer sẽ tính toán lại và đẩy kết quả qua WebSocket.
 
 ### 9.1. Thông tin kết nối
 - **URL**: `http://localhost:8085/api/ws`
 - **Protocol**: SockJS + STOMP
-- **Security**: Endpoint `/api/ws` is public (permitted in SecurityConfig as `/ws/**` relative to context, or `/api/ws/**` absolute).
+- **Security**: Endpoint `/api/ws` yêu cầu xác thực hoặc được cho phép tùy theo cấu hình Security công ty.
 
 ### 9.2. Subscribe Channels
 
-#### Meeting Updates
+#### Meeting Updates (Realtime Results)
 - **Topic**: `/topic/meeting/{meetingId}`
 - **Payload**: `MeetingRealtimeStatus`
-- **Mô tả**: Nhận cập nhật kết quả vote realtime (Resolutions & Elections) khi có bất kỳ ai vote.
+- **Mô tả**: Nhận cập nhật kết quả biểu quyết (Nghị quyết) và bầu cử theo thời gian thực.
+- **Tần suất**: Đẩy ngay sau khi Kafka Consumer xử lý xong sự kiện vote (thường < 100ms).
 
-**Example Payload:**
+**Dữ liệu trả về (Example):**
 ```json
 {
   "meetingId": "123456",
-  "resolutionResults": [...],
-  "electionResults": [...]
+  "resolutionResults": [
+    {
+      "resolutionId": "RES_01",
+      "results": [
+        { "votingOptionId": "1", "votingOptionName": "Đồng ý", "voteCount": 10, "totalWeight": 1000, "percentage": 83.3 },
+        { "votingOptionId": "2", "votingOptionName": "Không đồng ý", "voteCount": 2, "totalWeight": 200, "percentage": 16.7 }
+      ],
+      "totalVoters": 12,
+      "totalWeight": 1200
+    }
+  ],
+  "electionResults": [
+    {
+       "electionId": "ELE_01",
+       "results": [
+         { "votingOptionId": "3", "votingOptionName": "Ứng viên A", "voteCount": 5, "totalWeight": 500, "percentage": 100.0 }
+       ],
+       "totalVoters": 5,
+       "totalWeight": 500
+    }
+  ]
 }
 ```
 
-### 9.3. Client Example (React/JS)
+---
 
-```javascript
-/* npm install sockjs-client stompjs */
-import SockJS from 'sockjs-client';
-import Stomp from 'stompjs';
+## 10. Kiến trúc Kafka (Hệ thống nội bộ)
 
-const connectWebSocket = () => {
-    // Note: Must include /api prefix because server.servlet.context-path=/api
-    const socket = new SockJS('http://localhost:8085/api/ws');
-    const stompClient = Stomp.over(socket);
+Phần này dành cho việc phát triển và giám sát hệ thống. Frontend không tương tác trực tiếp với Kafka nhưng cần hiểu cơ chế để xử lý UI hợp lý.
 
-    stompClient.connect({}, (frame) => {
-        console.log('Connected: ' + frame);
-        
-        // Subscribe to meeting updates
-        stompClient.subscribe('/topic/meeting/123456', (message) => {
-             const status = JSON.parse(message.body);
-             console.log("Realtime Update:", status);
-        });
-    }, (error) => {
-        console.error("Connection error:", error);
-    });
+### 10.1. Topics & Partitions
+- **Topic**: `vote_events`
+- **Số partitions**: 3
+- **Partition Key**: `meetingId` (Đảm bảo thứ tự phiếu bầu trong cùng 1 cuộc họp luôn đúng).
+
+### 10.2. Cấu trúc Event (VoteEvent)
+Khi có người vote, backend bắn event lên topic `vote_events` với định dạng:
+
+```json
+{
+  "meetingId": "string",
+  "itemId": "string (resolutionId hoặc electionId)",
+  "type": "RESOLUTION / ELECTION",
+  "action": "VOTE_CAST / VOTE_CHANGED",
+  "timestamp": "ISO8601"
 }
 ```
+
+### 10.3. Lợi ích cho FE
+- **API Latency**: Giảm từ ~2s xuống < 50ms. FE có thể đóng modal hoặc chuyển trạng thái "Đã vote" ngay lập tức mà không cần đợi server tính toán xong.
+- **Data Consistency**: Nhờ Partition Key, các cập nhật dồn dập sẽ không gây xung đột số liệu. FE luôn nhận được bản snapshot mới nhất từ WebSocket.

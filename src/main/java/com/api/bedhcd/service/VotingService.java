@@ -16,10 +16,13 @@ import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.repository.*;
 import com.api.bedhcd.service.kafka.VoteProducer;
-import com.api.bedhcd.util.RandomUtil;
+import com.api.bedhcd.dto.event.VoteEvent;
 import com.api.bedhcd.dto.response.MeetingRealtimeStatus;
+import com.api.bedhcd.util.RandomUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,10 +31,12 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @SuppressWarnings("null")
 public class VotingService {
 
@@ -45,6 +50,11 @@ public class VotingService {
         private final MeetingParticipantRepository meetingParticipantRepository;
         private final VoteProducer voteProducer;
         private final ElectionRepository electionRepository;
+        private final ElectionService electionService;
+        private final SimpMessagingTemplate messagingTemplate;
+
+        // Cache lưu trữ trạng thái realtime của các cuộc họp
+        private final Map<String, MeetingRealtimeStatus> meetingCache = new ConcurrentHashMap<>();
 
         @Transactional
         public ResolutionResponse createResolution(String meetingId, ResolutionRequest request) {
@@ -341,13 +351,18 @@ public class VotingService {
                         voteLogRepository.save(log);
                 }
 
-                // Broadcast realtime update
+                // Gửi event tối ưu lên Kafka để xử lý bất đồng bộ
                 try {
-                        MeetingRealtimeStatus meetingStatus = getMeetingRealtimeStatus(meeting.getId());
-                        voteProducer.sendVoteUpdate(meetingStatus);
+                        VoteEvent event = VoteEvent.builder()
+                                        .meetingId(meeting.getId())
+                                        .itemId(resolutionId)
+                                        .type(VoteEvent.Type.RESOLUTION)
+                                        .action(shouldLog ? (action == VoteAction.VOTE_CAST ? VoteEvent.Action.VOTE_CAST
+                                                        : VoteEvent.Action.VOTE_CHANGED) : VoteEvent.Action.VOTE_CAST)
+                                        .build();
+                        voteProducer.sendVoteEvent(event);
                 } catch (Exception e) {
-                        // Log error but do not fail the transaction
-                        System.err.println("Failed to broadcast vote update: " + e.getMessage());
+                        log.error("Failed to send vote event: {}", e.getMessage());
                 }
         }
 
@@ -578,7 +593,7 @@ public class VotingService {
                 // 2. Get all Elections
                 List<Election> elections = electionRepository.findByMeetingId(meetingId);
                 List<VotingResultResponse> electionResults = elections.stream()
-                                .map(election -> getElectionVotingResults(election.getId()))
+                                .map(election -> electionService.getVotingResults(election.getId()))
                                 .collect(Collectors.toList());
 
                 return MeetingRealtimeStatus.builder()
@@ -588,63 +603,48 @@ public class VotingService {
                                 .build();
         }
 
-        public VotingResultResponse getElectionVotingResults(String electionId) {
-                Election election = electionRepository.findById(electionId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Election not found"));
+        /**
+         * Xử lý cập nhật kết quả từng phần khi có event từ Kafka.
+         * Đảm bảo chỉ tính toán lại hạng mục bị thay đổi và ghép vào cache.
+         */
+        public void processVoteUpdate(VoteEvent event) {
+                String meetingId = event.getMeetingId();
+                MeetingRealtimeStatus currentStatus = meetingCache.get(meetingId);
 
-                List<Vote> votes = voteRepository.findByVotingOption_Election_Id(electionId);
-                List<VotingOption> options = votingOptionRepository.findByElection_IdOrderByDisplayOrder(electionId);
+                // Nếu chưa có cache hoặc cache bị trống, thực hiện load toàn bộ lần đầu
+                if (currentStatus == null) {
+                        currentStatus = getMeetingRealtimeStatus(meetingId);
+                } else {
+                        // Cập nhật từng phần (Partial Update)
+                        if (event.getType() == VoteEvent.Type.RESOLUTION) {
+                                VotingResultResponse newResResult = getVotingResults(event.getItemId());
 
-                // Calculate (similar logic to Resolution)
-                long totalVoters = votes.stream()
-                                .filter(v -> v.getVoteWeight() > 0)
-                                .map(v -> v.getUser().getId())
-                                .distinct()
-                                .count();
+                                // Thay thế kết quả cũ của resolution đó trong list
+                                List<VotingResultResponse> resResults = new ArrayList<>(
+                                                currentStatus.getResolutionResults());
+                                resResults.removeIf(r -> r.getResolutionId().equals(event.getItemId()));
+                                resResults.add(newResResult);
 
-                List<VotingResultResponse.VotingOptionResult> results = options.stream()
-                                .map(option -> {
-                                        long totalOptionWeight = votes.stream()
-                                                        .filter(v -> v.getVoteWeight() > 0)
-                                                        .filter(v -> v.getVotingOption() != null && v.getVotingOption()
-                                                                        .getId().equals(option.getId()))
-                                                        .mapToLong(Vote::getVoteWeight)
-                                                        .sum();
+                                // Sắp xếp lại theo cùng thứ tự ban đầu nếu cần (optional)
+                                currentStatus.setResolutionResults(resResults);
+                        } else if (event.getType() == VoteEvent.Type.ELECTION) {
+                                VotingResultResponse newEleResult = electionService.getVotingResults(event.getItemId());
 
-                                        long votersForOption = votes.stream()
-                                                        .filter(v -> v.getVoteWeight() > 0)
-                                                        .filter(v -> v.getVotingOption() != null && v.getVotingOption()
-                                                                        .getId().equals(option.getId()))
-                                                        .map(v -> v.getUser().getId())
-                                                        .distinct()
-                                                        .count();
+                                List<VotingResultResponse> eleResults = new ArrayList<>(
+                                                currentStatus.getElectionResults());
+                                eleResults.removeIf(r -> r.getElectionId().equals(event.getItemId()));
+                                eleResults.add(newEleResult);
 
-                                        return VotingResultResponse.VotingOptionResult.builder()
-                                                        .votingOptionId(option.getId())
-                                                        .votingOptionName(option.getName())
-                                                        .voteCount(votersForOption)
-                                                        .totalWeight(totalOptionWeight)
-                                                        .build();
-                                })
-                                .collect(Collectors.toList());
-
-                long totalWeight = results.stream().mapToLong(VotingResultResponse.VotingOptionResult::getTotalWeight)
-                                .sum();
-                results.forEach(r -> {
-                        if (totalWeight > 0) {
-                                r.setPercentage((double) r.getTotalWeight() / totalWeight * 100);
+                                currentStatus.setElectionResults(eleResults);
                         }
-                });
+                }
 
-                return VotingResultResponse.builder()
-                                .meetingId(election.getMeeting().getId())
-                                .meetingTitle(election.getMeeting().getTitle())
-                                .electionId(election.getId())
-                                .electionTitle(election.getTitle())
-                                .results(results)
-                                .totalVoters(totalVoters)
-                                .totalWeight(totalWeight)
-                                .createdAt(LocalDateTime.now())
-                                .build();
+                // Cập nhật lại cache và broadcast full status xuống WebSocket
+                meetingCache.put(meetingId, currentStatus);
+
+                // Broadcast to WebSocket topic: /topic/meeting/{meetingId}
+                String destination = "/topic/meeting/" + meetingId;
+                messagingTemplate.convertAndSend(destination, currentStatus);
+                log.info("Broadcasted to WebSocket: {}", destination);
         }
 }

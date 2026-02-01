@@ -1,12 +1,13 @@
 package com.api.bedhcd.service;
 
-import com.api.bedhcd.dto.request.VotingOptionRequest;
+import com.api.bedhcd.dto.event.VoteEvent;
 import com.api.bedhcd.dto.request.ElectionRequest;
+import com.api.bedhcd.dto.request.VotingOptionRequest;
 import com.api.bedhcd.dto.request.VoteRequest;
-import com.api.bedhcd.dto.response.VotingOptionResponse;
 import com.api.bedhcd.dto.response.ElectionResponse;
 import com.api.bedhcd.dto.response.UserVoteResponse;
 import com.api.bedhcd.dto.response.VotingResultResponse;
+import com.api.bedhcd.dto.response.VotingOptionResponse;
 import com.api.bedhcd.entity.*;
 import com.api.bedhcd.entity.MeetingParticipant;
 import com.api.bedhcd.entity.enums.VoteAction;
@@ -14,8 +15,11 @@ import com.api.bedhcd.entity.enums.VotingOptionType;
 import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.repository.*;
+import com.api.bedhcd.service.kafka.VoteProducer;
 import com.api.bedhcd.util.RandomUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +33,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @SuppressWarnings("null")
 public class ElectionService {
 
@@ -40,6 +45,7 @@ public class ElectionService {
         private final UserRepository userRepository;
         private final VoteLogRepository voteLogRepository;
         private final MeetingParticipantRepository meetingParticipantRepository;
+        private final VoteProducer voteProducer;
 
         @Transactional
         public ElectionResponse createElection(String meetingId, ElectionRequest request) {
@@ -233,6 +239,19 @@ public class ElectionService {
                                 voteLogRepository.save(zeroLog);
                         }
                 }
+
+                // Gửi event tối ưu lên Kafka để xử lý bất đồng bộ
+                try {
+                        VoteEvent event = VoteEvent.builder()
+                                        .meetingId(election.getMeeting().getId())
+                                        .itemId(electionId)
+                                        .type(VoteEvent.Type.ELECTION)
+                                        .action(VoteEvent.Action.VOTE_CAST) // Mặc định là CAST
+                                        .build();
+                        voteProducer.sendVoteEvent(event);
+                } catch (Exception e) {
+                        log.error("Failed to send election vote event: {}", e.getMessage());
+                }
         }
 
         @Transactional
@@ -340,8 +359,11 @@ public class ElectionService {
                 long receivedShares = participant.getReceivedProxyShares() != null
                                 ? participant.getReceivedProxyShares()
                                 : 0;
+                long delegatedShares = participant.getDelegatedShares() != null
+                                ? participant.getDelegatedShares()
+                                : 0;
 
-                long totalShares = baseShares + receivedShares;
+                long totalShares = baseShares + receivedShares - delegatedShares;
                 return totalShares * (multiplier != null ? multiplier : 1);
         }
 

@@ -19,4 +19,6 @@ public class ProxyImportRecord {
     private String dateOfIssue;
     private String fullName;
     private String email;
+    private String address;
+    private String placeOfIssue;
 }

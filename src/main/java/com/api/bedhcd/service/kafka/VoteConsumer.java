@@ -1,26 +1,30 @@
 package com.api.bedhcd.service.kafka;
 
-import com.api.bedhcd.dto.response.MeetingRealtimeStatus;
+import com.api.bedhcd.dto.event.VoteEvent;
+
+import com.api.bedhcd.service.VotingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Service;
 
-@Service
+// @Service
 @RequiredArgsConstructor
 @Slf4j
 public class VoteConsumer {
 
-    private final SimpMessagingTemplate messagingTemplate;
+    private final VotingService votingService;
 
-    @KafkaListener(topics = "vote_updates", groupId = "voting-group")
-    public void consumeVoteUpdate(MeetingRealtimeStatus meetingStatus) {
-        log.info("Received vote update for meeting: {}", meetingStatus.getMeetingId());
-
-        // Broadcast to WebSocket topic: /topic/meeting/{meetingId}
-        String destination = "/topic/meeting/" + meetingStatus.getMeetingId();
-        messagingTemplate.convertAndSend(destination, meetingStatus);
-        log.info("Broadcasted to WebSocket: {}", destination);
+    /**
+     * Lắng nghe các event bầu cử nhẹ (VOTE_CAST/VOTE_CHANGED).
+     * Sẽ trigger việc tính toán lại từng phần và update cache.
+     */
+    // @KafkaListener(topics = "vote_events", groupId = "voting-group")
+    public void consumeVoteEvent(VoteEvent event) {
+        log.info("Received vote event: {} for item {}", event.getType(), event.getItemId());
+        try {
+            votingService.processVoteUpdate(event);
+        } catch (Exception e) {
+            log.error("Error processing vote event", e);
+        }
     }
+
 }

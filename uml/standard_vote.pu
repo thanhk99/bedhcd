@@ -1,0 +1,29 @@
+@startuml Standard_Vote_Flow
+title Luồng Vote Bình Thường (Standard Vote Flow)
+actor "User A" as U
+participant "Voting API" as API
+database "Database" as DB
+queue "Kafka (vote_events)" as K
+participant "Consumer" as C
+participant "Local Cache" as CA
+participant "WebSocket Clients" as WS
+U -> API: POST /vote (Res_1, "AGREE")
+activate API
+API -> DB: INSERT Vote (Res_1, User_A)
+activate DB
+DB --> API: Success
+deactivate DB
+API -> K: Send Event {meetingId: "M1", itemId: "Res_1"}
+API --> U: 200 OK (Fast Response)
+deactivate API
+K -> C: Consume Event {itemId: "Res_1"}
+activate C
+C -> CA: Get lastStatus of M1 (e.g. {Res_1: 0, Res_2: 0})
+C -> DB: SELECT count(*) FROM Votes WHERE res_id="Res_1"
+activate DB
+DB --> C: Returns: {Agree: 1, Disagree: 0}
+deactivate DB
+C -> CA: Update Cache {Res_1: 1, Res_2: 0}
+C -> WS: Broadcast {Res_1: 1, Res_2: 0}
+deactivate C
+@enduml
