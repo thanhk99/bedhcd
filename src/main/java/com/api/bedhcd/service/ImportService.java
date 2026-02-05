@@ -93,10 +93,24 @@ public class ImportService {
                                 user.setFullName(record.getFullName());
                                 if (record.getInvestorCode() != null)
                                         user.setInvestorCode(record.getInvestorCode());
-                                if (record.getDateOfIssue() != null)
+
+                                // Logic check dateOfIssue mới nhất
+                                java.time.LocalDate dbDate = ExcelHelper.parseDateOfIssue(user.getDateOfIssue());
+                                java.time.LocalDate importDate = ExcelHelper.parseDateOfIssue(record.getDateOfIssue());
+
+                                boolean isImportNewer = false;
+                                if (importDate != null) {
+                                        if (dbDate == null || importDate.isAfter(dbDate)) {
+                                                isImportNewer = true;
+                                        }
+                                }
+
+                                if (isImportNewer) {
                                         user.setDateOfIssue(record.getDateOfIssue());
-                                if (record.getPlaceOfIssue() != null)
-                                        user.setPlaceOfIssue(record.getPlaceOfIssue());
+                                        if (record.getPlaceOfIssue() != null)
+                                                user.setPlaceOfIssue(record.getPlaceOfIssue());
+                                }
+
                                 if (record.getNation() != null)
                                         user.setNation(record.getNation());
 

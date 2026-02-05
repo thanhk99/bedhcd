@@ -104,8 +104,10 @@ public class ExcelHelper {
             case STRING:
                 return cell.getStringCellValue().trim();
             case NUMERIC:
-                if (DateUtil.isCellDateFormatted(cell))
-                    return cell.getDateCellValue().toString();
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy");
+                    return sdf.format(cell.getDateCellValue());
+                }
                 return String.format("%.0f", cell.getNumericCellValue());
             case BOOLEAN:
                 return String.valueOf(cell.getBooleanCellValue());
@@ -160,13 +162,13 @@ public class ExcelHelper {
     }
 
     private static List<ShareholderImportRecord> mergeShareholderRecords(List<ShareholderImportRecord> records) {
-        // Nhóm theo họ tên đã chuẩn hóa
-        Map<String, List<ShareholderImportRecord>> groupedByName = records.stream()
-                .collect(Collectors.groupingBy(r -> normalizeFullName(r.getFullName())));
+        // Nhóm theo CCCD
+        Map<String, List<ShareholderImportRecord>> groupedByCccd = records.stream()
+                .collect(Collectors.groupingBy(ShareholderImportRecord::getCccd));
 
         List<ShareholderImportRecord> mergedRecords = new ArrayList<>();
 
-        for (Map.Entry<String, List<ShareholderImportRecord>> entry : groupedByName.entrySet()) {
+        for (Map.Entry<String, List<ShareholderImportRecord>> entry : groupedByCccd.entrySet()) {
             List<ShareholderImportRecord> group = entry.getValue();
 
             if (group.size() == 1) {
@@ -236,7 +238,7 @@ public class ExcelHelper {
     /**
      * Parse dateOfIssue string thành LocalDate
      */
-    private static LocalDate parseDateOfIssue(String dateStr) {
+    public static LocalDate parseDateOfIssue(String dateStr) {
         if (dateStr == null || dateStr.trim().isEmpty() || "N/A".equals(dateStr)) {
             return null;
         }
