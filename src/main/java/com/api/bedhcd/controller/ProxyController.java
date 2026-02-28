@@ -44,4 +44,12 @@ public class ProxyController {
         proxyService.revokeDelegation(delegationId);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/{delegationId}")
+    public ResponseEntity<ProxyDelegationResponse> updateDelegationShares(
+            @PathVariable String meetingId, // có thể dùng hoặc không cần do id là duy nhất
+            @PathVariable Long delegationId,
+            @RequestBody ProxyDelegationRequest request) {
+        return ResponseEntity.ok(proxyService.updateDelegation(delegationId, request.getSharesDelegated()));
+    }
 }

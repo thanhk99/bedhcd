@@ -47,13 +47,13 @@ public class MeetingParticipant {
     @Builder.Default
     private ParticipantStatus status = ParticipantStatus.PENDING;
 
+    @Column(name = "attending_shares")
+    @Builder.Default
+    private Long attendingShares = 0L;
+
     @Column(name = "shares_owned")
     @Builder.Default
     private Long sharesOwned = 0L;
-
-    @Column(name = "total_shares")
-    @Builder.Default
-    private Long totalShares = 0L;
 
     @Column(name = "received_proxy_shares")
     @Builder.Default

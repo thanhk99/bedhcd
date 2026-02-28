@@ -121,21 +121,8 @@ public class ImportService {
 
                                 userRepository.save(user);
 
-                                MeetingParticipant participant = participantRepository
-                                                .findByMeeting_IdAndUser_Id(meetingId, user.getId())
-                                                .orElse(MeetingParticipant.builder()
-                                                                .meeting(meeting)
-                                                                .user(user)
-                                                                .participationType(ParticipationType.DIRECT)
-                                                                .status(ParticipantStatus.PENDING)
-                                                                .build());
-
-                                participant.setTotalShares(record.getShares());
-                                participant.setSharesOwned(record.getShares());
-                                participant.setDelegatedShares(0L);
-                                participant.setReceivedProxyShares(0L);
-
-                                participantRepository.save(participant);
+                                userRepository.save(user);
+                                log.debug("Saved/Updated User info for CCCD={}", record.getCccd());
 
                         } catch (Exception e) {
                                 log.error(
@@ -213,10 +200,20 @@ public class ImportService {
 
                                 MeetingParticipant delegator = participantRepository
                                                 .findByMeeting_IdAndUser_Id(meetingId, delegatorUser.getId())
-                                                .orElseThrow(
-                                                                () -> new BadRequestException(
-                                                                                "Delegator not in meeting: " + record
-                                                                                                .getDelegatorCccd()));
+                                                .orElseGet(() -> {
+                                                        MeetingParticipant newParticipant = MeetingParticipant.builder()
+                                                                        .meeting(meeting)
+                                                                        .user(delegatorUser)
+                                                                        .participationType(ParticipationType.DIRECT)
+                                                                        .status(ParticipantStatus.PENDING)
+                                                                        .sharesOwned(delegatorUser
+                                                                                        .getSharesOwned() != null
+                                                                                                        ? delegatorUser.getSharesOwned()
+                                                                                                        : 0L)
+                                                                        .delegatedShares(0L)
+                                                                        .build();
+                                                        return participantRepository.save(newParticipant);
+                                                });
 
                                 MeetingParticipant proxy = participantRepository
                                                 .findByMeeting_IdAndUser_Id(meetingId, proxyUser.getId())
@@ -227,8 +224,6 @@ public class ImportService {
                                                                         .participationType(ParticipationType.PROXY)
                                                                         .status(ParticipantStatus.PENDING)
                                                                         .sharesOwned(0L)
-                                                                        .totalShares(0L)
-                                                                        .receivedProxyShares(0L)
                                                                         .delegatedShares(0L)
                                                                         .build();
                                                         return participantRepository.save(newParticipant);
@@ -253,17 +248,20 @@ public class ImportService {
                                 proxyRepository.save(delegation);
 
                                 // Update participant counts
-                                delegator.setDelegatedShares(
-                                                delegator.getDelegatedShares() + record.getSharesDelegated());
-                                // Quyền biểu quyết (totalShares) của người uỷ quyền
-                                delegator.setTotalShares(delegator.getSharesOwned() + delegator.getReceivedProxyShares()
-                                                - delegator.getDelegatedShares());
+                                delegator.setSharesOwned(delegatorUser.getSharesOwned());
+                                proxy.setSharesOwned(proxyUser.getSharesOwned());
 
-                                proxy.setReceivedProxyShares(
-                                                proxy.getReceivedProxyShares() + record.getSharesDelegated());
-                                // Quyền biểu quyết (totalShares) của người nhận uỷ quyền
-                                proxy.setTotalShares(proxy.getSharesOwned() + proxy.getReceivedProxyShares()
-                                                - proxy.getDelegatedShares());
+                                long currentDelegatedCount = delegator.getDelegatedShares() != null
+                                                ? delegator.getDelegatedShares()
+                                                : 0L;
+                                long currentReceivedCount = proxy.getReceivedProxyShares() != null
+                                                ? proxy.getReceivedProxyShares()
+                                                : 0L;
+
+                                delegator.setDelegatedShares(currentDelegatedCount + record.getSharesDelegated());
+                                proxy.setReceivedProxyShares(currentReceivedCount + record.getSharesDelegated());
+
+                                delegator.setReceivedProxyShares(currentReceivedCount + record.getSharesDelegated());
 
                                 participantRepository.save(delegator);
                                 participantRepository.save(proxy);

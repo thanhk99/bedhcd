@@ -167,24 +167,7 @@ public class UserService {
                 .enabled(true)
                 .build();
 
-        user = userRepository.save(user);
-
-        // Link user to meeting
-        Meeting meeting = meetingRepository.findById(request.getMeetingId())
-                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
-
-        MeetingParticipant participant = MeetingParticipant.builder()
-                .meeting(meeting)
-                .user(user)
-                .sharesOwned(user.getSharesOwned() != null ? user.getSharesOwned() : 0L)
-                .receivedProxyShares(0L)
-                .delegatedShares(0L)
-                .participationType(com.api.bedhcd.entity.enums.ParticipationType.DIRECT)
-                .status(com.api.bedhcd.entity.enums.ParticipantStatus.PENDING)
-                .build();
-        meetingParticipantRepository.save(participant);
-
-        return mapToUserResponse(user);
+        return mapToUserResponse(userRepository.save(user));
     }
 
     @Transactional
@@ -265,9 +248,9 @@ public class UserService {
         proxyDelegationRepository.save(delegation);
 
         // 5. Cập nhật số dư cổ phần trong cuộc họp
-        long currentDelegatorShares = delegatorParticipant.getSharesOwned() != null
-                ? delegatorParticipant.getSharesOwned()
-                : 0L;
+        delegatorParticipant.setSharesOwned(delegatorUser.getSharesOwned());
+        proxyParticipant.setSharesOwned(proxyUser.getSharesOwned());
+
         long currentDelegatedCount = delegatorParticipant.getDelegatedShares() != null
                 ? delegatorParticipant.getDelegatedShares()
                 : 0L;
@@ -275,17 +258,8 @@ public class UserService {
                 ? proxyParticipant.getReceivedProxyShares()
                 : 0L;
 
-        // Giữ nguyên sharesOwned gốc của người uỷ quyền
-        // delegatorParticipant.setSharesOwned(currentDelegatorShares -
-        // sharesToDelegate);
         delegatorParticipant.setDelegatedShares(currentDelegatedCount + sharesToDelegate);
         proxyParticipant.setReceivedProxyShares(currentProxyReceived + sharesToDelegate);
-
-        // Cập nhật totalShares (quyền biểu quyết)
-        delegatorParticipant.setTotalShares(delegatorParticipant.getSharesOwned()
-                + delegatorParticipant.getReceivedProxyShares() - delegatorParticipant.getDelegatedShares());
-        proxyParticipant.setTotalShares(proxyParticipant.getSharesOwned() + proxyParticipant.getReceivedProxyShares()
-                - proxyParticipant.getDelegatedShares());
 
         meetingParticipantRepository.save(delegatorParticipant);
         meetingParticipantRepository.save(proxyParticipant);
@@ -410,7 +384,6 @@ public class UserService {
                 .sharesOwned(user.getSharesOwned() != null ? user.getSharesOwned() : 0L)
                 .receivedProxyShares(0L)
                 .delegatedShares(0L)
-                .totalShares(user.getSharesOwned() != null ? user.getSharesOwned() : 0L)
                 .phoneNumber(user.getPhoneNumber())
                 .investorCode(user.getInvestorCode())
                 .cccd(user.getCccd())
@@ -428,17 +401,14 @@ public class UserService {
     private UserResponse mapParticipantToResponse(com.api.bedhcd.entity.MeetingParticipant participant) {
         User user = participant.getUser();
         UserResponse response = mapBaseUserToResponse(user);
-        response.setSharesOwned(participant.getSharesOwned() != null ? participant.getSharesOwned() : 0L);
+        response.setAttendingShares(participant.getAttendingShares() != null ? participant.getAttendingShares() : 0L);
         response.setReceivedProxyShares(
                 participant.getReceivedProxyShares() != null ? participant.getReceivedProxyShares() : 0L);
         response.setDelegatedShares(participant.getDelegatedShares() != null ? participant.getDelegatedShares() : 0L);
 
-        long sharesOwned = participant.getSharesOwned() != null ? participant.getSharesOwned() : 0L;
-        long receivedProxyShares = participant.getReceivedProxyShares() != null ? participant.getReceivedProxyShares()
-                : 0L;
-        long delegatedShares = participant.getDelegatedShares() != null ? participant.getDelegatedShares() : 0L;
+        long attendingShares = response.getAttendingShares();
+        long receivedProxyShares = response.getReceivedProxyShares();
 
-        response.setTotalShares(sharesOwned + receivedProxyShares - delegatedShares);
         return response;
     }
 

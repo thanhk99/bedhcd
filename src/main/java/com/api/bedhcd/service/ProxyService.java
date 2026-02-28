@@ -81,12 +81,22 @@ public class ProxyService {
                 delegation = proxyDelegationRepository.save(delegation);
 
                 // Update share counts in MeetingParticipant
-                // Giảm số sở hữu trực tiếp của người uỷ quyền trong cuộc họp này
-                delegator.setSharesOwned(delegator.getSharesOwned() - sharesToUpdate);
+                // Đảm bảo sharesOwned phản ánh tổng sở hữu từ User
+                delegator.setSharesOwned(delegatorUser.getSharesOwned());
+                proxy.setSharesOwned(proxyUser.getSharesOwned());
+
                 // Cộng dồn vào số đã uỷ quyền (để theo dõi)
                 delegator.setDelegatedShares(delegator.getDelegatedShares() + sharesToUpdate);
                 // Cộng dồn vào số người được uỷ quyền nhận được
                 proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() + sharesToUpdate);
+
+                // Cập nhật attendingShares nếu đã điểm danh
+                if (delegator.getCheckedInAt() != null) {
+                        delegator.setAttendingShares(delegator.getAttendingShares() - sharesToUpdate);
+                }
+                if (proxy.getCheckedInAt() != null) {
+                        proxy.setAttendingShares(proxy.getAttendingShares() + sharesToUpdate);
+                }
 
                 meetingParticipantRepository.save(delegator);
                 meetingParticipantRepository.save(proxy);
@@ -112,15 +122,71 @@ public class ProxyService {
                                 delegation.getDelegator());
                 MeetingParticipant proxy = getOrCreateParticipant(delegation.getMeeting(), delegation.getProxy());
 
-                // Hoàn lại số sở hữu cho người uỷ quyền
-                delegator.setSharesOwned(delegator.getSharesOwned() + delegation.getSharesDelegated());
-                // Giảm số đã uỷ quyền
-                delegator.setDelegatedShares(delegator.getDelegatedShares() - delegation.getSharesDelegated());
+                // Hoàn lại logic uỷ quyền
+                long sharesToRevoke = delegation.getSharesDelegated();
+                delegator.setDelegatedShares(delegator.getDelegatedShares() - sharesToRevoke);
                 // Giảm số người được uỷ quyền nhận được
-                proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() - delegation.getSharesDelegated());
+                proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() - sharesToRevoke);
+
+                // Hoàn lại attendingShares nếu đã điểm danh
+                if (delegator.getCheckedInAt() != null) {
+                        delegator.setAttendingShares(delegator.getAttendingShares() + sharesToRevoke);
+                }
+                if (proxy.getCheckedInAt() != null) {
+                        proxy.setAttendingShares(proxy.getAttendingShares() - sharesToRevoke);
+                }
 
                 meetingParticipantRepository.save(delegator);
                 meetingParticipantRepository.save(proxy);
+        }
+
+        @Transactional
+        public ProxyDelegationResponse updateDelegation(Long delegationId, Long newShares) {
+                ProxyDelegation delegation = proxyDelegationRepository.findById(delegationId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Delegation not found"));
+
+                if (delegation.getStatus() != DelegationStatus.ACTIVE) {
+                        throw new BadRequestException("Cannot update inactive delegation");
+                }
+
+                long oldShares = delegation.getSharesDelegated();
+
+                delegation.setSharesDelegated(newShares);
+                proxyDelegationRepository.save(delegation);
+
+                MeetingParticipant delegator = getOrCreateParticipant(delegation.getMeeting(),
+                                delegation.getDelegator());
+                MeetingParticipant proxy = getOrCreateParticipant(delegation.getMeeting(), delegation.getProxy());
+
+                // Cập nhật số liệu
+                long diff = newShares - oldShares;
+                delegator.setDelegatedShares(delegator.getDelegatedShares() + diff);
+                proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() + diff);
+
+                // Đồng bộ attendingShares cho người uỷ quyền
+                if (delegator.getCheckedInAt() != null) {
+                        delegator.setAttendingShares(delegator.getAttendingShares() - diff);
+                }
+
+                // Nếu Proxy chưa điểm danh, tự động điểm danh luôn
+                if (proxy.getCheckedInAt() == null) {
+                        proxy.setCheckedInAt(LocalDateTime.now());
+                        proxy.setStatus(com.api.bedhcd.entity.enums.ParticipantStatus.CHECKED_IN);
+                        // Công thức tính attendingShares: sở hữu - đã uỷ quyền + nhận uỷ quyền
+                        long initialAttending = (proxy.getSharesOwned() != null ? proxy.getSharesOwned() : 0L)
+                                        - (proxy.getDelegatedShares() != null ? proxy.getDelegatedShares() : 0L)
+                                        + (proxy.getReceivedProxyShares() != null ? proxy.getReceivedProxyShares()
+                                                        : 0L);
+                        proxy.setAttendingShares(initialAttending);
+                } else {
+                        // Nếu đã điểm danh rồi, cập nhật attendingShares theo mức chênh lệch
+                        proxy.setAttendingShares(proxy.getAttendingShares() + diff);
+                }
+
+                meetingParticipantRepository.save(delegator);
+                meetingParticipantRepository.save(proxy);
+
+                return mapToResponse(delegation);
         }
 
         private MeetingParticipant getOrCreateParticipant(Meeting meeting, User user) {

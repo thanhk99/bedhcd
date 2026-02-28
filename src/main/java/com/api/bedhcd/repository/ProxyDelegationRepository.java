@@ -10,19 +10,23 @@ import java.util.Optional;
 
 @Repository
 public interface ProxyDelegationRepository extends JpaRepository<ProxyDelegation, Long> {
-    List<ProxyDelegation> findByMeeting_IdAndDelegator_Id(String meetingId, String delegatorId);
+        List<ProxyDelegation> findByMeeting_IdAndDelegator_Id(String meetingId, String delegatorId);
 
-    List<ProxyDelegation> findByMeeting_IdAndDelegator_IdAndStatus(String meetingId, String delegatorId,
-            DelegationStatus status);
+        List<ProxyDelegation> findByMeeting_IdAndDelegator_IdAndStatus(String meetingId, String delegatorId,
+                        DelegationStatus status);
 
-    List<ProxyDelegation> findByMeeting_IdAndProxy_Id(String meetingId, String proxyId);
+        List<ProxyDelegation> findByMeeting_IdAndProxy_Id(String meetingId, String proxyId);
 
-    List<ProxyDelegation> findByMeeting_IdAndStatus(String meetingId, DelegationStatus status);
+        List<ProxyDelegation> findByMeeting_IdAndStatus(String meetingId, DelegationStatus status);
 
-    Optional<ProxyDelegation> findByMeeting_IdAndDelegator_IdAndProxy_IdAndStatus(String meetingId, String delegatorId,
-            String proxyId, DelegationStatus status);
+        List<ProxyDelegation> findByMeeting_IdAndProxy_IdAndStatus(String meetingId, String proxyId,
+                        DelegationStatus status);
 
-    List<ProxyDelegation> findByDelegator_Id(String delegatorId);
+        Optional<ProxyDelegation> findByMeeting_IdAndDelegator_IdAndProxy_IdAndStatus(String meetingId,
+                        String delegatorId,
+                        String proxyId, DelegationStatus status);
 
-    List<ProxyDelegation> findByProxy_Id(String proxyId);
+        List<ProxyDelegation> findByDelegator_Id(String delegatorId);
+
+        List<ProxyDelegation> findByProxy_Id(String proxyId);
 }

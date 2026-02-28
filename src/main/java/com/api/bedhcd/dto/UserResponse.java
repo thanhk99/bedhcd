@@ -19,9 +19,9 @@ public class UserResponse {
     private String email;
     private String fullName;
     private Long sharesOwned;
+    private Long attendingShares;
     private Long receivedProxyShares;
     private Long delegatedShares;
-    private Long totalShares;
     private String phoneNumber;
     private String investorCode;
     private String cccd;

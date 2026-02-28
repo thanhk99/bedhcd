@@ -20,6 +20,10 @@ public class DashboardStatsResponse {
     public static class UserStats {
         private long totalShareholders;
         private long totalSharesRepresented;
+        private long attendedCount;
+        private long totalShareholderCount;
+        private long attendedShares;
+        private double participationRate;
     }
 
     @Data

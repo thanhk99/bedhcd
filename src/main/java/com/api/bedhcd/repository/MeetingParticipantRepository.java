@@ -12,7 +12,12 @@ import java.util.Optional;
 public interface MeetingParticipantRepository extends JpaRepository<MeetingParticipant, Long> {
     List<MeetingParticipant> findByMeeting_Id(String meetingId);
 
+    List<MeetingParticipant> findByMeetingId(String meetingId);
+
     Optional<MeetingParticipant> findByMeeting_IdAndUser_Id(String meetingId, String userId);
 
     long countByMeeting_IdAndStatus(String meetingId, ParticipantStatus status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(mp.attendingShares), 0) FROM MeetingParticipant mp WHERE mp.meeting.id = :meetingId AND mp.status = com.api.bedhcd.entity.enums.ParticipantStatus.CHECKED_IN")
+    long sumTotalAttendingShares(String meetingId);
 }
