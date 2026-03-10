@@ -131,6 +131,32 @@ public class AttendanceService {
                 return mapToResponse(participant);
         }
 
+        @Transactional
+        public AttendanceResponse cancelAttendance(String meetingId, String investorCode) {
+                log.info("Canceling attendance for investorCode: {} in meeting: {}",
+                                investorCode, meetingId);
+
+                User user = userRepository.findByInvestorCode(investorCode)
+                                .or(() -> userRepository.findByCccd(investorCode))
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Shareholder not found with code: " + investorCode));
+
+                MeetingParticipant participant = participantRepository
+                                .findByMeeting_IdAndUser_Id(meetingId, user.getId())
+                                .orElseThrow(() -> new ResourceNotFoundException("Attendance record not found"));
+
+                if (participant.getStatus() != ParticipantStatus.CHECKED_IN) {
+                        throw new BadRequestException("Shareholder is not checked in");
+                }
+
+                participant.setAttendingShares(0L);
+                participant.setStatus(ParticipantStatus.PENDING);
+                participant.setCheckedInAt(null);
+
+                participant = participantRepository.save(participant);
+                return mapToResponse(participant);
+        }
+
         @Transactional(readOnly = true)
         public List<AttendanceResponse> getAttendedParticipants(String meetingId) {
                 return participantRepository.findByMeeting_Id(meetingId).stream()

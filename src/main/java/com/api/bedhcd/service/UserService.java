@@ -203,6 +203,7 @@ public class UserService {
                     .cccd(request.getCccd())
                     .fullName(request.getFullName())
                     .address(request.getAddress())
+                    .placeOfIssue(request.getPlaceOfIssue())
                     .dateOfIssue(request.getDateOfIssue() != null ? request.getDateOfIssue() : "N/A")
                     .password(passwordEncoder.encode(rawPassword))
                     .roles(roles)
@@ -214,9 +215,17 @@ public class UserService {
                     .build();
             proxyUser = userRepository.save(proxyUser);
         } else {
-            // Nếu đã có User, đảm bảo có Role REPRESENTATIVE
+            // Nếu đã có User (là cổ đông hoặc người uỷ quyền cũ), cập nhật thông tin và đảm
+            // bảo có Role REPRESENTATIVE
             proxyUser.getRoles().add(Role.REPRESENTATIVE);
-            proxyUser.setFullName(request.getFullName()); // Cập nhật tên nếu có thay đổi
+            if (request.getFullName() != null)
+                proxyUser.setFullName(request.getFullName());
+            if (request.getPlaceOfIssue() != null)
+                proxyUser.setPlaceOfIssue(request.getPlaceOfIssue());
+            if (request.getPhoneNumber() != null)
+                proxyUser.setPhoneNumber(request.getPhoneNumber());
+            if (request.getAddress() != null)
+                proxyUser.setAddress(request.getAddress());
             userRepository.save(proxyUser);
         }
 
@@ -237,14 +246,29 @@ public class UserService {
                     return meetingParticipantRepository.save(p);
                 });
 
-        // 4. Tạo bản ghi uỷ quyền (ProxyDelegation)
-        ProxyDelegation delegation = ProxyDelegation.builder()
-                .meeting(meeting)
-                .delegator(delegatorUser)
-                .proxy(proxyUser)
-                .sharesDelegated(request.getSharesDelegated())
-                .status(DelegationStatus.ACTIVE)
-                .build();
+        // 4. Tạo hoặc cập nhật bản ghi uỷ quyền (ProxyDelegation)
+        ProxyDelegation delegation = proxyDelegationRepository
+                .findByMeeting_IdAndDelegator_IdAndProxy_IdAndStatus(meeting.getId(), delegatorUser.getId(),
+                        proxyUser.getId(), DelegationStatus.ACTIVE)
+                .orElse(null);
+
+        if (delegation == null) {
+            delegation = ProxyDelegation.builder()
+                    .meeting(meeting)
+                    .delegator(delegatorUser)
+                    .proxy(proxyUser)
+                    .sharesDelegated(sharesToDelegate)
+                    .authorizationDocument(request.getNote())
+                    .status(DelegationStatus.ACTIVE)
+                    .build();
+        } else {
+            // Nếu đã tồn tại uỷ quyền giữa 2 người này, cộng dồn số cổ phần
+            long currentShares = delegation.getSharesDelegated() != null ? delegation.getSharesDelegated() : 0L;
+            delegation.setSharesDelegated(currentShares + sharesToDelegate);
+            if (request.getNote() != null) {
+                delegation.setAuthorizationDocument(request.getNote());
+            }
+        }
         proxyDelegationRepository.save(delegation);
 
         // 5. Cập nhật số dư cổ phần trong cuộc họp

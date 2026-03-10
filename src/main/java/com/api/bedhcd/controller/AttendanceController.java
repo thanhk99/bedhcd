@@ -27,6 +27,13 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceService.getAttendedParticipants(meetingId));
     }
 
+    @PostMapping("/cancel")
+    public ResponseEntity<AttendanceResponse> cancelAttendance(
+            @RequestParam String meetingId,
+            @RequestParam String investorCode) {
+        return ResponseEntity.ok(attendanceService.cancelAttendance(meetingId, investorCode));
+    }
+
     @GetMapping("/checkin-bundle")
     public ResponseEntity<CheckInBundleResponse> getCheckInBundle(
             @RequestParam String meetingId,

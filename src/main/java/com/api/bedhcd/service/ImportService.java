@@ -261,8 +261,6 @@ public class ImportService {
                                 delegator.setDelegatedShares(currentDelegatedCount + record.getSharesDelegated());
                                 proxy.setReceivedProxyShares(currentReceivedCount + record.getSharesDelegated());
 
-                                delegator.setReceivedProxyShares(currentReceivedCount + record.getSharesDelegated());
-
                                 participantRepository.save(delegator);
                                 participantRepository.save(proxy);
 

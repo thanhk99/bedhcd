@@ -20,6 +20,7 @@ public class ProxyDelegationResponse {
     private String proxyName;
     private Long sharesDelegated;
     private String authorizationDocument;
+    private java.time.LocalDate authorizationDate;
     private DelegationStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime revokedAt;

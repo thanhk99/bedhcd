@@ -29,5 +29,8 @@ public class RepresentativeRequest {
     @NotBlank(message = "CCCD người uỷ quyền không được để trống")
     private String delegatorCccd;
 
+    private String placeOfIssue;
+    private String note;
+
     private Long sharesDelegated;
 }

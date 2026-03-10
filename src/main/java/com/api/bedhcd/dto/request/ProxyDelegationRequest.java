@@ -14,4 +14,5 @@ public class ProxyDelegationRequest {
     private String proxyId;
     private Long sharesDelegated;
     private String authorizationDocument;
+    private java.time.LocalDate authorizationDate;
 }
