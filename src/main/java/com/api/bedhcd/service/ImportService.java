@@ -121,8 +121,27 @@ public class ImportService {
 
                                 userRepository.save(user);
 
-                                userRepository.save(user);
-                                log.debug("Saved/Updated User info for CCCD={}", record.getCccd());
+                                // Cập nhật số cổ phần trong cuộc họp (MeetingParticipant)
+                                MeetingParticipant participant = participantRepository
+                                                .findByMeeting_IdAndUser_Id(meetingId, user.getId())
+                                                .orElseGet(() -> {
+                                                        MeetingParticipant newParticipant = MeetingParticipant.builder()
+                                                                        .meeting(meeting)
+                                                                        .user(user)
+                                                                        .participationType(ParticipationType.DIRECT)
+                                                                        .status(ParticipantStatus.PENDING)
+                                                                        .build();
+                                                        return participantRepository.save(newParticipant);
+                                                });
+
+                                participant.setSharesOwned(user.getSharesOwned());
+                                // Nếu chưa có loại tham gia, mặc định là DIRECT
+                                if (participant.getParticipationType() == null) {
+                                        participant.setParticipationType(ParticipationType.DIRECT);
+                                }
+                                participantRepository.save(participant);
+
+                                log.debug("Saved/Updated User info and Participant shares for CCCD={}", record.getCccd());
 
                         } catch (Exception e) {
                                 log.error(

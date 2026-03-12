@@ -388,6 +388,7 @@ public class VotingService {
                 }
         }
 
+        @Transactional(readOnly = true)
         public VotingResultResponse getVotingResults(String resolutionId) {
                 Resolution resolution = resolutionRepository.findById(resolutionId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
@@ -607,6 +608,7 @@ public class VotingService {
          * Xử lý cập nhật kết quả từng phần khi có event từ Kafka.
          * Đảm bảo chỉ tính toán lại hạng mục bị thay đổi và ghép vào cache.
          */
+        @Transactional
         public void processVoteUpdate(VoteEvent event) {
                 String meetingId = event.getMeetingId();
                 MeetingRealtimeStatus currentStatus = meetingCache.get(meetingId);

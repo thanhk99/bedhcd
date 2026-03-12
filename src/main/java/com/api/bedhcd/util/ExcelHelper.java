@@ -100,7 +100,22 @@ public class ExcelHelper {
     private static String getCellValueAsString(Cell cell) {
         if (cell == null)
             return "";
-        switch (cell.getCellType()) {
+        
+        CellType type = cell.getCellType();
+        if (type == CellType.FORMULA) {
+            try {
+                type = cell.getCachedFormulaResultType();
+            } catch (Exception e) {
+                // If formula cannot be evaluated, try to get raw string
+                try {
+                    return cell.getStringCellValue().trim();
+                } catch (Exception ex) {
+                    return "";
+                }
+            }
+        }
+
+        switch (type) {
             case STRING:
                 return cell.getStringCellValue().trim();
             case NUMERIC:
@@ -111,26 +126,36 @@ public class ExcelHelper {
                 return String.format("%.0f", cell.getNumericCellValue());
             case BOOLEAN:
                 return String.valueOf(cell.getBooleanCellValue());
-            case FORMULA:
-                try {
-                    return cell.getStringCellValue();
-                } catch (Exception e) {
-                    return String.valueOf(cell.getNumericCellValue());
-                }
             default:
                 return "";
         }
     }
 
     private static Long getCellValueAsLong(Cell cell) {
-        if (cell == null)
+        if (cell == null || cell.getCellType() == CellType.BLANK)
             return 0L;
-        if (cell.getCellType() == CellType.NUMERIC) {
-            return (long) cell.getNumericCellValue();
-        } else if (cell.getCellType() == CellType.STRING) {
+
+        CellType type = cell.getCellType();
+        if (type == CellType.FORMULA) {
             try {
-                String val = cell.getStringCellValue().replaceAll("[^0-9]", "");
-                return val.isEmpty() ? 0L : Long.parseLong(val);
+                type = cell.getCachedFormulaResultType();
+            } catch (Exception e) {
+                return 0L;
+            }
+        }
+
+        if (type == CellType.NUMERIC) {
+            return (long) cell.getNumericCellValue();
+        } else if (type == CellType.STRING) {
+            try {
+                // Xử lý các trường hợp số có dấu phân cách hoặc số thập phân trong String
+                String val = cell.getStringCellValue().trim().replaceAll("[^0-9.]", "");
+                if (val.isEmpty())
+                    return 0L;
+                if (val.contains(".")) {
+                    return (long) Double.parseDouble(val);
+                }
+                return Long.parseLong(val);
             } catch (NumberFormatException e) {
                 return 0L;
             }

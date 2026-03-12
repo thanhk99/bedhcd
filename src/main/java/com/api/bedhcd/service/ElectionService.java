@@ -276,6 +276,7 @@ public class ElectionService {
                 }
         }
 
+        @Transactional(readOnly = true)
         public VotingResultResponse getVotingResults(String electionId) {
                 Election election = electionRepository.findById(electionId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Election not found"));
