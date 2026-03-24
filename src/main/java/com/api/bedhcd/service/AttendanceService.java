@@ -60,10 +60,9 @@ public class AttendanceService {
                 Long newAttendingShares = request.getAttendingShares() != null ? request.getAttendingShares() : 0L;
                 Long oldAttendingShares = participant.getAttendingShares() != null ? participant.getAttendingShares()
                                 : 0L;
+                // Lấy số liệu thực tế từ bảng ủy quyền để đảm bảo chính xác
+                Long receivedProxyShares = proxyDelegationRepository.sumReceivedProxyShares(request.getMeetingId(), user.getId());
                 Long delegatedShares = participant.getDelegatedShares() != null ? participant.getDelegatedShares() : 0L;
-                Long receivedProxyShares = participant.getReceivedProxyShares() != null
-                                ? participant.getReceivedProxyShares()
-                                : 0L;
 
                 // Validate
                 long maxAvailableShares = user.getSharesOwned() - delegatedShares + receivedProxyShares;
@@ -280,6 +279,16 @@ public class AttendanceService {
                                 .delegatedShares(p.getDelegatedShares() != null ? p.getDelegatedShares() : 0L)
                                 .participationType(p.getParticipationType())
                                 .checkedInAt(p.getCheckedInAt())
+                                .checkedInBy(p.getCreatedBy())
+                                .checkedInByName(getUserNameById(p.getCreatedBy()))
                                 .build();
+        }
+
+        private String getUserNameById(String id) {
+                if (id == null || id.equals("SYSTEM"))
+                        return "Hệ thống";
+                return userRepository.findById(id)
+                                .map(User::getFullName)
+                                .orElse(id);
         }
 }

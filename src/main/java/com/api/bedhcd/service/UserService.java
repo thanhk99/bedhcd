@@ -425,13 +425,14 @@ public class UserService {
     private UserResponse mapParticipantToResponse(com.api.bedhcd.entity.MeetingParticipant participant) {
         User user = participant.getUser();
         UserResponse response = mapBaseUserToResponse(user);
+        
+        // Lấy số liệu thực tế từ bảng ủy quyền để đảm bảo hiển thị chính xác
+        long receivedProxyShares = proxyDelegationRepository.sumReceivedProxyShares(
+                participant.getMeeting().getId(), user.getId());
+        
         response.setAttendingShares(participant.getAttendingShares() != null ? participant.getAttendingShares() : 0L);
-        response.setReceivedProxyShares(
-                participant.getReceivedProxyShares() != null ? participant.getReceivedProxyShares() : 0L);
+        response.setReceivedProxyShares(receivedProxyShares);
         response.setDelegatedShares(participant.getDelegatedShares() != null ? participant.getDelegatedShares() : 0L);
-
-        long attendingShares = response.getAttendingShares();
-        long receivedProxyShares = response.getReceivedProxyShares();
 
         return response;
     }

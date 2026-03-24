@@ -110,16 +110,9 @@ public class ProxyService {
                 // Cộng dồn vào số người được uỷ quyền nhận được
                 proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() + sharesToUpdate);
 
-                // Cập nhật attendingShares nếu đã điểm danh
-                if (delegator.getCheckedInAt() != null) {
-                        long currentAttending = delegator.getAttendingShares() != null ? delegator.getAttendingShares()
-                                        : 0L;
-                        delegator.setAttendingShares(Math.max(0L, currentAttending - sharesToUpdate));
-                }
-                if (proxy.getCheckedInAt() != null) {
-                        long currentAttending = proxy.getAttendingShares() != null ? proxy.getAttendingShares() : 0L;
-                        proxy.setAttendingShares(currentAttending + sharesToUpdate);
-                }
+                // recalculate attendingShares for both
+                recalculateAttendingShares(delegator);
+                recalculateAttendingShares(proxy);
 
                 meetingParticipantRepository.save(delegator);
                 meetingParticipantRepository.save(proxy);
@@ -151,13 +144,9 @@ public class ProxyService {
                 // Giảm số người được uỷ quyền nhận được
                 proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() - sharesToRevoke);
 
-                // Hoàn lại attendingShares nếu đã điểm danh
-                if (delegator.getCheckedInAt() != null) {
-                        delegator.setAttendingShares(delegator.getAttendingShares() + sharesToRevoke);
-                }
-                if (proxy.getCheckedInAt() != null) {
-                        proxy.setAttendingShares(proxy.getAttendingShares() - sharesToRevoke);
-                }
+                // recalculate attendingShares for both
+                recalculateAttendingShares(delegator);
+                recalculateAttendingShares(proxy);
 
                 meetingParticipantRepository.save(delegator);
                 meetingParticipantRepository.save(proxy);
@@ -174,7 +163,8 @@ public class ProxyService {
                                 : 0L;
 
                 // Nếu không sở hữu, không uỷ quyền đi, không nhận uỷ quyền
-                if (owned == 0 && delegated == 0 && received == 0) {
+                // VÀ chưa điểm danh thì mới xoá
+                if (owned == 0 && delegated == 0 && received == 0 && participant.getCheckedInAt() == null) {
                         meetingParticipantRepository.delete(participant);
                 }
         }
@@ -222,25 +212,16 @@ public class ProxyService {
                 delegator.setDelegatedShares(delegator.getDelegatedShares() + diff);
                 proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() + diff);
 
-                // Đồng bộ attendingShares cho người uỷ quyền
-                if (delegator.getCheckedInAt() != null) {
-                        delegator.setAttendingShares(delegator.getAttendingShares() - diff);
-                }
-
-                // Nếu Proxy chưa điểm danh, tự động điểm danh luôn
+                // Nếu người nhận uỷ quyền chưa điểm danh, thì điểm danh cho họ
                 if (proxy.getCheckedInAt() == null) {
                         proxy.setCheckedInAt(LocalDateTime.now());
                         proxy.setStatus(com.api.bedhcd.entity.enums.ParticipantStatus.CHECKED_IN);
-                        // Công thức tính attendingShares: sở hữu - đã uỷ quyền + nhận uỷ quyền
-                        long initialAttending = (proxy.getSharesOwned() != null ? proxy.getSharesOwned() : 0L)
-                                        - (proxy.getDelegatedShares() != null ? proxy.getDelegatedShares() : 0L)
-                                        + (proxy.getReceivedProxyShares() != null ? proxy.getReceivedProxyShares()
-                                                        : 0L);
-                        proxy.setAttendingShares(initialAttending);
-                } else {
-                        // Nếu đã điểm danh rồi, cập nhật attendingShares theo mức chênh lệch
-                        proxy.setAttendingShares(proxy.getAttendingShares() + diff);
+                        proxy.setParticipationType(com.api.bedhcd.entity.enums.ParticipationType.PROXY);
                 }
+
+                // recalculate attendingShares for both
+                recalculateAttendingShares(delegator);
+                recalculateAttendingShares(proxy);
 
                 meetingParticipantRepository.save(delegator);
                 meetingParticipantRepository.save(proxy);
@@ -285,6 +266,20 @@ public class ProxyService {
                 return proxyDelegationRepository.findByMeeting_IdAndProxy_Id(meetingId, proxyId).stream()
                                 .map(this::mapToResponse)
                                 .collect(Collectors.toList());
+        }
+
+        private void recalculateAttendingShares(MeetingParticipant participant) {
+                if (participant.getCheckedInAt() == null) {
+                        participant.setAttendingShares(0L);
+                        return;
+                }
+
+                long owned = participant.getSharesOwned() != null ? participant.getSharesOwned() : 0L;
+                long delegated = participant.getDelegatedShares() != null ? participant.getDelegatedShares() : 0L;
+                long received = participant.getReceivedProxyShares() != null ? participant.getReceivedProxyShares()
+                                : 0L;
+
+                participant.setAttendingShares(Math.max(0L, owned - delegated + received));
         }
 
         private ProxyDelegationResponse mapToResponse(ProxyDelegation delegation) {

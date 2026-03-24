@@ -15,4 +15,5 @@ public class ElectionRequest {
     private String description;
     private ElectionType electionType;
     private Integer displayOrder;
+    private Integer numSeats;
 }

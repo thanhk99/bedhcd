@@ -2,6 +2,7 @@ package com.api.bedhcd.service;
 
 import com.api.bedhcd.dto.event.VoteEvent;
 import com.api.bedhcd.dto.request.ElectionRequest;
+import com.api.bedhcd.dto.request.BatchVoteRequest;
 import com.api.bedhcd.dto.request.VotingOptionRequest;
 import com.api.bedhcd.dto.request.VoteRequest;
 import com.api.bedhcd.dto.response.ElectionResponse;
@@ -10,8 +11,9 @@ import com.api.bedhcd.dto.response.VotingResultResponse;
 import com.api.bedhcd.dto.response.VotingOptionResponse;
 import com.api.bedhcd.entity.*;
 import com.api.bedhcd.entity.MeetingParticipant;
-import com.api.bedhcd.entity.enums.VoteAction;
 import com.api.bedhcd.entity.enums.VotingOptionType;
+import com.api.bedhcd.entity.enums.ElectionType;
+import com.api.bedhcd.entity.enums.VoteAction;
 import com.api.bedhcd.exception.BadRequestException;
 import com.api.bedhcd.exception.ResourceNotFoundException;
 import com.api.bedhcd.repository.*;
@@ -46,6 +48,7 @@ public class ElectionService {
         private final VoteLogRepository voteLogRepository;
         private final MeetingParticipantRepository meetingParticipantRepository;
         private final VoteProducer voteProducer;
+        private final ProxyDelegationRepository proxyDelegationRepository;
 
         @Transactional
         public ElectionResponse createElection(String meetingId, ElectionRequest request) {
@@ -59,6 +62,7 @@ public class ElectionService {
                                 .description(request.getDescription())
                                 .electionType(request.getElectionType())
                                 .displayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0)
+                                .numSeats(request.getNumSeats())
                                 .build();
 
                 election = electionRepository.save(election);
@@ -73,6 +77,7 @@ public class ElectionService {
                 election.setDescription(request.getDescription());
                 election.setElectionType(request.getElectionType());
                 election.setDisplayOrder(request.getDisplayOrder() != null ? request.getDisplayOrder() : 0);
+                election.setNumSeats(request.getNumSeats());
 
                 election = electionRepository.save(election);
 
@@ -83,6 +88,7 @@ public class ElectionService {
                                 .description(election.getDescription())
                                 .electionType(election.getElectionType())
                                 .displayOrder(election.getDisplayOrder())
+                                .numSeats(election.getNumSeats())
                                 .build();
         }
 
@@ -126,9 +132,9 @@ public class ElectionService {
                 String userAgent = servletRequest.getHeader("User-Agent");
 
                 User currentUser = getCurrentUser();
-                int multiplier = election.getVotingOptions() != null ? election.getVotingOptions().size() : 0;
+                int seats = election.getNumSeats() != null ? election.getNumSeats() : 1;
                 long votingPower = calculateVotingPower(currentUser.getId(), election.getMeeting().getId(),
-                                multiplier);
+                                seats);
 
                 // Validation
                 validateVoteDistribution(election, request, votingPower);
@@ -255,6 +261,32 @@ public class ElectionService {
         }
 
         @Transactional
+        public void castBatchElections(String meetingId, BatchVoteRequest request,
+                        ElectionType type,
+                        jakarta.servlet.http.HttpServletRequest servletRequest) {
+                // Verify meeting
+                if (!meetingRepository.existsById(meetingId)) {
+                        throw new ResourceNotFoundException("Meeting not found");
+                }
+
+                if (request.getItems() == null || request.getItems().isEmpty()) {
+                        return;
+                }
+
+                for (BatchVoteRequest.ItemVote item : request.getItems()) {
+                        Election election = electionRepository.findById(item.getItemId())
+                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                        "Election not found: " + item.getItemId()));
+
+                        if (election.getElectionType() != type) {
+                                throw new BadRequestException("Election " + item.getItemId() + " is not of type " + type);
+                        }
+
+                        castVote(item.getItemId(), item.getVoteRequest(), servletRequest);
+                }
+        }
+
+        @Transactional
         public void saveDraft(String electionId, VoteRequest request) {
                 Election election = electionRepository.findById(electionId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Election not found"));
@@ -321,6 +353,31 @@ public class ElectionService {
                         }
                 });
 
+                // Thống kê số lượng (1 người = 1 phiếu)
+                long totalIssued = meetingParticipantRepository.countByMeeting_IdAndStatus(election.getMeeting().getId(),
+                                com.api.bedhcd.entity.enums.ParticipantStatus.CHECKED_IN);
+
+                // Nhóm phiếu theo user để tính hợp lệ/không hợp lệ
+                Map<String, List<Vote>> votesByUser = votes.stream()
+                                .filter(v -> v.getVoteWeight() > 0)
+                                .collect(Collectors.groupingBy(v -> v.getUser().getId()));
+
+                long totalCollected = votesByUser.size();
+                long totalValid = 0;
+                long totalInvalid = 0;
+
+                // Tổng số ghế (mặc định là số lượng ứng viên nếu không set)
+                int seats = election.getNumSeats() != null ? election.getNumSeats() : options.size();
+
+                for (List<Vote> userVotes : votesByUser.values()) {
+                        long candidatesPicked = userVotes.size();
+                        if (candidatesPicked >= 1 && candidatesPicked <= seats) {
+                                totalValid++;
+                        } else {
+                                totalInvalid++;
+                        }
+                }
+
                 return VotingResultResponse.builder()
                                 .meetingId(election.getMeeting().getId())
                                 .meetingTitle(election.getMeeting().getTitle())
@@ -329,6 +386,10 @@ public class ElectionService {
                                 .results(results)
                                 .totalVoters(totalVoters)
                                 .totalWeight(totalWeight)
+                                .totalIssued(totalIssued)
+                                .totalCollected(totalCollected)
+                                .totalValid(totalValid)
+                                .totalInvalid(totalInvalid)
                                 .createdAt(LocalDateTime.now())
                                 .build();
         }
@@ -356,15 +417,11 @@ public class ElectionService {
 
                 MeetingParticipant participant = getOrCreateParticipant(meeting, user);
 
-                long baseShares = participant.getSharesOwned() != null ? participant.getSharesOwned() : 0;
-                long receivedShares = participant.getReceivedProxyShares() != null
-                                ? participant.getReceivedProxyShares()
-                                : 0;
-                long delegatedShares = participant.getDelegatedShares() != null
-                                ? participant.getDelegatedShares()
-                                : 0;
+                long baseShares = participant.getAttendingShares() != null ? participant.getAttendingShares() : 0;
+                // Lấy số liệu receivedShares thực tế từ bảng proxy_delegations để đảm bảo chính xác
+                long receivedShares = proxyDelegationRepository.sumReceivedProxyShares(meetingId, userId);
 
-                long totalShares = baseShares + receivedShares - delegatedShares;
+                long totalShares = baseShares + receivedShares;
                 return totalShares * (multiplier != null ? multiplier : 1);
         }
 
@@ -408,9 +465,9 @@ public class ElectionService {
                 try {
                         User currentUser = getCurrentUser();
                         if (currentUser != null) {
-                                int multiplier = election.getVotingOptions() != null
-                                                ? election.getVotingOptions().size()
-                                                : 0;
+                                int multiplier = election.getNumSeats() != null
+                                                ? election.getNumSeats()
+                                                : 1;
                                 votingPower = calculateVotingPower(currentUser.getId(), election.getMeeting().getId(),
                                                 multiplier);
 
@@ -441,6 +498,7 @@ public class ElectionService {
                                                 .collect(Collectors.toList()))
                                 .userVotes(userVotes)
                                 .votingPower(votingPower)
+                                .numSeats(election.getNumSeats())
                                 .build();
         }
 

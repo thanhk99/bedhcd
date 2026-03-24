@@ -45,6 +45,9 @@ public class Election {
     @Builder.Default
     private Integer displayOrder = 0;
 
+    @Column(name = "num_seats")
+    private Integer numSeats; // Số lượng cần bầu
+
     @OneToMany(mappedBy = "election", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<VotingOption> votingOptions = new ArrayList<>();

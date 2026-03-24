@@ -18,6 +18,7 @@ public class ElectionResponse {
     private String description;
     private ElectionType electionType;
     private Integer displayOrder;
+    private Integer numSeats;
     private List<VotingOptionResponse> votingOptions;
     private List<UserVoteResponse> userVotes;
     private Long votingPower;

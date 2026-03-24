@@ -29,4 +29,6 @@ public class AttendanceResponse {
     private Long delegatedShares;
     private ParticipationType participationType;
     private LocalDateTime checkedInAt;
+    private String checkedInBy;
+    private String checkedInByName;
 }

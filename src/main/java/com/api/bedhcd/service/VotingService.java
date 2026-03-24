@@ -3,6 +3,7 @@ package com.api.bedhcd.service;
 import com.api.bedhcd.dto.request.ResolutionRequest;
 import com.api.bedhcd.dto.request.VotingOptionRequest;
 import com.api.bedhcd.dto.request.VoteRequest;
+import com.api.bedhcd.dto.request.BatchVoteRequest;
 import com.api.bedhcd.dto.response.VotingOptionResponse;
 import com.api.bedhcd.dto.response.ResolutionResponse;
 import com.api.bedhcd.dto.response.UserVoteResponse;
@@ -52,6 +53,7 @@ public class VotingService {
         private final ElectionRepository electionRepository;
         private final ElectionService electionService;
         private final SimpMessagingTemplate messagingTemplate;
+        private final ProxyDelegationRepository proxyDelegationRepository;
 
         // Cache lưu trữ trạng thái realtime của các cuộc họp
         private final Map<String, MeetingRealtimeStatus> meetingCache = new ConcurrentHashMap<>();
@@ -367,6 +369,24 @@ public class VotingService {
         }
 
         @Transactional
+        public void castBatchResolutions(String meetingId, BatchVoteRequest request, HttpServletRequest servletRequest) {
+                // Verify meeting exists and is ongoing
+                Meeting meeting = meetingRepository.findById(meetingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
+                if (meeting.getStatus() != com.api.bedhcd.entity.enums.MeetingStatus.ONGOING) {
+                        throw new BadRequestException("Meeting is not ongoing.");
+                }
+
+                if (request.getItems() == null || request.getItems().isEmpty()) {
+                        return;
+                }
+
+                for (BatchVoteRequest.ItemVote item : request.getItems()) {
+                        castVote(item.getItemId(), item.getVoteRequest(), servletRequest);
+                }
+        }
+
+        @Transactional
         public void saveDraft(String resolutionId, VoteRequest request) {
                 Resolution resolution = resolutionRepository.findById(resolutionId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Resolution not found"));
@@ -438,6 +458,22 @@ public class VotingService {
                         }
                 });
 
+                // Thống kê số lượng (1 người = 1 phiếu)
+                long totalIssued = meetingParticipantRepository.countByMeeting_IdAndStatus(resolution.getMeeting().getId(),
+                                com.api.bedhcd.entity.enums.ParticipantStatus.CHECKED_IN);
+
+                // Thu về = số người đã thực hiện bỏ phiếu (có weight > 0)
+                long totalCollected = votes.stream()
+                                .filter(v -> v.getVoteWeight() > 0)
+                                .map(v -> v.getUser().getId())
+                                .distinct()
+                                .count();
+
+                // Hợp lệ = thu về và có chọn ít nhất 1 nội dung.
+                // Với Resolution, castVote đã đảm bảo chọn đúng 1.
+                long totalValid = totalCollected;
+                long totalInvalid = 0; // Tạm thời mặc định là 0 vì hệ thống kiểm soát input chặt chẽ
+
                 return VotingResultResponse.builder()
                                 .meetingId(resolution.getMeeting().getId())
                                 .meetingTitle(resolution.getMeeting().getTitle())
@@ -446,6 +482,10 @@ public class VotingService {
                                 .results(results)
                                 .totalVoters(totalVoters)
                                 .totalWeight(totalWeight)
+                                .totalIssued(totalIssued)
+                                .totalCollected(totalCollected)
+                                .totalValid(totalValid)
+                                .totalInvalid(totalInvalid)
                                 .createdAt(LocalDateTime.now())
                                 .build();
         }
@@ -458,10 +498,9 @@ public class VotingService {
 
                 MeetingParticipant participant = getOrCreateParticipant(meeting, user);
 
-                long baseShares = participant.getSharesOwned() != null ? participant.getSharesOwned() : 0;
-                long receivedShares = participant.getReceivedProxyShares() != null
-                                ? participant.getReceivedProxyShares()
-                                : 0;
+                long baseShares = participant.getAttendingShares() != null ? participant.getAttendingShares() : 0;
+                // Lấy số liệu receivedShares thực tế từ bảng proxy_delegations để đảm bảo chính xác
+                long receivedShares = proxyDelegationRepository.sumReceivedProxyShares(meetingId, userId);
 
                 return baseShares + receivedShares;
         }
