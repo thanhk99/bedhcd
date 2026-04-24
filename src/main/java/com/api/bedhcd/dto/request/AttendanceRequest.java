@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AttendanceRequest {
     private String meetingId;
-    private String investorCode;
+    private String cccd;
     private Long attendingShares;
     private ParticipationType participationType;
 }

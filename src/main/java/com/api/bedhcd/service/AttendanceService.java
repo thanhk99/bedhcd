@@ -36,16 +36,15 @@ public class AttendanceService {
 
         @Transactional
         public AttendanceResponse registerAttendance(AttendanceRequest request) {
-                log.info("Registering attendance for investorCode: {} in meeting: {}",
-                                request.getInvestorCode(), request.getMeetingId());
+                log.info("Registering attendance for cccd: {} in meeting: {}",
+                                request.getCccd(), request.getMeetingId());
 
                 Meeting meeting = meetingRepository.findById(request.getMeetingId())
                                 .orElseThrow(() -> new ResourceNotFoundException("Meeting not found"));
 
-                User user = userRepository.findByInvestorCode(request.getInvestorCode())
-                                .or(() -> userRepository.findByCccd(request.getInvestorCode()))
+                User user = userRepository.findByCccd(request.getCccd())
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Shareholder not found with code: " + request.getInvestorCode()));
+                                                "Shareholder not found with code: " + request.getCccd()));
 
                 MeetingParticipant participant = participantRepository
                                 .findByMeeting_IdAndUser_Id(request.getMeetingId(), user.getId())
@@ -57,74 +56,49 @@ public class AttendanceService {
                 // Cập nhật thông tin sở hữu từ User sang Participant tại thời điểm tham dự
                 participant.setSharesOwned(user.getSharesOwned() != null ? user.getSharesOwned() : 0L);
 
-                Long newAttendingShares = request.getAttendingShares() != null ? request.getAttendingShares() : 0L;
-                Long oldAttendingShares = participant.getAttendingShares() != null ? participant.getAttendingShares()
-                                : 0L;
-                // Lấy số liệu thực tế từ bảng ủy quyền để đảm bảo chính xác
-                Long receivedProxyShares = proxyDelegationRepository.sumReceivedProxyShares(request.getMeetingId(), user.getId());
-                Long delegatedShares = participant.getDelegatedShares() != null ? participant.getDelegatedShares() : 0L;
+                // Lấy số liệu thực tế từ bảng uỷ quyền để đảm bảo chính xác
+                long receivedProxyShares = proxyDelegationRepository.sumReceivedProxyShares(request.getMeetingId(),
+                                user.getId());
+                long delegatedShares = proxyDelegationRepository.sumDelegatedShares(request.getMeetingId(),
+                                user.getId());
+                long ownedShares = user.getSharesOwned() != null ? user.getSharesOwned() : 0L;
 
-                // Validate
-                long maxAvailableShares = user.getSharesOwned() - delegatedShares + receivedProxyShares;
+                // Cập nhật lại vào participant để đồng bộ
+                participant.setReceivedProxyShares(receivedProxyShares);
+                participant.setDelegatedShares(delegatedShares);
+                participant.setSharesOwned(ownedShares);
 
-                if (newAttendingShares < 0) {
+                // --- Logic tính toán số cổ phần tham dự ---
+                Long attendingFromRequest = request.getAttendingShares();
+                long finalAttendingShares;
+                long maxAvailableShares = ownedShares - delegatedShares + receivedProxyShares;
+
+                if (attendingFromRequest == null || attendingFromRequest == 0) {
+                        // Trường hợp 1: Không nhập số -> Mặc định lấy phần sở hữu ròng (Sở hữu - Uỷ quyền đi)
+                        finalAttendingShares = ownedShares - delegatedShares;
+                } else {
+                        // Trường hợp 2: Có nhập số -> Tôn trọng con số nhập vào
+                        finalAttendingShares = attendingFromRequest;
+                }
+
+                // Đảm bảo không vượt quá tổng khả dụng (Sở hữu - Uỷ quyền đi + Nhận uỷ quyền)
+                finalAttendingShares = Math.min(maxAvailableShares, finalAttendingShares);
+
+                if (finalAttendingShares < 0) {
                         throw new BadRequestException("Attending shares cannot be negative");
                 }
-                if (newAttendingShares > maxAvailableShares) {
-                        throw new BadRequestException("Attending shares exceed available shares. Max available: "
-                                        + maxAvailableShares);
+
+                participant.setAttendingShares(finalAttendingShares);
+
+                // Phân loại: Chỉ người sở hữu = 0 mới là PROXY
+                if (ownedShares > 0) {
+                        participant.setParticipationType(com.api.bedhcd.entity.enums.ParticipationType.DIRECT);
+                } else {
+                        participant.setParticipationType(com.api.bedhcd.entity.enums.ParticipationType.PROXY);
                 }
-
-                // ─ Xử lý cập nhật phiếu uỷ quyền ─
-                // Nếu participant đã check-in và đây là lần cập nhật (delta != 0)
-                if (participant.getStatus() == ParticipantStatus.CHECKED_IN
-                                && !oldAttendingShares.equals(newAttendingShares)) {
-                        long delta = newAttendingShares - oldAttendingShares; // dương = proxy lấy thêm, âm = proxy trả
-                                                                              // lại
-
-                        // Tìm delegation record để biết delegator là ai
-                        List<ProxyDelegation> delegations = proxyDelegationRepository
-                                        .findByMeeting_IdAndProxy_IdAndStatus(request.getMeetingId(), user.getId(),
-                                                        DelegationStatus.ACTIVE);
-
-                        if (!delegations.isEmpty()) {
-                                ProxyDelegation delegation = delegations.get(0);
-                                participantRepository
-                                                .findByMeeting_IdAndUser_Id(request.getMeetingId(),
-                                                                delegation.getDelegator().getId())
-                                                .ifPresent(delegatorPart -> {
-                                                        // Delegator nhận lại (hoặc cho đi thêm) phần chênh lệch
-                                                        long delegatorAttending = delegatorPart
-                                                                        .getAttendingShares() != null
-                                                                                        ? delegatorPart.getAttendingShares()
-                                                                                        : 0L;
-                                                        long delegatorReceived = delegatorPart
-                                                                        .getReceivedProxyShares() != null
-                                                                                        ? delegatorPart.getReceivedProxyShares()
-                                                                                        : 0L;
-                                                        long newDelegatorAttending = Math.max(0,
-                                                                        delegatorAttending - delta);
-                                                        delegatorPart.setAttendingShares(newDelegatorAttending);
-                                                        delegatorPart.setAttendingShares(newDelegatorAttending);
-                                                        log.info("Adjusting delegator {} attending shares: {} -> {} (delta: {})",
-                                                                        delegation.getDelegator().getId(),
-                                                                        delegatorAttending, newDelegatorAttending,
-                                                                        delta);
-                                                        participantRepository.save(delegatorPart);
-                                                });
-                        }
-                }
-
-                participant.setAttendingShares(newAttendingShares);
-
-                // Loại hình tham gia lấy từ request (tránh tự thay đổi sang Proxy nếu là Cổ
-                // đông đi dự trực tiếp)
-                participant.setParticipationType(request.getParticipationType());
 
                 participant.setStatus(ParticipantStatus.CHECKED_IN);
                 participant.setCheckedInAt(LocalDateTime.now());
-
-                // Quyền biểu quyết = Số tham dự thực tế (đã tính gộp uỷ quyền nếu có)
 
                 participant = participantRepository.save(participant);
                 return mapToResponse(participant);
@@ -180,8 +154,12 @@ public class AttendanceService {
                                 .findByMeeting_IdAndUser_Id(meetingId, user.getId())
                                 .orElseGet(() -> createPendingParticipant(meeting, user));
 
-                // Đồng bộ sharesOwned từ User gốc
+                // Đồng bộ sharesOwned và số uỷ quyền từ DB
                 shareholderPart.setSharesOwned(user.getSharesOwned());
+                shareholderPart.setReceivedProxyShares(
+                                proxyDelegationRepository.sumReceivedProxyShares(meetingId, user.getId()));
+                shareholderPart.setDelegatedShares(
+                                proxyDelegationRepository.sumDelegatedShares(meetingId, user.getId()));
                 shareholderPart = participantRepository.save(shareholderPart);
 
                 AttendanceResponse shareholderResponse = mapToResponse(shareholderPart);
@@ -199,6 +177,10 @@ public class AttendanceService {
                                                         .orElseGet(() -> createPendingParticipant(meeting, proxyUser));
 
                                         proxyPart.setSharesOwned(proxyUser.getSharesOwned());
+                                        proxyPart.setReceivedProxyShares(proxyDelegationRepository
+                                                        .sumReceivedProxyShares(meetingId, proxyUser.getId()));
+                                        proxyPart.setDelegatedShares(proxyDelegationRepository
+                                                        .sumDelegatedShares(meetingId, proxyUser.getId()));
                                         proxyPart = participantRepository.save(proxyPart);
 
                                         return CheckInBundleResponse.ProxyAttendeeDTO.builder()
@@ -223,6 +205,10 @@ public class AttendanceService {
                                                                         delegatorUser));
 
                                         delegatorPart.setSharesOwned(delegatorUser.getSharesOwned());
+                                        delegatorPart.setReceivedProxyShares(proxyDelegationRepository
+                                                        .sumReceivedProxyShares(meetingId, delegatorUser.getId()));
+                                        delegatorPart.setDelegatedShares(proxyDelegationRepository
+                                                        .sumDelegatedShares(meetingId, delegatorUser.getId()));
                                         delegatorPart = participantRepository.save(delegatorPart);
 
                                         return CheckInBundleResponse.IncomingProxyDTO.builder()
@@ -249,7 +235,6 @@ public class AttendanceService {
                                 .participationType(com.api.bedhcd.entity.enums.ParticipationType.DIRECT)
                                 .attendingShares(0L)
                                 .receivedProxyShares(0L)
-                                .delegatedShares(0L)
                                 .delegatedShares(0L)
                                 .build();
                 return participantRepository.save(p);

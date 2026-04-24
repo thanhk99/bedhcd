@@ -29,7 +29,12 @@ public interface ProxyDelegationRepository extends JpaRepository<ProxyDelegation
         List<ProxyDelegation> findByDelegator_Id(String delegatorId);
 
         List<ProxyDelegation> findByProxy_Id(String proxyId);
+        
+        boolean existsByMeeting_IdAndProxy_IdAndSharesDelegatedAndStatus(String meetingId, String proxyId, Long shares, DelegationStatus status);
 
         @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(pd.sharesDelegated), 0) FROM ProxyDelegation pd WHERE pd.meeting.id = :meetingId AND pd.proxy.id = :proxyId AND pd.status = com.api.bedhcd.entity.enums.DelegationStatus.ACTIVE")
         long sumReceivedProxyShares(String meetingId, String proxyId);
+
+        @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(pd.sharesDelegated), 0) FROM ProxyDelegation pd WHERE pd.meeting.id = :meetingId AND pd.delegator.id = :delegatorId AND pd.status = com.api.bedhcd.entity.enums.DelegationStatus.ACTIVE")
+        long sumDelegatedShares(String meetingId, String delegatorId);
 }
