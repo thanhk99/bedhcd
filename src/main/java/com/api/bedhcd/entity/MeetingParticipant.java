@@ -63,6 +63,7 @@ public class MeetingParticipant {
     @Builder.Default
     private Long delegatedShares = 0L;
 
+
     @org.hibernate.annotations.CreationTimestamp
     @Column(updatable = false)
     private java.time.LocalDateTime createdAt;

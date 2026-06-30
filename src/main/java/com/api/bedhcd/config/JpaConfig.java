@@ -1,6 +1,5 @@
 package com.api.bedhcd.config;
 
-import com.api.bedhcd.entity.User;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
@@ -24,10 +23,6 @@ public class JpaConfig {
             }
 
             Object principal = authentication.getPrincipal();
-
-            if (principal instanceof User) {
-                return Optional.of(((User) principal).getId());
-            }
 
             if (principal instanceof org.springframework.security.core.userdetails.User) {
                 return Optional.of(((org.springframework.security.core.userdetails.User) principal).getUsername());

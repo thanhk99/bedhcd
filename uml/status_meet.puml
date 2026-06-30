@@ -1,0 +1,35 @@
+@startuml
+title Meeting Flow (Simple)
+
+[*] --> SCHEDULED
+SCHEDULED --> ONGOING
+ONGOING --> COMPLETED
+SCHEDULED --> CANCELLED
+ONGOING --> CANCELLED
+
+state SCHEDULED {
+  state "Attendance: PENDING -> CONFIRM" as A1
+  state "Proxy: ACTIVE / REVOKED" as P1
+  state "Resolution: editable" as R1
+  state "Election: configurable" as E1
+  state "Voting: not allowed" as V1
+}
+
+state ONGOING {
+  state "Attendance: CONFIRM / CHECKED_IN" as A2
+  state "Proxy: ACTIVE for voting" as P2
+  state "Voting: CAST / CHANGE" as V2
+  state "Resolution: select only" as R2
+  state "Election: vote with limit" as E2
+  state "No structure changes" as N2
+}
+
+state COMPLETED {
+  state "All data locked" as C1
+}
+
+state CANCELLED {
+  state "Meeting stopped" as X1
+}
+
+@enduml

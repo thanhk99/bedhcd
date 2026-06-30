@@ -1,7 +1,7 @@
 package com.api.bedhcd.util;
 
-import com.api.bedhcd.dto.importing.ProxyImportRecord;
-import com.api.bedhcd.dto.importing.ShareholderImportRecord;
+import com.api.bedhcd.shared.dto.importing.ProxyImportRecord;
+import com.api.bedhcd.shared.dto.importing.ShareholderImportRecord;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.web.multipart.MultipartFile;

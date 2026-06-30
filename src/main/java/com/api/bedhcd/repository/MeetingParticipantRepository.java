@@ -16,8 +16,13 @@ public interface MeetingParticipantRepository extends JpaRepository<MeetingParti
 
     Optional<MeetingParticipant> findByMeeting_IdAndUser_Id(String meetingId, String userId);
 
+    List<MeetingParticipant> findByMeeting_IdAndStatus(String meetingId, ParticipantStatus status);
+
     long countByMeeting_IdAndStatus(String meetingId, ParticipantStatus status);
 
-    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(mp.attendingShares), 0) FROM MeetingParticipant mp WHERE mp.meeting.id = :meetingId AND mp.status = com.api.bedhcd.entity.enums.ParticipantStatus.CHECKED_IN")
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(mp.attendingShares + mp.receivedProxyShares), 0) FROM MeetingParticipant mp WHERE mp.meeting.id = :meetingId AND mp.status = com.api.bedhcd.entity.enums.ParticipantStatus.CHECKED_IN")
     long sumTotalAttendingShares(String meetingId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(mp.sharesOwned), 0) FROM MeetingParticipant mp WHERE mp.meeting.id = :meetingId")
+    long sumTotalSharesExpected(String meetingId);
 }

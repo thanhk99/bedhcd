@@ -30,6 +30,12 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     long countByRolesContaining(Role role);
 
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u WHERE " +
+           "LOWER(u.cccd) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(u.investorCode) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    org.springframework.data.domain.Page<User> searchUsers(@org.springframework.data.repository.query.Param("keyword") String keyword, org.springframework.data.domain.Pageable pageable);
+
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(u.sharesOwned), 0) FROM User u")
     long sumTotalShares();
 }

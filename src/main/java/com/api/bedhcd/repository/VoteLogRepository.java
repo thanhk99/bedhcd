@@ -16,6 +16,8 @@ public interface VoteLogRepository extends JpaRepository<VoteLog, Long> {
 
     void deleteByResolution_Id(String resolutionId);
 
+    void deleteByElection_Id(String electionId);
+
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query("UPDATE VoteLog v SET v.vote = null WHERE v.vote.id = :voteId")
     void unlinkVote(Long voteId);

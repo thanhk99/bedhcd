@@ -18,6 +18,8 @@ public interface VotingOptionRepository extends JpaRepository<VotingOption, Stri
 
     void deleteAllByResolution_Id(String resolutionId);
 
+    void deleteAllByElection_Id(String electionId);
+
     boolean existsById(String id);
 
 }

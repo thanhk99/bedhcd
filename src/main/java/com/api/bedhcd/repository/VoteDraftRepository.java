@@ -19,4 +19,6 @@ public interface VoteDraftRepository extends JpaRepository<VoteDraft, Long> {
     void deleteByElection_IdAndUser_Id(String electionId, String userId);
 
     void deleteByVotingOption_Id(String votingOptionId);
+
+    void deleteByElection_Id(String electionId);
 }

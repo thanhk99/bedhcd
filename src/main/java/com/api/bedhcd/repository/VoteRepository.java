@@ -30,4 +30,14 @@ public interface VoteRepository extends JpaRepository<Vote, Long> {
         void deleteAllByVotingOption_Id(String votingOptionId);
 
         List<Vote> findByVotingOption_Election_Id(String electionId);
+        
+        void deleteByElection_Id(String electionId);
+
+        boolean existsByResolution_Meeting_IdAndUser_Id(String meetingId, String userId);
+
+        boolean existsByElection_Meeting_IdAndUser_Id(String meetingId, String userId);
+
+        List<Vote> findByResolution_Meeting_IdAndUser_Id(String meetingId, String userId);
+
+        List<Vote> findByElection_Meeting_IdAndUser_Id(String meetingId, String userId);
 }

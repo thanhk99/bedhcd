@@ -1,5 +1,5 @@
 package com.api.bedhcd.entity.enums;
 
 public enum DelegationStatus {
-    ACTIVE, REVOKED
+    ACTIVE, REVOKED, EXPIRED
 }
