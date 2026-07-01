@@ -1,15 +1,15 @@
 package com.api.bedhcd.modules.admin.application.service;
 
 import com.api.bedhcd.modules.admin.api.v1.dto.AdminResponse;
-import com.api.bedhcd.modules.admin.infrastructure.persistence.entity.AdminEntity;
+import com.api.bedhcd.modules.admin.domain.exception.AdminException;
+import com.api.bedhcd.modules.admin.domain.model.Admin;
+import com.api.bedhcd.modules.admin.domain.repository.AdminRepository;
 import com.api.bedhcd.modules.admin.infrastructure.persistence.entity.AdminRoleGroupEntity;
-import com.api.bedhcd.modules.admin.infrastructure.persistence.repository.AdminJpaRepository;
 import com.api.bedhcd.modules.admin.infrastructure.persistence.repository.AdminRoleGroupJpaRepository;
 import com.api.bedhcd.modules.admin.infrastructure.persistence.repository.RoleGroupJpaRepository;
 import com.api.bedhcd.modules.audit.application.service.AuditLogApplicationService;
 import com.api.bedhcd.modules.identity.api.v1.dto.CreateAdminRequest;
 import com.api.bedhcd.modules.identity.domain.exception.IdentityException;
-import com.api.bedhcd.shared.domain.enums.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,14 +21,13 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AdminManagementService {
 
-    private final AdminJpaRepository adminJpaRepository;
+    private final AdminRepository adminRepository;
     private final AdminRoleGroupJpaRepository adminRoleGroupJpaRepository;
     private final RoleGroupJpaRepository roleGroupJpaRepository;
     private final PasswordEncoder passwordEncoder;
@@ -36,37 +35,34 @@ public class AdminManagementService {
 
     @Transactional(readOnly = true)
     public List<AdminResponse> getAllAdmins() {
-        return adminJpaRepository.findAll().stream()
+        return adminRepository.findAll().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public AdminResponse getAdmin(String adminId) {
-        AdminEntity admin = adminJpaRepository.findById(adminId)
+        Admin admin = adminRepository.findById(adminId)
                 .orElseThrow(() -> IdentityException.userNotFound(adminId));
         return mapToResponse(admin);
     }
 
     @Transactional
     public AdminResponse createAdmin(CreateAdminRequest request) {
-        if (adminJpaRepository.findByUsername(request.getUsername()).isPresent()) {
+        if (adminRepository.findByUsername(request.getUsername()).isPresent()) {
             throw IdentityException.usernameAlreadyExists(request.getUsername());
         }
 
-        AdminEntity admin = AdminEntity.builder()
-                .id(UUID.randomUUID().toString())
-                .username(request.getUsername())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName())
-                .email(request.getEmail())
-                .role(Role.ADMIN)
-                .isActive(true)
-                .department(request.getDepartment())
-                .jobTitle(request.getJobTitle())
-                .build();
+        Admin admin = Admin.createNew(
+                request.getUsername(),
+                passwordEncoder.encode(request.getPassword()),
+                request.getFullName(),
+                request.getEmail(),
+                request.getDepartment(),
+                request.getJobTitle()
+        );
 
-        admin = adminJpaRepository.save(admin);
+        admin = adminRepository.save(admin);
 
         saveAdminRoleGroups(admin.getId(), request.getRoleGroupIds());
 
@@ -83,30 +79,34 @@ public class AdminManagementService {
 
     @Transactional
     public AdminResponse updateAdmin(String adminId, CreateAdminRequest request) {
-        AdminEntity admin = adminJpaRepository.findById(adminId)
+        Admin admin = adminRepository.findById(adminId)
                 .orElseThrow(() -> IdentityException.userNotFound(adminId));
 
         StringBuilder diff = new StringBuilder("Cập nhật tài khoản Admin (" + admin.getUsername() + "):\n");
         
         if (request.getFullName() != null && !java.util.Objects.equals(admin.getFullName(), request.getFullName())) {
             diff.append("- Họ tên: '").append(admin.getFullName() != null ? admin.getFullName() : "").append("' -> '").append(request.getFullName()).append("'\n");
-            admin.setFullName(request.getFullName());
         }
         if (request.getEmail() != null && !java.util.Objects.equals(admin.getEmail(), request.getEmail())) {
             diff.append("- Email: '").append(admin.getEmail() != null ? admin.getEmail() : "").append("' -> '").append(request.getEmail()).append("'\n");
-            admin.setEmail(request.getEmail());
-        }
-        if (request.getPassword() != null && !request.getPassword().isBlank()) {
-            diff.append("- Mật khẩu: Đã được thay đổi\n");
-            admin.setPassword(passwordEncoder.encode(request.getPassword()));
         }
         if (request.getDepartment() != null && !java.util.Objects.equals(admin.getDepartment(), request.getDepartment())) {
             diff.append("- Phòng ban: '").append(admin.getDepartment() != null ? admin.getDepartment() : "").append("' -> '").append(request.getDepartment()).append("'\n");
-            admin.setDepartment(request.getDepartment());
         }
         if (request.getJobTitle() != null && !java.util.Objects.equals(admin.getJobTitle(), request.getJobTitle())) {
             diff.append("- Chức vụ: '").append(admin.getJobTitle() != null ? admin.getJobTitle() : "").append("' -> '").append(request.getJobTitle()).append("'\n");
-            admin.setJobTitle(request.getJobTitle());
+        }
+        
+        admin.updateProfile(
+            request.getFullName() != null ? request.getFullName() : admin.getFullName(),
+            request.getEmail() != null ? request.getEmail() : admin.getEmail(),
+            request.getDepartment() != null ? request.getDepartment() : admin.getDepartment(),
+            request.getJobTitle() != null ? request.getJobTitle() : admin.getJobTitle()
+        );
+
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            diff.append("- Mật khẩu: Đã được thay đổi\n");
+            admin.updatePassword(passwordEncoder.encode(request.getPassword()));
         }
 
         // Diff role groups
@@ -129,7 +129,7 @@ public class AdminManagementService {
             }
         }
 
-        admin = adminJpaRepository.save(admin);
+        admin = adminRepository.save(admin);
         saveAdminRoleGroups(admin.getId(), request.getRoleGroupIds());
 
         if (diff.toString().equals("Cập nhật tài khoản Admin (" + admin.getUsername() + "):\n")) {
@@ -139,6 +139,41 @@ public class AdminManagementService {
         logManualActivity("UPDATE_ADMIN", "MANAGE_ADMIN", adminId, diff.toString());
 
         return mapToResponse(admin);
+    }
+
+    @Transactional
+    public void deactivateAdmin(String adminId) {
+        // Kiểm tra người thực hiện phải là SUPER_ADMIN
+        String actorUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        Admin actor = adminRepository.findByUsername(actorUsername)
+                .orElseThrow(() -> IdentityException.userNotFound(actorUsername));
+        if (!actor.isSuperAdmin()) {
+            throw AdminException.onlySuperAdminCanDeactivate();
+        }
+
+        Admin admin = adminRepository.findById(adminId)
+                .orElseThrow(() -> IdentityException.userNotFound(adminId));
+        // deactivate() trong Domain sẽ tự chặn nếu target là SUPER_ADMIN
+        admin.deactivate();
+        adminRepository.save(admin);
+        logManualActivity("DEACTIVATE_ADMIN", "MANAGE_ADMIN", adminId, "Vô hiệu hoá tài khoản Admin: " + admin.getUsername());
+    }
+
+    @Transactional
+    public void activateAdmin(String adminId) {
+        // Kiểm tra người thực hiện phải là SUPER_ADMIN
+        String actorUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        Admin actor = adminRepository.findByUsername(actorUsername)
+                .orElseThrow(() -> IdentityException.userNotFound(actorUsername));
+        if (!actor.isSuperAdmin()) {
+            throw AdminException.onlySuperAdminCanDeactivate();
+        }
+
+        Admin admin = adminRepository.findById(adminId)
+                .orElseThrow(() -> IdentityException.userNotFound(adminId));
+        admin.activate();
+        adminRepository.save(admin);
+        logManualActivity("ACTIVATE_ADMIN", "MANAGE_ADMIN", adminId, "Kích hoạt tài khoản Admin: " + admin.getUsername());
     }
 
     private void saveAdminRoleGroups(String adminId, List<String> roleGroupIds) {
@@ -154,7 +189,7 @@ public class AdminManagementService {
         }
     }
 
-    private AdminResponse mapToResponse(AdminEntity admin) {
+    private AdminResponse mapToResponse(Admin admin) {
         AdminResponse response = new AdminResponse();
         response.setId(admin.getId());
         response.setUsername(admin.getUsername());

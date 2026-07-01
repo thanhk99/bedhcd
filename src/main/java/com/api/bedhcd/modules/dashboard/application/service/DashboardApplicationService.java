@@ -4,6 +4,7 @@ import com.api.bedhcd.modules.dashboard.api.v1.dto.DashboardSummaryResponse;
 import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 import com.api.bedhcd.modules.meeting.application.port.MeetingPort;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
+import com.api.bedhcd.modules.resolution.application.port.ResolutionPort;
 import com.api.bedhcd.modules.voting.application.port.VotingPort;
 import com.api.bedhcd.shared.domain.enums.MeetingStatus;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ public class DashboardApplicationService {
     private final IdentityPort identityPort;
     private final MeetingPort meetingPort;
     private final ParticipantPort participantPort;
+    private final ResolutionPort resolutionPort;
     private final VotingPort votingPort;
 
     @Transactional(readOnly = true)
@@ -31,7 +33,7 @@ public class DashboardApplicationService {
         long totalSharesRepresented = participantPort.sumTotalShares();
         long attendedShares = participantPort.sumCheckedInShares();
 
-        long totalResolutions = votingPort.countResolutions();
+        long totalResolutions = resolutionPort.countResolutions();
         long totalVotes = votingPort.countVotes();
         long totalShareholders = identityPort.countUsers();
 

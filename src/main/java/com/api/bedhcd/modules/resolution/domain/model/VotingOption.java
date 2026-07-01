@@ -1,28 +1,20 @@
-package com.api.bedhcd.modules.voting.infrastructure.persistence;
+package com.api.bedhcd.modules.resolution.domain.model;
 
 import com.api.bedhcd.shared.domain.enums.VotingOptionType;
-import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Entity
-@Table(name = "voting_options")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class VotingOptionEntity {
-    @Id
+public class VotingOption {
     private String id;
-    
-    @Column(nullable = false)
     private String name;
-    
-    @Enumerated(EnumType.STRING)
+    private String description;
     private VotingOptionType type;
-    
     private String position;
     private String bio;
     private String photoUrl;

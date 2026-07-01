@@ -1,4 +1,4 @@
-package com.api.bedhcd.modules.voting.infrastructure.persistence;
+package com.api.bedhcd.modules.resolution.infrastructure.persistence;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;

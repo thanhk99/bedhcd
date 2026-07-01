@@ -49,6 +49,14 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public java.util.List<User> searchTop10ByKeyword(String keyword) {
+        org.springframework.data.domain.Pageable top10 = org.springframework.data.domain.PageRequest.of(0, 10, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+        return jpaRepository.searchTopByKeyword(keyword, top10).stream()
+                .map(userMapper::toDomain)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
     public java.util.List<User> findAll(int page, int size) {
         return jpaRepository.findAll(org.springframework.data.domain.PageRequest.of(page, size)).getContent().stream()
                 .map(userMapper::toDomain)

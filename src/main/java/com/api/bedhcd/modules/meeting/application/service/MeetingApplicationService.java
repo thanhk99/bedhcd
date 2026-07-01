@@ -10,6 +10,7 @@ import com.api.bedhcd.modules.meeting.domain.model.MeetingConfig;
 import com.api.bedhcd.modules.meeting.domain.repository.MeetingConfigRepository;
 import com.api.bedhcd.modules.meeting.domain.repository.MeetingRepository;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
+import com.api.bedhcd.modules.resolution.application.port.ResolutionPort;
 import com.api.bedhcd.modules.voting.application.port.VotingPort;
 import com.api.bedhcd.shared.domain.enums.MeetingStatus;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class MeetingApplicationService {
     private final MeetingMapper meetingMapper;
     private final MeetingPort meetingPort;
     private final ParticipantPort participantPort;
+    private final ResolutionPort resolutionPort;
     private final VotingPort votingPort;
 
     @Transactional(readOnly = true)
@@ -60,7 +62,8 @@ public class MeetingApplicationService {
     }
 
     private MeetingConfig loadConfig(String configId) {
-        if (configId == null || configId.isEmpty()) return null;
+        if (configId == null || configId.isEmpty())
+            return null;
         return configRepository.findById(configId).orElse(null);
     }
 
@@ -69,7 +72,8 @@ public class MeetingApplicationService {
                 .map(Meeting::getConfigId)
                 .filter(id -> id != null && !id.isEmpty())
                 .collect(Collectors.toSet());
-        if (configIds.isEmpty()) return Map.of();
+        if (configIds.isEmpty())
+            return Map.of();
         return configRepository.findAll().stream()
                 .filter(c -> configIds.contains(c.getId()))
                 .collect(Collectors.toMap(MeetingConfig::getId, c -> c));
@@ -89,7 +93,7 @@ public class MeetingApplicationService {
                 ? (double) checkedInShares * 100 / totalShares
                 : 0;
 
-        long totalResolutions = votingPort.countResolutionsByMeetingId(id);
+        long totalResolutions = resolutionPort.countResolutionsByMeetingId(id);
         long totalVotes = votingPort.countVotesByMeetingId(id);
 
         return MeetingRealtimeResponse.builder()

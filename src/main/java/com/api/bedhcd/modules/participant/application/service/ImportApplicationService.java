@@ -1,111 +1,96 @@
 package com.api.bedhcd.modules.participant.application.service;
 
-import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 import com.api.bedhcd.modules.meeting.application.port.MeetingPort;
 import com.api.bedhcd.modules.participant.domain.exception.ParticipantException;
-import com.api.bedhcd.modules.participant.domain.model.Participant;
-import com.api.bedhcd.modules.participant.domain.model.ProxyDelegation;
-import com.api.bedhcd.modules.participant.domain.repository.ParticipantRepository;
-import com.api.bedhcd.modules.participant.domain.repository.ProxyDelegationRepository;
-import com.api.bedhcd.shared.domain.enums.DelegationStatus;
-import com.api.bedhcd.shared.domain.enums.ParticipantStatus;
-import com.api.bedhcd.shared.domain.enums.ParticipationType;
-import com.api.bedhcd.shared.dto.UserDTO;
-import com.api.bedhcd.shared.dto.importing.ProxyImportRecord;
-import com.api.bedhcd.shared.dto.importing.ShareholderImportRecord;
-import com.api.bedhcd.util.ExcelHelper;
+import com.api.bedhcd.modules.participant.domain.model.ImportJob;
+import com.api.bedhcd.modules.participant.domain.repository.ImportJobRepository;
+import com.api.bedhcd.shared.domain.enums.ImportJobStatus;
+import com.api.bedhcd.shared.domain.enums.ImportJobType;
+import org.springframework.beans.factory.annotation.Value;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class ImportApplicationService {
 
-    private final IdentityPort identityPort;
-    private final ParticipantRepository participantRepository;
-    private final ProxyDelegationRepository proxyDelegationRepository;
     private final MeetingPort meetingPort;
+    private final ImportJobRepository importJobRepository;
+    private final AsyncImportService asyncImportService;
 
-    @Transactional
-    public void importShareholders(String meetingId, MultipartFile file) {
+    @Value("${app.import.temp-dir}")
+    private String tempDirPath;
+
+    public String importShareholders(String meetingId, MultipartFile file) {
         if (!meetingPort.canImportShareholder(meetingId)) {
             throw ParticipantException.invalidState(
                     "Trạng thái hiện tại của cuộc họp không cho phép import cổ đông.");
         }
 
-        List<ShareholderImportRecord> records = ExcelHelper.parseShareholders(file);
+        String filePath = saveTempFile(file);
 
-        for (ShareholderImportRecord record : records) {
-            // 1. Tạo hoặc cập nhật User
-            UserDTO user = identityPort.createOrUpdateUser(UserDTO.builder()
-                    .cccd(record.getCccd())
-                    .fullName(record.getFullName())
-                    .email(record.getEmail())
-                    .investorCode(record.getInvestorCode())
-                    .sharesOwned(record.getShares())
-                    .phoneNumber(record.getPhoneNumber())
-                    .enabled(true)
-                    .build());
+        ImportJob job = ImportJob.builder()
+                .id(UUID.randomUUID().toString())
+                .meetingId(meetingId)
+                .type(ImportJobType.SHAREHOLDER)
+                .status(ImportJobStatus.PENDING)
+                .processedRows(0)
+                .failedRows(0)
+                .createdAt(LocalDateTime.now())
+                .build();
 
-            // 2. Tạo hoặc cập nhật Participant
-            Participant participant = participantRepository.findByMeetingIdAndUserId(meetingId, user.getId())
-                    .orElse(Participant.builder()
-                            .meetingId(meetingId)
-                            .userId(user.getId())
-                            .build());
+        job = importJobRepository.save(job);
 
-            participant.setSharesOwned(user.getSharesOwned());
-            participant.setStatus(ParticipantStatus.PENDING);
-            participant.setParticipationType(ParticipationType.DIRECT);
-            participant.setAttendingShares(0L);
-            participant.setReceivedProxyShares(0L);
-            participant.setDelegatedShares(0L);
+        asyncImportService.processShareholderImport(job.getId(), filePath);
 
-            participantRepository.save(participant);
-        }
+        return job.getId();
     }
 
-    @Transactional
-    public void importProxies(String meetingId, MultipartFile file) {
+    public String importProxies(String meetingId, MultipartFile file) {
         if (!meetingPort.canRegisterProxy(meetingId)) {
             throw ParticipantException.invalidState(
                     "Trạng thái hiện tại của cuộc họp không cho phép import ủy quyền.");
         }
 
-        List<ProxyImportRecord> records = ExcelHelper.parseProxies(file);
+        String filePath = saveTempFile(file);
 
-        for (ProxyImportRecord record : records) {
-            try {
-                // Tìm delegator
-                String delegatorId = identityPort.getUserIdByCccd(record.getDelegatorCccd())
-                        .orElseThrow(() -> new RuntimeException("Không tìm thấy cổ đông ủy quyền với CCCD: " + record.getDelegatorCccd()));
+        ImportJob job = ImportJob.builder()
+                .id(UUID.randomUUID().toString())
+                .meetingId(meetingId)
+                .type(ImportJobType.PROXY)
+                .status(ImportJobStatus.PENDING)
+                .processedRows(0)
+                .failedRows(0)
+                .createdAt(LocalDateTime.now())
+                .build();
 
-                // Tìm hoặc tạo proxy
-                String proxyId = identityPort.getUserIdByCccd(record.getProxyCccd())
-                        .orElseGet(() -> identityPort.createOrUpdateUser(UserDTO.builder()
-                                .cccd(record.getProxyCccd())
-                                .fullName(record.getFullName())
-                                .build()).getId());
+        job = importJobRepository.save(job);
 
-                // Tạo ủy quyền
-                ProxyDelegation delegation = ProxyDelegation.builder()
-                        .meetingId(meetingId)
-                        .delegatorId(delegatorId)
-                        .proxyId(proxyId)
-                        .sharesDelegated(record.getSharesDelegated())
-                        .status(DelegationStatus.ACTIVE)
-                        .createdAt(LocalDateTime.now())
-                        .build();
+        asyncImportService.processProxyImport(job.getId(), filePath);
 
-                proxyDelegationRepository.save(delegation);
-            } catch (Exception e) {
-                System.err.println("Lỗi khi import dòng ủy quyền: " + e.getMessage());
+        return job.getId();
+    }
+
+    private String saveTempFile(MultipartFile file) {
+        try {
+            Path tempDir = Paths.get(tempDirPath);
+            if (!Files.exists(tempDir)) {
+                Files.createDirectories(tempDir);
             }
+            String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            Path filePath = tempDir.resolve(fileName);
+            file.transferTo(filePath.toFile());
+            return filePath.toString();
+        } catch (IOException e) {
+            throw new RuntimeException("Lỗi lưu file tạm: " + e.getMessage());
         }
     }
 }

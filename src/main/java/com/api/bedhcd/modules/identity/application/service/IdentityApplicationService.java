@@ -30,8 +30,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import com.api.bedhcd.shared.dto.PageResponse;
 
 @Service
 @RequiredArgsConstructor
@@ -88,6 +93,7 @@ public class IdentityApplicationService {
                 .refreshToken(refreshToken)
                 .userId(user.getId())
                 .email(user.getUsername()) // Tạm thời dùng username làm email nếu chưa có email field
+                .fullName(user.getFullName())
                 .roles(user.getRoles())
                 .build();
     }
@@ -113,6 +119,7 @@ public class IdentityApplicationService {
                 .accessToken(newAccessToken)
                 .refreshToken(refreshTokenStr)
                 .userId(user.getId())
+                .fullName(user.getFullName())
                 .roles(user.getRoles())
                 .build();
     }
@@ -164,34 +171,34 @@ public class IdentityApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public java.util.List<UserResponse> searchUsers(String keyword) {
-        return userRepository.searchByKeyword(keyword).stream()
+    public List<UserResponse> searchUsers(String keyword) {
+        return userRepository.searchTop10ByKeyword(keyword).stream()
                 .map(this::mapToResponse)
-                .collect(java.util.stream.Collectors.toList());
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public com.api.bedhcd.shared.dto.PageResponse<UserResponse> getUsers(int page, int size) {
+    public PageResponse<UserResponse> getUsers(int page, int size) {
         return getUsers(page, size, null);
     }
 
     @Transactional(readOnly = true)
-    public com.api.bedhcd.shared.dto.PageResponse<UserResponse> getUsers(int page, int size, String keyword) {
-        java.util.List<UserResponse> allUsers;
+    public PageResponse<UserResponse> getUsers(int page, int size, String keyword) {
+        List<UserResponse> allUsers;
         if (keyword != null && !keyword.isBlank()) {
             allUsers = userRepository.searchByKeyword(keyword).stream()
                     .map(this::mapToResponse)
-                    .collect(java.util.stream.Collectors.toList());
+                    .collect(Collectors.toList());
         } else {
             allUsers = userRepository.findAll(page, size).stream()
                     .map(this::mapToResponse)
-                    .collect(java.util.stream.Collectors.toList());
+                    .collect(Collectors.toList());
         }
         long total = (keyword != null && !keyword.isBlank()) ? allUsers.size() : userRepository.count();
         int fromIndex = (keyword != null && !keyword.isBlank()) ? Math.min(page * size, allUsers.size()) : 0;
         int toIndex = (keyword != null && !keyword.isBlank()) ? Math.min(fromIndex + size, allUsers.size())
                 : allUsers.size();
-        java.util.List<UserResponse> pageItems = (keyword != null && !keyword.isBlank())
+        List<UserResponse> pageItems = (keyword != null && !keyword.isBlank())
                 ? allUsers.subList(fromIndex, toIndex)
                 : allUsers;
         return com.api.bedhcd.shared.dto.PageResponse.of(pageItems, total, page, size);
@@ -207,7 +214,7 @@ public class IdentityApplicationService {
 
         // Xóa toàn bộ roles hiện tại và cấp lại từng role
         // (với sự kiểm duyệt của Domain Model)
-        user.setRoles(new java.util.HashSet<>());
+        user.setRoles(new HashSet<>());
         for (Role role : roles) {
             user.assignRole(role, assignerRoles);
         }

@@ -36,5 +36,10 @@ public interface IdentityPort {
      */
     UserDTO createOrUpdateUser(UserDTO user);
 
+    /**
+     * Tạo hoặc cập nhật danh sách người dùng theo batch
+     */
+    java.util.List<UserDTO> createOrUpdateUserBatch(java.util.List<UserDTO> users);
+
     long countUsers();
 }

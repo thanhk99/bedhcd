@@ -9,11 +9,11 @@ import com.api.bedhcd.modules.election.domain.model.Election;
 import com.api.bedhcd.modules.election.domain.repository.ElectionRepository;
 import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
-import com.api.bedhcd.modules.voting.api.v1.dto.VoteRequest;
-import com.api.bedhcd.modules.voting.domain.model.Vote;
-import com.api.bedhcd.modules.voting.domain.model.VotingOption;
-import com.api.bedhcd.modules.voting.domain.repository.VoteRepository;
-import com.api.bedhcd.shared.domain.enums.VotingOptionType;
+import com.api.bedhcd.modules.election.api.v1.dto.ElectionVoteRequest;
+import com.api.bedhcd.modules.voting.application.port.OptionVote;
+import com.api.bedhcd.modules.voting.application.port.VoteResult;
+import com.api.bedhcd.modules.voting.application.port.VotingPort;
+import com.api.bedhcd.modules.election.domain.model.Candidate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 public class ElectionApplicationService {
 
         private final ElectionRepository electionRepository;
-        private final VoteRepository voteRepository;
+        private final VotingPort votingPort;
         private final IdentityPort identityPort;
         private final ParticipantPort participantPort;
 
@@ -65,13 +65,12 @@ public class ElectionApplicationService {
                                 ? request.getDisplayOrder()
                                 : (election.getCandidates() != null ? election.getCandidates().size() + 1 : 1);
 
-                VotingOption candidate = VotingOption.builder()
+                Candidate candidate = Candidate.builder()
                                 .id(UUID.randomUUID().toString())
                                 .name(request.getFullName())
                                 .description(request.getDescription())
                                 .bio(request.getDescription())
                                 .displayOrder(nextOrder)
-                                .type(VotingOptionType.CANDIDATE)
                                 .build();
 
                 election.getCandidates().add(candidate);
@@ -79,7 +78,7 @@ public class ElectionApplicationService {
         }
 
         @Transactional
-        public void submitVote(String electionId, VoteRequest request) {
+        public void submitVote(String electionId, ElectionVoteRequest request) {
                 String userId = identityPort.getCurrentUserId();
                 if (userId == null)
                         throw ElectionException.unauthorized();
@@ -99,7 +98,7 @@ public class ElectionApplicationService {
                 }
 
                 long totalDistributed = request.getOptionVotes().stream()
-                                .mapToLong(VoteRequest.OptionVoteRequest::getVoteWeight)
+                                .mapToLong(ElectionVoteRequest.OptionVoteRequest::getVoteWeight)
                                 .sum();
 
                 if (totalDistributed != totalPower) {
@@ -109,36 +108,27 @@ public class ElectionApplicationService {
                 }
 
                 Set<String> validCandidateIds = election.getCandidates() != null
-                                ? election.getCandidates().stream().map(VotingOption::getId).collect(Collectors.toSet())
+                                ? election.getCandidates().stream().map(Candidate::getId).collect(Collectors.toSet())
                                 : Collections.emptySet();
 
-                for (VoteRequest.OptionVoteRequest optVote : request.getOptionVotes()) {
-                        if (!validCandidateIds.contains(optVote.getVotingOptionId())) {
+                List<OptionVote> optionVotes = new java.util.ArrayList<>();
+                for (ElectionVoteRequest.OptionVoteRequest optVote : request.getOptionVotes()) {
+                        if (!validCandidateIds.contains(optVote.getCandidateId())) {
                                 throw ElectionException.invalidVoteDistribution(
-                                                "Ứng viên không tồn tại trong cuộc bầu cử này: " + optVote.getVotingOptionId());
+                                                "Ứng viên không tồn tại trong cuộc bầu cử này: " + optVote.getCandidateId());
                         }
                         if (optVote.getVoteWeight() < 0) {
                                 throw ElectionException.invalidVoteDistribution("Số phiếu không thể âm");
                         }
+                        if (optVote.getVoteWeight() > 0) {
+                                optionVotes.add(OptionVote.builder()
+                                    .optionId(optVote.getCandidateId())
+                                    .weight(optVote.getVoteWeight())
+                                    .build());
+                        }
                 }
 
-                // Xoá phiếu cũ
-                List<Vote> oldVotes = voteRepository.findByResolutionAndUser(electionId, userId);
-                oldVotes.forEach(v -> voteRepository.delete(v.getId()));
-
-                // Lưu phiếu mới
-                for (VoteRequest.OptionVoteRequest optVote : request.getOptionVotes()) {
-                        if (optVote.getVoteWeight() == 0)
-                                continue;
-                        Vote vote = Vote.builder()
-                                        .electionId(electionId)
-                                        .votingOptionId(optVote.getVotingOptionId())
-                                        .userId(userId)
-                                        .voteWeight(optVote.getVoteWeight())
-                                        .votedAt(LocalDateTime.now())
-                                        .build();
-                        voteRepository.save(vote);
-                }
+                votingPort.submitVotes(electionId, userId, optionVotes);
         }
 
         @Transactional(readOnly = true)
@@ -146,23 +136,21 @@ public class ElectionApplicationService {
                 Election election = electionRepository.findById(electionId)
                                 .orElseThrow(() -> ElectionException.electionNotFound(electionId));
 
-                List<Vote> votes = voteRepository.findByResolution(electionId);
+                List<VoteResult> portResults = votingPort.getVotesByTarget(electionId);
 
                 List<ElectionResultResponse.CandidateResult> results;
                 if (election.getCandidates() != null) {
                         results = election.getCandidates().stream()
                                         .map(cand -> {
-                                                long weight = votes.stream()
-                                                                .filter(v -> v.getVotingOptionId().equals(cand.getId()))
-                                                                .mapToLong(Vote::getVoteWeight)
-                                                                .sum();
+                                                VoteResult pr = portResults.stream()
+                                                                .filter(r -> r.getOptionId().equals(cand.getId()))
+                                                                .findFirst().orElse(null);
+                                                long weight = pr != null ? pr.getTotalWeight() : 0;
+                                                long count = pr != null ? pr.getVoteCount() : 0;
                                                 return ElectionResultResponse.CandidateResult.builder()
                                                                 .candidateId(cand.getId())
                                                                 .candidateName(cand.getName())
-                                                                .voteCount(votes.stream()
-                                                                                .filter(v -> v.getVotingOptionId()
-                                                                                                .equals(cand.getId()))
-                                                                                .count())
+                                                                .voteCount(count)
                                                                 .totalWeight(weight)
                                                                 .build();
                                         }).collect(Collectors.toList());
@@ -178,7 +166,7 @@ public class ElectionApplicationService {
                                 .totalWeight(results.stream()
                                                 .mapToLong(ElectionResultResponse.CandidateResult::getTotalWeight)
                                                 .sum())
-                                .totalVoters(votes.stream().map(Vote::getUserId).distinct().count())
+                                .totalVoters(votingPort.countVotersByTarget(electionId))
                                 .build();
         }
 

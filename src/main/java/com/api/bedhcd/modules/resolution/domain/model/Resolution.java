@@ -1,4 +1,4 @@
-package com.api.bedhcd.modules.voting.domain.model;
+package com.api.bedhcd.modules.resolution.domain.model;
 
 import com.api.bedhcd.shared.domain.enums.VotingOptionType;
 import lombok.AllArgsConstructor;

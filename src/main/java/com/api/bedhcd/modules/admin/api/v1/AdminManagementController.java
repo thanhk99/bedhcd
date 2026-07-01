@@ -44,4 +44,18 @@ public class AdminManagementController {
         return ApiResponse.success(adminManagementService.updateAdmin(adminId, request));
     }
 
+    @Operation(summary = "Vô hiệu hoá tài khoản Admin")
+    @PutMapping("/{adminId}/deactivate")
+    public ApiResponse<Void> deactivateAdmin(@PathVariable String adminId) {
+        adminManagementService.deactivateAdmin(adminId);
+        return ApiResponse.success(null);
+    }
+
+    @Operation(summary = "Kích hoạt tài khoản Admin")
+    @PutMapping("/{adminId}/activate")
+    public ApiResponse<Void> activateAdmin(@PathVariable String adminId) {
+        adminManagementService.activateAdmin(adminId);
+        return ApiResponse.success(null);
+    }
+
 }

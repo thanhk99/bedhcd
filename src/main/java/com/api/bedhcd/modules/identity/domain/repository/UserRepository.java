@@ -11,6 +11,7 @@ public interface UserRepository {
     User save(User user);
     boolean existsByCccd(String cccd);
     List<User> searchByKeyword(String keyword);
+    List<User> searchTop10ByKeyword(String keyword);
     List<User> findAll(int page, int size);
     long count();
 }

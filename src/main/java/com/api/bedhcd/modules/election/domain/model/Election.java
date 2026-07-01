@@ -1,7 +1,7 @@
 package com.api.bedhcd.modules.election.domain.model;
 
 import com.api.bedhcd.shared.domain.enums.ElectionType;
-import com.api.bedhcd.modules.voting.domain.model.VotingOption;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,7 +24,7 @@ public class Election {
     private Integer numSeats;
     private Integer displayOrder;
     @Builder.Default
-    private List<VotingOption> candidates = new ArrayList<>();
+    private List<Candidate> candidates = new ArrayList<>();
     
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

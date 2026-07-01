@@ -21,6 +21,13 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
     }
 
     @Override
+    public java.util.List<Participant> findAllByMeetingIdAndUserIdIn(String meetingId, java.util.List<String> userIds) {
+        return jpaRepository.findAllByMeetingIdAndUserIdIn(meetingId, userIds).stream()
+                .map(this::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<Participant> findByUserId(String userId) {
         return jpaRepository.findByUserId(userId).stream()
                 .map(this::toDomain)
@@ -48,6 +55,12 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
     @Override
     public Participant save(Participant domain) {
         return toDomain(jpaRepository.save(toEntity(domain)));
+    }
+
+    @Override
+    public java.util.List<Participant> saveAll(java.util.List<Participant> domains) {
+        java.util.List<ParticipantEntity> entities = domains.stream().map(this::toEntity).collect(Collectors.toList());
+        return jpaRepository.saveAll(entities).stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override

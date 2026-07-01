@@ -5,6 +5,7 @@ import java.util.Optional;
 
 public interface ParticipantJpaRepository extends JpaRepository<ParticipantEntity, Long> {
     Optional<ParticipantEntity> findByMeetingIdAndUserId(String meetingId, String userId);
+    java.util.List<ParticipantEntity> findAllByMeetingIdAndUserIdIn(String meetingId, java.util.List<String> userIds);
     java.util.List<ParticipantEntity> findByUserId(String userId);
     java.util.List<ParticipantEntity> findByMeetingId(String meetingId);
     java.util.List<ParticipantEntity> findByMeetingIdAndStatusIn(String meetingId, java.util.List<com.api.bedhcd.shared.domain.enums.ParticipantStatus> statuses);

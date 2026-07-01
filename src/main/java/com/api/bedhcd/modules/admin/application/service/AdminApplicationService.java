@@ -50,6 +50,7 @@ public class AdminApplicationService {
                 .refreshToken(refreshToken)
                 .userId(admin.getId())
                 .email(admin.getEmail())
+                .fullName(admin.getFullName())
                 .roles(Set.of(admin.getRole()))
                 .build();
     }

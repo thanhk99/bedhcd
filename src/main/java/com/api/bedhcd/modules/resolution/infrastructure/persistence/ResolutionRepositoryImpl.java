@@ -1,8 +1,8 @@
-package com.api.bedhcd.modules.voting.infrastructure.persistence;
+package com.api.bedhcd.modules.resolution.infrastructure.persistence;
 
-import com.api.bedhcd.modules.voting.domain.model.Resolution;
-import com.api.bedhcd.modules.voting.domain.model.VotingOption;
-import com.api.bedhcd.modules.voting.domain.repository.ResolutionRepository;
+import com.api.bedhcd.modules.resolution.domain.model.Resolution;
+import com.api.bedhcd.modules.resolution.domain.model.VotingOption;
+import com.api.bedhcd.modules.resolution.domain.repository.ResolutionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -38,6 +38,11 @@ public class ResolutionRepositoryImpl implements ResolutionRepository {
     @Override
     public long count() {
         return jpaRepository.count();
+    }
+
+    @Override
+    public void deleteById(String id) {
+        jpaRepository.deleteById(id);
     }
 
     @Override

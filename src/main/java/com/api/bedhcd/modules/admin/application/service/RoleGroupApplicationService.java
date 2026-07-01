@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import com.api.bedhcd.modules.admin.domain.exception.AdminException;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,14 +50,14 @@ public class RoleGroupApplicationService {
         @Transactional(readOnly = true)
         public RoleGroupResponse getRoleGroup(String id) {
                 RoleGroupEntity entity = roleGroupJpaRepository.findById(id)
-                                .orElseThrow(() -> new RuntimeException("Role Group not found: " + id));
+                                .orElseThrow(() -> AdminException.roleGroupNotFound(id));
                 return mapToResponse(entity);
         }
 
         @Transactional
         public RoleGroupResponse createRoleGroup(RoleGroupRequest request) {
                 if (roleGroupJpaRepository.findByName(request.getName()).isPresent()) {
-                        throw new RuntimeException("Role Group name already exists: " + request.getName());
+                        throw AdminException.roleGroupNameExists(request.getName());
                 }
 
                 RoleGroupEntity entity = RoleGroupEntity.builder()
@@ -78,11 +80,11 @@ public class RoleGroupApplicationService {
         @Transactional
         public RoleGroupResponse updateRoleGroup(String id, RoleGroupRequest request) {
                 RoleGroupEntity entity = roleGroupJpaRepository.findById(id)
-                                .orElseThrow(() -> new RuntimeException("Role Group not found: " + id));
+                                .orElseThrow(() -> AdminException.roleGroupNotFound(id));
 
                 if (!entity.getName().equals(request.getName())
                                 && roleGroupJpaRepository.findByName(request.getName()).isPresent()) {
-                        throw new RuntimeException("Role Group name already exists: " + request.getName());
+                        throw AdminException.roleGroupNameExists(request.getName());
                 }
 
                 List<RoleGroupPermissionEntity> oldPermissions = roleGroupPermissionJpaRepository.findByRoleGroupId(id);
@@ -156,11 +158,10 @@ public class RoleGroupApplicationService {
         @Transactional
         public void deleteRoleGroup(String id) {
                 RoleGroupEntity entity = roleGroupJpaRepository.findById(id)
-                                .orElseThrow(() -> new RuntimeException("Role Group not found: " + id));
+                                .orElseThrow(() -> AdminException.roleGroupNotFound(id));
 
                 if (adminRoleGroupJpaRepository.existsByRoleGroupId(id)) {
-                        throw new RuntimeException(
-                                        "Cannot delete Role Group because it is assigned to one or more Admins");
+                        throw AdminException.roleGroupAssignedToAdmins();
                 }
 
                 String payload = "Xóa nhóm quyền: " + entity.getName();
@@ -175,14 +176,14 @@ public class RoleGroupApplicationService {
         public void assignAdminsToRoleGroup(String roleGroupId, AssignAdminsToRoleGroupRequest request) {
                 // Kiểm tra nhóm quyền có tồn tại không
                 RoleGroupEntity roleGroup = roleGroupJpaRepository.findById(roleGroupId)
-                                .orElseThrow(() -> new RuntimeException("Role Group not found: " + roleGroupId));
+                                .orElseThrow(() -> AdminException.roleGroupNotFound(roleGroupId));
 
                 List<String> newAdminIds = request.getAdminIds() != null ? request.getAdminIds() : java.util.Collections.emptyList();
 
                 // Validate các admin id có tồn tại không
                 for (String adminId : newAdminIds) {
                         if (!adminJpaRepository.existsById(adminId)) {
-                                throw new RuntimeException("Admin not found: " + adminId);
+                                throw AdminException.adminNotFound(adminId);
                         }
                 }
 

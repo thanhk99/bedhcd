@@ -132,4 +132,66 @@ public class IdentityPortImpl implements IdentityPort {
         UserEntity saved = userRepository.save(entity);
         return getUserInfo(saved.getId());
     }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public java.util.List<com.api.bedhcd.shared.dto.UserDTO> createOrUpdateUserBatch(java.util.List<com.api.bedhcd.shared.dto.UserDTO> users) {
+        if (users == null || users.isEmpty()) return java.util.Collections.emptyList();
+        
+        // 1. Tải trước tất cả user hiện có bằng CCCD để tối ưu
+        java.util.List<String> cccds = users.stream().map(com.api.bedhcd.shared.dto.UserDTO::getCccd).toList();
+        java.util.List<UserEntity> existingUsers = userRepository.findAllByCccdIn(cccds);
+        java.util.Map<String, UserEntity> existingMap = existingUsers.stream()
+                .collect(java.util.stream.Collectors.toMap(UserEntity::getCccd, u -> u));
+
+        java.util.List<UserEntity> entitiesToSave = users.parallelStream().map(dto -> {
+            UserEntity entity = existingMap.get(dto.getCccd());
+            boolean isNew = (entity == null);
+
+            if (isNew) {
+                // Chỉ encode password khi tạo mới - không encode lại cho user hiện có
+                // Chạy parallelStream giúp mã hóa nhiều password cùng lúc, tận dụng đa nhân CPU
+                entity = UserEntity.builder()
+                        .id(java.util.UUID.randomUUID().toString())
+                        .cccd(dto.getCccd())
+                        .username(dto.getCccd())
+                        .password(passwordEncoder.encode(dto.getCccd()))
+                        .roles(Set.of(Role.SHAREHOLDER))
+                        .enabled(true)
+                        .build();
+            }
+
+            // KHÔNG gọi setPassword cho user cũ (tránh bcrypt N lần)
+            if (dto.getFullName() != null) entity.setFullName(dto.getFullName());
+            if (dto.getEmail() != null) entity.setEmail(dto.getEmail());
+            if (dto.getInvestorCode() != null) entity.setInvestorCode(dto.getInvestorCode());
+            if (dto.getPhoneNumber() != null) entity.setPhoneNumber(dto.getPhoneNumber());
+
+            if (dto.getSharesOwned() != null) {
+                entity.setSharesOwned(dto.getSharesOwned());
+            }
+
+            if (dto.getRoles() != null && !dto.getRoles().isEmpty()) {
+                entity.setRoles(dto.getRoles());
+            }
+            
+            return entity;
+        }).collect(java.util.stream.Collectors.toList());
+
+        java.util.List<UserEntity> savedEntities = userRepository.saveAll(entitiesToSave);
+        return savedEntities.stream()
+                .map(entity -> com.api.bedhcd.shared.dto.UserDTO.builder()
+                        .id(entity.getId())
+                        .username(entity.getUsername())
+                        .fullName(entity.getFullName())
+                        .email(entity.getEmail())
+                        .cccd(entity.getCccd())
+                        .investorCode(entity.getInvestorCode())
+                        .phoneNumber(entity.getPhoneNumber())
+                        .sharesOwned(entity.getSharesOwned())
+                        .roles(entity.getRoles())
+                        .enabled(entity.isEnabled())
+                        .build())
+                .toList();
+    }
 }

@@ -2,8 +2,8 @@ package com.api.bedhcd.modules.voting.application.mapper;
 
 import com.api.bedhcd.modules.voting.api.v1.dto.ResolutionResponse;
 import com.api.bedhcd.modules.voting.api.v1.dto.VotingOptionResponse;
-import com.api.bedhcd.modules.voting.domain.model.Resolution;
-import com.api.bedhcd.modules.voting.domain.model.VotingOption;
+import com.api.bedhcd.modules.resolution.domain.model.Resolution;
+import com.api.bedhcd.modules.resolution.domain.model.VotingOption;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;

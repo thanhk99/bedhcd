@@ -1,7 +1,6 @@
 package com.api.bedhcd.modules.election.infrastructure.persistence;
 
 import com.api.bedhcd.shared.domain.enums.ElectionType;
-import com.api.bedhcd.modules.voting.infrastructure.persistence.VotingOptionEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -38,7 +37,7 @@ public class ElectionEntity {
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JoinColumn(name = "election_id")
-    private List<VotingOptionEntity> candidates;
+    private List<CandidateEntity> candidates;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

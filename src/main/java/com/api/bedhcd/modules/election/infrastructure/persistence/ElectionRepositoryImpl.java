@@ -1,9 +1,8 @@
 package com.api.bedhcd.modules.election.infrastructure.persistence;
 
+import com.api.bedhcd.modules.election.domain.model.Candidate;
 import com.api.bedhcd.modules.election.domain.model.Election;
 import com.api.bedhcd.modules.election.domain.repository.ElectionRepository;
-import com.api.bedhcd.modules.voting.domain.model.VotingOption;
-import com.api.bedhcd.modules.voting.infrastructure.persistence.VotingOptionEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -46,14 +45,12 @@ public class ElectionRepositoryImpl implements ElectionRepository {
                 .displayOrder(entity.getDisplayOrder())
                 .candidates(entity.getCandidates() != null
                         ? entity.getCandidates().stream()
-                                .map(opt -> VotingOption.builder()
-                                        .id(opt.getId())
-                                        .name(opt.getName())
-                                        .type(opt.getType())
-                                        .position(opt.getPosition())
-                                        .bio(opt.getBio())
-                                        .photoUrl(opt.getPhotoUrl())
-                                        .displayOrder(opt.getDisplayOrder())
+                                .map(c -> Candidate.builder()
+                                        .id(c.getId())
+                                        .name(c.getName())
+                                        .bio(c.getBio())
+                                        .description(c.getDescription())
+                                        .displayOrder(c.getDisplayOrder())
                                         .build())
                                 .collect(Collectors.toList())
                         : Collections.emptyList())
@@ -73,14 +70,12 @@ public class ElectionRepositoryImpl implements ElectionRepository {
                 .displayOrder(domain.getDisplayOrder())
                 .candidates(domain.getCandidates() != null
                         ? domain.getCandidates().stream()
-                                .map(opt -> VotingOptionEntity.builder()
-                                        .id(opt.getId())
-                                        .name(opt.getName())
-                                        .type(opt.getType())
-                                        .position(opt.getPosition())
-                                        .bio(opt.getBio())
-                                        .photoUrl(opt.getPhotoUrl())
-                                        .displayOrder(opt.getDisplayOrder())
+                                .map(c -> CandidateEntity.builder()
+                                        .id(c.getId())
+                                        .name(c.getName())
+                                        .bio(c.getBio())
+                                        .description(c.getDescription())
+                                        .displayOrder(c.getDisplayOrder())
                                         .build())
                                 .collect(Collectors.toList())
                         : Collections.emptyList())
