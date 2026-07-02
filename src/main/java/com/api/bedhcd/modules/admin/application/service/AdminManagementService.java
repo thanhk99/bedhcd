@@ -176,6 +176,29 @@ public class AdminManagementService {
         logManualActivity("ACTIVATE_ADMIN", "MANAGE_ADMIN", adminId, "Kích hoạt tài khoản Admin: " + admin.getUsername());
     }
 
+    @Transactional
+    public void deleteAdmin(String adminId) {
+        // Kiểm tra người thực hiện phải là SUPER_ADMIN
+        String actorUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        Admin actor = adminRepository.findByUsername(actorUsername)
+                .orElseThrow(() -> IdentityException.userNotFound(actorUsername));
+        if (!actor.isSuperAdmin()) {
+            throw AdminException.onlySuperAdminCanDelete();
+        }
+
+        Admin admin = adminRepository.findById(adminId)
+                .orElseThrow(() -> IdentityException.userNotFound(adminId));
+        
+        if (admin.isSuperAdmin()) {
+            throw AdminException.cannotDeleteSuperAdmin();
+        }
+
+        adminRoleGroupJpaRepository.deleteByAdminId(adminId);
+        adminRepository.delete(admin);
+        
+        logManualActivity("DELETE_ADMIN", "MANAGE_ADMIN", adminId, "Xoá tài khoản Admin: " + admin.getUsername());
+    }
+
     private void saveAdminRoleGroups(String adminId, List<String> roleGroupIds) {
         adminRoleGroupJpaRepository.deleteByAdminId(adminId);
         if (roleGroupIds != null && !roleGroupIds.isEmpty()) {

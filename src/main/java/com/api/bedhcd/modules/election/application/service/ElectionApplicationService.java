@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
+import com.api.bedhcd.shared.domain.UuidFactory;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,7 +44,7 @@ public class ElectionApplicationService {
         @Transactional
         public ElectionResponse createElection(String meetingId, ElectionRequest request) {
                 Election election = Election.builder()
-                                .id(UUID.randomUUID().toString())
+                                .id(UuidFactory.generate())
                                 .meetingId(meetingId)
                                 .title(request.getTitle())
                                 .description(request.getDescription())
@@ -66,7 +66,7 @@ public class ElectionApplicationService {
                                 : (election.getCandidates() != null ? election.getCandidates().size() + 1 : 1);
 
                 Candidate candidate = Candidate.builder()
-                                .id(UUID.randomUUID().toString())
+                                .id(UuidFactory.generate())
                                 .name(request.getFullName())
                                 .description(request.getDescription())
                                 .bio(request.getDescription())
@@ -104,7 +104,8 @@ public class ElectionApplicationService {
                 if (totalDistributed != totalPower) {
                         throw ElectionException.invalidVoteDistribution(
                                         "Tổng số phiếu phân bổ (" + totalDistributed
-                                                        + ") không khớp với tổng quyền biểu quyết (" + totalPower + ")");
+                                                        + ") không khớp với tổng quyền biểu quyết (" + totalPower
+                                                        + ")");
                 }
 
                 Set<String> validCandidateIds = election.getCandidates() != null
@@ -115,16 +116,17 @@ public class ElectionApplicationService {
                 for (ElectionVoteRequest.OptionVoteRequest optVote : request.getOptionVotes()) {
                         if (!validCandidateIds.contains(optVote.getCandidateId())) {
                                 throw ElectionException.invalidVoteDistribution(
-                                                "Ứng viên không tồn tại trong cuộc bầu cử này: " + optVote.getCandidateId());
+                                                "Ứng viên không tồn tại trong cuộc bầu cử này: "
+                                                                + optVote.getCandidateId());
                         }
                         if (optVote.getVoteWeight() < 0) {
                                 throw ElectionException.invalidVoteDistribution("Số phiếu không thể âm");
                         }
                         if (optVote.getVoteWeight() > 0) {
                                 optionVotes.add(OptionVote.builder()
-                                    .optionId(optVote.getCandidateId())
-                                    .weight(optVote.getVoteWeight())
-                                    .build());
+                                                .optionId(optVote.getCandidateId())
+                                                .weight(optVote.getVoteWeight())
+                                                .build());
                         }
                 }
 

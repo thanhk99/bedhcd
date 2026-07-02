@@ -40,6 +40,11 @@ public class AdminRepositoryImpl implements AdminRepository {
         return toDomain(saved);
     }
 
+    @Override
+    public void delete(Admin domain) {
+        jpaRepository.deleteById(domain.getId());
+    }
+
     private Admin toDomain(AdminEntity entity) {
         return Admin.builder()
                 .id(entity.getId())

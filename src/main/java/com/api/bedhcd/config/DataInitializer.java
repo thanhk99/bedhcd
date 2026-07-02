@@ -8,7 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import java.util.UUID;
+import com.api.bedhcd.shared.domain.UuidFactory;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
@@ -50,7 +50,7 @@ public class DataInitializer implements CommandLineRunner {
         // Create SuperAdmin in admins table if not exists
         if (!adminJpaRepository.existsByRole(Role.SUPER_ADMIN)) {
             AdminEntity admin = AdminEntity.builder()
-                    .id(UUID.randomUUID().toString())
+                    .id(UuidFactory.generate())
                     .username("admin")
                     .password(passwordEncoder.encode("admin123"))
                     .fullName("Super Administrator")

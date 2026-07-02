@@ -3,6 +3,7 @@ package com.api.bedhcd.modules.meeting.api.v1;
 import com.api.bedhcd.modules.admin.domain.model.ActionCode;
 import com.api.bedhcd.modules.admin.domain.model.ResourceCode;
 import com.api.bedhcd.modules.admin.infrastructure.security.RequireAdminPermission;
+import com.api.bedhcd.modules.meeting.api.v1.dto.MeetingEditRequestResponse;
 import com.api.bedhcd.modules.meeting.api.v1.dto.MeetingRealtimeResponse;
 import com.api.bedhcd.modules.meeting.api.v1.dto.MeetingResponse;
 import com.api.bedhcd.modules.meeting.application.service.MeetingApplicationService;
@@ -18,7 +19,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/meeting/meetings")
-@Tag(name = "Meeting Management", description = "Các API dành cho SUPER_ADMIN để quản lý tài khoản và quyền của ADMIN")
+@Tag(name = "Meeting Management", description = "Các API quản lý cuộc họp. Thao tác chỉnh sửa của ADMIN thường sẽ tạo yêu cầu chờ duyệt.")
 @RequiredArgsConstructor
 public class MeetingController {
 
@@ -55,26 +56,39 @@ public class MeetingController {
         return ApiResponse.success(meetingApplicationService.createMeeting(meeting));
     }
 
-    @Operation(summary = "Cập nhật cuộc họp")
+    /**
+     * Cập nhật cuộc họp.
+     * - SUPERADMIN: Cập nhật trực tiếp, trả về MeetingResponse.
+     * - ADMIN thường: Tạo yêu cầu chờ duyệt, trả về MeetingEditRequestResponse (requiresApproval=true).
+     */
+    @Operation(summary = "Cập nhật cuộc họp. SUPERADMIN cập nhật trực tiếp; ADMIN thường tạo yêu cầu chờ duyệt.")
     @PutMapping("/{id}")
     @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.UPDATE)
-    public ApiResponse<MeetingResponse> update(@PathVariable String id, @RequestBody Meeting updateInfo) {
+    public ApiResponse<Object> update(@PathVariable String id, @RequestBody Meeting updateInfo) {
         return ApiResponse.success(meetingApplicationService.updateMeeting(id, updateInfo));
     }
 
-    @Operation(summary = "Cập nhật trạng thái cuộc họp")
+    /**
+     * Cập nhật trạng thái cuộc họp.
+     * - SUPERADMIN: Cập nhật trực tiếp.
+     * - ADMIN thường: Tạo yêu cầu chờ duyệt.
+     */
+    @Operation(summary = "Cập nhật trạng thái cuộc họp. SUPERADMIN cập nhật trực tiếp; ADMIN thường tạo yêu cầu chờ duyệt.")
     @PatchMapping("/{id}/status")
     @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.UPDATE)
-    public ApiResponse<MeetingResponse> updateStatus(@PathVariable String id, @RequestParam String status) {
+    public ApiResponse<Object> updateStatus(@PathVariable String id, @RequestParam String status) {
         return ApiResponse.success(meetingApplicationService.updateStatus(id, status));
     }
 
-    @Operation(summary = "Xóa cuộc họp")
+    /**
+     * Xóa cuộc họp.
+     * - SUPERADMIN: Xóa trực tiếp (trả về null data).
+     * - ADMIN thường: Tạo yêu cầu xóa chờ duyệt, trả về MeetingEditRequestResponse.
+     */
+    @Operation(summary = "Xóa cuộc họp. SUPERADMIN xóa trực tiếp; ADMIN thường tạo yêu cầu xóa chờ duyệt.")
     @DeleteMapping("/{id}")
     @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.DELETE)
-    public ApiResponse<Void> delete(@PathVariable String id) {
-        meetingApplicationService.deleteMeeting(id);
-        return ApiResponse.success(null);
+    public ApiResponse<Object> delete(@PathVariable String id) {
+        return ApiResponse.success(meetingApplicationService.deleteMeeting(id));
     }
-
 }

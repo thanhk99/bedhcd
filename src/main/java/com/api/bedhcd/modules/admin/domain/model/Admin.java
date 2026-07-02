@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.api.bedhcd.shared.domain.UuidFactory;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -23,13 +25,13 @@ public class Admin {
     private String email;
     private Role role; // SUPER_ADMIN or ADMIN
     private boolean isActive;
-    
+
     private String department;
     private String jobTitle;
-    
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    
+
     @Builder.Default
     private Set<AdminPermission> permissions = new HashSet<>();
 
@@ -37,9 +39,10 @@ public class Admin {
         return Role.SUPER_ADMIN.equals(role);
     }
 
-    public static Admin createNew(String username, String encodedPassword, String fullName, String email, String department, String jobTitle) {
+    public static Admin createNew(String username, String encodedPassword, String fullName, String email,
+            String department, String jobTitle) {
         return Admin.builder()
-                .id(java.util.UUID.randomUUID().toString())
+                .id(UuidFactory.generate())
                 .username(username)
                 .password(encodedPassword)
                 .fullName(fullName)

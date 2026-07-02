@@ -3,6 +3,7 @@ package com.api.bedhcd.modules.identity.application.service;
 import com.api.bedhcd.config.JwtUtil;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
 import com.api.bedhcd.modules.identity.api.v1.dto.AuthResponse;
+import com.api.bedhcd.modules.identity.api.v1.dto.ChangePasswordRequest;
 import com.api.bedhcd.modules.identity.api.v1.dto.CreateAdminRequest;
 import com.api.bedhcd.modules.identity.api.v1.dto.LoginRequest;
 import com.api.bedhcd.modules.identity.api.v1.dto.UpdateUserRequest;
@@ -33,7 +34,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
+import com.api.bedhcd.shared.domain.UuidFactory;
 import java.util.stream.Collectors;
 
 import com.api.bedhcd.shared.dto.PageResponse;
@@ -163,6 +164,19 @@ public class IdentityApplicationService {
         loginHistoryRepository.save(history);
     }
 
+    @Transactional
+    public void changePassword(String username, ChangePasswordRequest request) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> IdentityException.userNotFound(username));
+
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            throw IdentityException.invalidCredentials();
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+    }
+
     @Transactional(readOnly = true)
     public UserResponse getUserProfile(String userId) {
         User user = userRepository.findById(userId)
@@ -237,7 +251,7 @@ public class IdentityApplicationService {
 
         // Tạo User mới với trạng thái rỗng
         User newAdmin = User.builder()
-                .id(UUID.randomUUID().toString())
+                .id(UuidFactory.generate())
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())

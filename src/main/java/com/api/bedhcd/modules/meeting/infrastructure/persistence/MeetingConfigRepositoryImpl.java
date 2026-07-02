@@ -3,6 +3,8 @@ package com.api.bedhcd.modules.meeting.infrastructure.persistence;
 import com.api.bedhcd.modules.meeting.domain.model.MeetingConfig;
 import com.api.bedhcd.modules.meeting.domain.model.MeetingRules;
 import com.api.bedhcd.modules.meeting.domain.repository.MeetingConfigRepository;
+import com.api.bedhcd.shared.domain.UuidFactory;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -31,7 +33,7 @@ public class MeetingConfigRepositoryImpl implements MeetingConfigRepository {
     @Override
     public MeetingConfig save(MeetingConfig config) {
         if (config.getId() == null || config.getId().isEmpty()) {
-            config.setId(java.util.UUID.randomUUID().toString());
+            config.setId(UuidFactory.generate());
             MeetingConfigEntity entity = toEntity(config);
             return toDomain(jpaRepository.save(entity));
         }

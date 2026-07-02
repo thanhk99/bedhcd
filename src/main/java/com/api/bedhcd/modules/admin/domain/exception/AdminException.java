@@ -56,4 +56,20 @@ public class AdminException extends BaseDomainException {
                 "Chỉ Super Admin mới có quyền vô hiệu hoá tài khoản Admin"
         );
     }
+
+    public static AdminException cannotDeleteSuperAdmin() {
+        return new AdminException(
+                HttpStatus.FORBIDDEN,
+                "ADMIN_CANNOT_DELETE_SUPER_ADMIN",
+                "Không thể xoá tài khoản Super Admin"
+        );
+    }
+
+    public static AdminException onlySuperAdminCanDelete() {
+        return new AdminException(
+                HttpStatus.FORBIDDEN,
+                "ADMIN_ONLY_SUPER_ADMIN_CAN_DELETE",
+                "Chỉ Super Admin mới có quyền xoá tài khoản Admin"
+        );
+    }
 }

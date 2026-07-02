@@ -17,14 +17,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.UUID;
+import com.api.bedhcd.shared.domain.UuidFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Filter ghi lại mọi HTTP request: method, URI, user, IP, status, duration.
- * Dùng StatusCapturingWrapper nhẹ (không buffer body) thay ContentCachingResponseWrapper.
+ * Dùng StatusCapturingWrapper nhẹ (không buffer body) thay
+ * ContentCachingResponseWrapper.
  * Bỏ qua actuator, swagger, ws, và /api/v1/monitor.
  */
 @Slf4j
@@ -36,8 +37,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     private final MeterRegistry meterRegistry;
 
     // Pattern trích xuất tên module từ URI, ví dụ: /api/v1/admin/... -> admin
-    private static final Pattern MODULE_PATTERN =
-            Pattern.compile("^/api/v\\d+/([^/]+)");
+    private static final Pattern MODULE_PATTERN = Pattern.compile("^/api/v\\d+/([^/]+)");
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -51,8 +51,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
 
         long startTime = System.currentTimeMillis();
 
@@ -74,7 +74,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             String module = resolveModule(request.getRequestURI());
 
             RequestLogEntry entry = RequestLogEntry.builder()
-                    .id(UUID.randomUUID().toString())
+                    .id(UuidFactory.generate())
                     .timestamp(LocalDateTime.now())
                     .method(request.getMethod())
                     .uri(request.getRequestURI())
@@ -124,14 +124,17 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
                 return auth.getName();
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return "anonymous";
     }
 
     private String resolveIp(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank()) ip = request.getRemoteAddr();
-        if (ip != null && ip.contains(",")) ip = ip.split(",")[0].trim();
+        if (ip == null || ip.isBlank())
+            ip = request.getRemoteAddr();
+        if (ip != null && ip.contains(","))
+            ip = ip.split(",")[0].trim();
         return ip;
     }
 

@@ -1,6 +1,7 @@
 package com.api.bedhcd.modules.identity.api.v1;
 
 import com.api.bedhcd.modules.identity.api.v1.dto.AuthResponse;
+import com.api.bedhcd.modules.identity.api.v1.dto.ChangePasswordRequest;
 import com.api.bedhcd.modules.identity.api.v1.dto.LoginRequest;
 import com.api.bedhcd.modules.identity.api.v1.dto.RefreshTokenRequest;
 import com.api.bedhcd.modules.identity.application.service.IdentityApplicationService;
@@ -8,6 +9,8 @@ import com.api.bedhcd.shared.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -30,6 +33,13 @@ public class AuthController {
     @PostMapping("/logout")
     public ApiResponse<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
         identityService.logout(request.getRefreshToken());
+        return ApiResponse.success(null);
+    }
+
+    @PutMapping("/change-password")
+    public ApiResponse<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request,
+            Authentication authentication) {
+        identityService.changePassword(authentication.getName(), request);
         return ApiResponse.success(null);
     }
 }

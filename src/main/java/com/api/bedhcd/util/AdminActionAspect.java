@@ -1,9 +1,9 @@
 package com.api.bedhcd.util;
 
+import com.api.bedhcd.shared.domain.UuidFactory;
 import com.api.bedhcd.shared.infrastructure.persistence.audit.AdminActionLogEntity;
 import com.api.bedhcd.shared.infrastructure.persistence.audit.AdminActionLogJpaRepository;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -23,7 +23,8 @@ public class AdminActionAspect {
 
     private final AdminActionLogJpaRepository adminActionLogRepository;
 
-    public AdminActionAspect(@org.springframework.context.annotation.Lazy AdminActionLogJpaRepository adminActionLogRepository) {
+    public AdminActionAspect(
+            @org.springframework.context.annotation.Lazy AdminActionLogJpaRepository adminActionLogRepository) {
         this.adminActionLogRepository = adminActionLogRepository;
     }
 
@@ -99,7 +100,7 @@ public class AdminActionAspect {
     private void saveLog(String username, String action, String resourceType, String resourceId, String details,
             String ipAddress, String status) {
         AdminActionLogEntity log = AdminActionLogEntity.builder()
-                .id(java.util.UUID.randomUUID().toString())
+                .id(UuidFactory.generate())
                 .username(username)
                 .action(action)
                 .resourceType(resourceType)

@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import com.api.bedhcd.shared.domain.UuidFactory;
 
 @Repository
 @RequiredArgsConstructor
@@ -40,7 +41,7 @@ public class MeetingRepositoryImpl implements MeetingRepository {
     @Override
     public Meeting save(Meeting domain) {
         if (domain.getId() == null || domain.getId().isEmpty()) {
-            domain.setId(java.util.UUID.randomUUID().toString());
+            domain.setId(UuidFactory.generate());
         }
         MeetingEntity entity = toEntity(domain);
         MeetingEntity saved = jpaRepository.save(entity);

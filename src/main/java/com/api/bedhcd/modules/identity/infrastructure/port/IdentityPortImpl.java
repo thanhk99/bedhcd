@@ -3,6 +3,7 @@ package com.api.bedhcd.modules.identity.infrastructure.port;
 import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 import com.api.bedhcd.modules.identity.infrastructure.persistence.UserEntity;
 import com.api.bedhcd.modules.identity.infrastructure.persistence.UserJpaRepository;
+import com.api.bedhcd.shared.domain.UuidFactory;
 import com.api.bedhcd.shared.domain.enums.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -92,7 +93,7 @@ public class IdentityPortImpl implements IdentityPort {
 
         UserEntity entity = userRepository.findByCccd(dto.getCccd())
                 .orElseGet(() -> UserEntity.builder()
-                        .id(java.util.UUID.randomUUID().toString())
+                        .id(com.api.bedhcd.shared.domain.UuidFactory.generate())
                         .cccd(dto.getCccd())
                         .username(dto.getCccd()) // Dùng CCCD làm username
                         .password(passwordEncoder.encode(dto.getCccd())) // Dùng CCCD làm password mặc định
@@ -135,9 +136,11 @@ public class IdentityPortImpl implements IdentityPort {
 
     @Override
     @org.springframework.transaction.annotation.Transactional
-    public java.util.List<com.api.bedhcd.shared.dto.UserDTO> createOrUpdateUserBatch(java.util.List<com.api.bedhcd.shared.dto.UserDTO> users) {
-        if (users == null || users.isEmpty()) return java.util.Collections.emptyList();
-        
+    public java.util.List<com.api.bedhcd.shared.dto.UserDTO> createOrUpdateUserBatch(
+            java.util.List<com.api.bedhcd.shared.dto.UserDTO> users) {
+        if (users == null || users.isEmpty())
+            return java.util.Collections.emptyList();
+
         // 1. Tải trước tất cả user hiện có bằng CCCD để tối ưu
         java.util.List<String> cccds = users.stream().map(com.api.bedhcd.shared.dto.UserDTO::getCccd).toList();
         java.util.List<UserEntity> existingUsers = userRepository.findAllByCccdIn(cccds);
@@ -152,7 +155,7 @@ public class IdentityPortImpl implements IdentityPort {
                 // Chỉ encode password khi tạo mới - không encode lại cho user hiện có
                 // Chạy parallelStream giúp mã hóa nhiều password cùng lúc, tận dụng đa nhân CPU
                 entity = UserEntity.builder()
-                        .id(java.util.UUID.randomUUID().toString())
+                        .id(UuidFactory.generate())
                         .cccd(dto.getCccd())
                         .username(dto.getCccd())
                         .password(passwordEncoder.encode(dto.getCccd()))
@@ -162,10 +165,14 @@ public class IdentityPortImpl implements IdentityPort {
             }
 
             // KHÔNG gọi setPassword cho user cũ (tránh bcrypt N lần)
-            if (dto.getFullName() != null) entity.setFullName(dto.getFullName());
-            if (dto.getEmail() != null) entity.setEmail(dto.getEmail());
-            if (dto.getInvestorCode() != null) entity.setInvestorCode(dto.getInvestorCode());
-            if (dto.getPhoneNumber() != null) entity.setPhoneNumber(dto.getPhoneNumber());
+            if (dto.getFullName() != null)
+                entity.setFullName(dto.getFullName());
+            if (dto.getEmail() != null)
+                entity.setEmail(dto.getEmail());
+            if (dto.getInvestorCode() != null)
+                entity.setInvestorCode(dto.getInvestorCode());
+            if (dto.getPhoneNumber() != null)
+                entity.setPhoneNumber(dto.getPhoneNumber());
 
             if (dto.getSharesOwned() != null) {
                 entity.setSharesOwned(dto.getSharesOwned());
@@ -174,7 +181,7 @@ public class IdentityPortImpl implements IdentityPort {
             if (dto.getRoles() != null && !dto.getRoles().isEmpty()) {
                 entity.setRoles(dto.getRoles());
             }
-            
+
             return entity;
         }).collect(java.util.stream.Collectors.toList());
 

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.UUID;
+import com.api.bedhcd.shared.domain.UuidFactory;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,7 +23,8 @@ public class AuditLogApplicationService {
 
     @Async
     @Transactional
-    public void logActionAsync(String actorUsername, String action, String resource, String targetId, String payload, String ipAddress) {
+    public void logActionAsync(String actorUsername, String action, String resource, String targetId, String payload,
+            String ipAddress) {
         String finalActorId = actorUsername;
         String finalActorName = "Unknown Admin";
 
@@ -36,7 +37,7 @@ public class AuditLogApplicationService {
         }
 
         AuditLogEntity log = AuditLogEntity.builder()
-                .id(UUID.randomUUID().toString())
+                .id(UuidFactory.generate())
                 .actorId(finalActorId)
                 .actorName(finalActorName)
                 .action(action)

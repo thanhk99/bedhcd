@@ -6,6 +6,8 @@ import com.api.bedhcd.modules.identity.api.v1.dto.LoginRequest;
 import com.api.bedhcd.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,7 +24,16 @@ public class AdminAuthController {
 
     @Operation(summary = "Đăng nhập dành cho Admin")
     @PostMapping("/login")
-    public ApiResponse<AuthResponse> login(@RequestBody LoginRequest request) {
-        return ApiResponse.success(adminApplicationService.login(request));
+    public ApiResponse<AuthResponse> login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        return ApiResponse.success(adminApplicationService.login(request, httpRequest));
+    }
+
+    @Operation(summary = "Đổi mật khẩu dành cho Admin")
+    @org.springframework.web.bind.annotation.PutMapping("/change-password")
+    public ApiResponse<Void> changePassword(
+            @RequestBody com.api.bedhcd.modules.identity.api.v1.dto.ChangePasswordRequest request,
+            org.springframework.security.core.Authentication authentication) {
+        adminApplicationService.changePassword(authentication.getName(), request);
+        return ApiResponse.success(null);
     }
 }

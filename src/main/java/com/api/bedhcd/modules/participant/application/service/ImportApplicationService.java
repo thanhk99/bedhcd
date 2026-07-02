@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.api.bedhcd.shared.domain.UuidFactory;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +39,7 @@ public class ImportApplicationService {
         String filePath = saveTempFile(file);
 
         ImportJob job = ImportJob.builder()
-                .id(UUID.randomUUID().toString())
+                .id(UuidFactory.generate())
                 .meetingId(meetingId)
                 .type(ImportJobType.SHAREHOLDER)
                 .status(ImportJobStatus.PENDING)
@@ -63,7 +64,7 @@ public class ImportApplicationService {
         String filePath = saveTempFile(file);
 
         ImportJob job = ImportJob.builder()
-                .id(UUID.randomUUID().toString())
+                .id(UuidFactory.generate())
                 .meetingId(meetingId)
                 .type(ImportJobType.PROXY)
                 .status(ImportJobStatus.PENDING)

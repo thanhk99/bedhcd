@@ -58,4 +58,11 @@ public class AdminManagementController {
         return ApiResponse.success(null);
     }
 
+    @Operation(summary = "Xoá tài khoản Admin")
+    @DeleteMapping("/{adminId}")
+    public ApiResponse<Void> deleteAdmin(@PathVariable String adminId) {
+        adminManagementService.deleteAdmin(adminId);
+        return ApiResponse.success(null);
+    }
+
 }
