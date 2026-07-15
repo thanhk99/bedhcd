@@ -55,6 +55,10 @@ public class ResolutionApplicationService {
 
     @Transactional
     public ResolutionResponse createResolution(String meetingId, ResolutionRequest request) {
+        if (request.getDisplayOrder() != null && resolutionRepository.existsByMeetingIdAndDisplayOrder(meetingId, request.getDisplayOrder())) {
+            throw ResolutionException.duplicateDisplayOrder(request.getDisplayOrder());
+        }
+
         Resolution resolution = Resolution.createNew(
                 meetingId,
                 request.getTitle(),
@@ -71,6 +75,11 @@ public class ResolutionApplicationService {
         resolution.setTitle(request.getTitle());
         resolution.setDescription(request.getDescription());
         if (request.getDisplayOrder() != null) {
+            if (resolution.getDisplayOrder() == null || !resolution.getDisplayOrder().equals(request.getDisplayOrder())) {
+                if (resolutionRepository.existsByMeetingIdAndDisplayOrder(meetingId, request.getDisplayOrder())) {
+                    throw ResolutionException.duplicateDisplayOrder(request.getDisplayOrder());
+                }
+            }
             resolution.setDisplayOrder(request.getDisplayOrder());
         }
 

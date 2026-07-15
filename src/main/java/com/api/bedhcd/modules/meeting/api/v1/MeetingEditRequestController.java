@@ -3,6 +3,7 @@ package com.api.bedhcd.modules.meeting.api.v1;
 import com.api.bedhcd.modules.admin.domain.model.ActionCode;
 import com.api.bedhcd.modules.admin.domain.model.ResourceCode;
 import com.api.bedhcd.modules.admin.infrastructure.security.RequireAdminPermission;
+import com.api.bedhcd.modules.audit.infrastructure.security.AuditActivity;
 import com.api.bedhcd.modules.meeting.api.v1.dto.MeetingEditRequestResponse;
 import com.api.bedhcd.modules.meeting.api.v1.dto.RejectEditRequestRequest;
 import com.api.bedhcd.modules.meeting.application.service.MeetingApplicationService;
@@ -17,7 +18,8 @@ import java.util.List;
 
 /**
  * Controller quản lý các yêu cầu chỉnh sửa cuộc họp (Meeting Edit Requests).
- * Chỉ SUPERADMIN hoặc admin có quyền APPROVE trên MANAGE_MEETING mới truy cập được.
+ * Chỉ SUPERADMIN hoặc admin có quyền APPROVE trên MANAGE_MEETING mới truy cập
+ * được.
  */
 @RestController
 @RequestMapping("/api/v1/meeting/edit-requests")
@@ -44,6 +46,7 @@ public class MeetingEditRequestController {
     @Operation(summary = "Phê duyệt yêu cầu chỉnh sửa — áp dụng thay đổi vào cuộc họp")
     @PostMapping("/{requestId}/approve")
     @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.APPROVE)
+    @AuditActivity(action = "APPROVE", resource = "MANAGE_MEETING")
     public ApiResponse<MeetingEditRequestResponse> approve(@PathVariable String requestId) {
         return ApiResponse.success(meetingApplicationService.approveEditRequest(requestId));
     }
@@ -51,6 +54,7 @@ public class MeetingEditRequestController {
     @Operation(summary = "Từ chối yêu cầu chỉnh sửa — kèm lý do")
     @PostMapping("/{requestId}/reject")
     @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.APPROVE)
+    @AuditActivity(action = "REJECT", resource = "MANAGE_MEETING")
     public ApiResponse<MeetingEditRequestResponse> reject(
             @PathVariable String requestId,
             @RequestBody RejectEditRequestRequest body) {

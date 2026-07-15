@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -59,6 +60,34 @@ public class ParticipantApplicationService {
 
                 // Toàn bộ logic nghiệp vụ điểm danh được uỷ thác cho Domain Model
                 participant.checkIn(request.getAttendingShares());
+
+                return mapToResponse(participantRepository.save(participant), user);
+        }
+
+        @Transactional
+        public AttendanceResponse updateAttendance(AttendanceRequest request) {
+                if (!meetingPort.canAttend(request.getMeetingId())) {
+                        throw ParticipantException.invalidState(
+                                        "Cấu hình hiện tại của cuộc họp không cho phép điểm danh hoặc chưa thiết lập quy tắc.");
+                }
+
+                String userId = identityPort.getUserIdByCccd(request.getCccd())
+                                .orElseThrow(() -> ParticipantException
+                                                .notFound("Không tìm thấy cổ đông với CCCD: " + request.getCccd()));
+
+                UserDTO user = identityPort.getUserInfo(userId);
+
+                Participant participant = participantRepository.findByMeetingIdAndUserId(request.getMeetingId(), userId)
+                                .orElseThrow(() -> ParticipantException.notFound("Chưa có bản ghi tham dự"));
+
+                long ownedShares = user.getSharesOwned() != null ? user.getSharesOwned() : 0L;
+                long receivedProxyShares = proxyDelegationRepository.sumReceivedProxyShares(request.getMeetingId(),
+                                userId);
+                long delegatedShares = proxyDelegationRepository.sumDelegatedShares(request.getMeetingId(), userId);
+
+                participant.syncShares(ownedShares, receivedProxyShares, delegatedShares);
+
+                participant.updateCheckIn(request.getAttendingShares());
 
                 return mapToResponse(participantRepository.save(participant), user);
         }
@@ -117,6 +146,8 @@ public class ParticipantApplicationService {
                                                         .sharesDelegated(del.getSharesDelegated())
                                                         .delegatorParticipant(
                                                                         mapToResponse(delegatorPart, delegatorUser))
+                                                        .delegatorName(delegatorUser.getFullName())
+                                                        .delegatorCccd(delegatorUser.getCccd())
                                                         .build();
                                 }).collect(Collectors.toList());
 
@@ -134,7 +165,7 @@ public class ParticipantApplicationService {
                 Participant p = participantRepository.findByMeetingIdAndUserId(meetingId, userId)
                                 .orElseThrow(() -> ParticipantException.notFound("Chưa có bản ghi tham dự"));
 
-                p.setStatus(ParticipantStatus.PRINT);
+                p.markAsPrinted();
                 return mapToResponse(participantRepository.save(p), identityPort.getUserInfo(userId));
         }
 

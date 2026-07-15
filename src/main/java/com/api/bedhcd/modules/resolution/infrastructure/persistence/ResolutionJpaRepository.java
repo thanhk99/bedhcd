@@ -7,4 +7,5 @@ public interface ResolutionJpaRepository extends JpaRepository<ResolutionEntity,
     List<ResolutionEntity> findByMeetingId(String meetingId);
 
     long countByMeetingId(String meetingId);
+    boolean existsByMeetingIdAndDisplayOrder(String meetingId, int displayOrder);
 }

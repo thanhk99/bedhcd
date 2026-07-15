@@ -24,6 +24,8 @@ public class AdminEntity {
     
     private String password;
     private String fullName;
+
+    @Column(unique = true)
     private String email;
     
     @Enumerated(EnumType.STRING)
@@ -37,6 +39,9 @@ public class AdminEntity {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private String resetToken;
+    private LocalDateTime resetTokenExpiry;
 
     @PrePersist
     protected void onCreate() {

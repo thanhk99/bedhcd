@@ -43,6 +43,13 @@ public class ElectionApplicationService {
 
         @Transactional
         public ElectionResponse createElection(String meetingId, ElectionRequest request) {
+                boolean typeExists = electionRepository.findByMeetingId(meetingId).stream()
+                        .anyMatch(e -> e.getElectionType() == request.getType());
+                
+                if (typeExists) {
+                        throw ElectionException.electionAlreadyExists(meetingId, request.getType().name());
+                }
+
                 Election election = Election.builder()
                                 .id(UuidFactory.generate())
                                 .meetingId(meetingId)
@@ -53,6 +60,18 @@ public class ElectionApplicationService {
                                 .displayOrder(request.getDisplayOrder())
                                 .createdAt(LocalDateTime.now())
                                 .build();
+                return toResponse(electionRepository.save(election));
+        }
+
+        @Transactional
+        public ElectionResponse updateElection(String electionId, ElectionRequest request) {
+                Election election = electionRepository.findById(electionId)
+                                .orElseThrow(() -> ElectionException.electionNotFound(electionId));
+                election.setTitle(request.getTitle());
+                election.setDescription(request.getDescription());
+                election.setNumSeats(request.getNumSeats());
+                election.setElectionType(request.getType());
+                election.setDisplayOrder(request.getDisplayOrder());
                 return toResponse(electionRepository.save(election));
         }
 
@@ -74,6 +93,30 @@ public class ElectionApplicationService {
                                 .build();
 
                 election.getCandidates().add(candidate);
+                return toResponse(electionRepository.save(election));
+        }
+
+        @Transactional
+        public ElectionResponse updateCandidate(String electionId, String candidateId, CandidateRequest request) {
+                Election election = electionRepository.findById(electionId)
+                                .orElseThrow(() -> ElectionException.electionNotFound(electionId));
+
+                Candidate candidate = election.getCandidates().stream()
+                                .filter(c -> c.getId().equals(candidateId))
+                                .findFirst()
+                                .orElseThrow(() -> new RuntimeException("Candidate not found: " + candidateId));
+
+                if (request.getFullName() != null) {
+                    candidate.setName(request.getFullName());
+                }
+                if (request.getDescription() != null) {
+                    candidate.setDescription(request.getDescription());
+                    candidate.setBio(request.getDescription());
+                }
+                if (request.getDisplayOrder() != null) {
+                    candidate.setDisplayOrder(request.getDisplayOrder());
+                }
+
                 return toResponse(electionRepository.save(election));
         }
 
@@ -170,6 +213,19 @@ public class ElectionApplicationService {
                                                 .sum())
                                 .totalVoters(votingPort.countVotersByTarget(electionId))
                                 .build();
+        }
+
+        @Transactional
+        public void deleteElection(String meetingId, String electionId) {
+                Election election = electionRepository.findById(electionId)
+                                .orElseThrow(() -> ElectionException.electionNotFound(electionId));
+                if (!election.getMeetingId().equals(meetingId)) {
+                        throw ElectionException.electionNotFound(electionId);
+                }
+
+                election.validateCanBeDeleted(votingPort.countVotersByTarget(electionId));
+
+                electionRepository.delete(election);
         }
 
         private ElectionResponse toResponse(Election domain) {

@@ -12,7 +12,7 @@ import java.util.Map;
  * Frontend gọi: POST /api/representatives
  */
 @RestController
-@RequestMapping("/api/v1/participant/representatives")
+@RequestMapping("/api/v1/representatives")
 @RequiredArgsConstructor
 public class RepresentativeController {
 

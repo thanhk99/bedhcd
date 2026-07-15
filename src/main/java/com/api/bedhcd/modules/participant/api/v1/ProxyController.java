@@ -4,26 +4,32 @@ import com.api.bedhcd.modules.participant.api.v1.dto.ProxyDelegationRequest;
 import com.api.bedhcd.modules.participant.api.v1.dto.ProxyDelegationResponse;
 import com.api.bedhcd.modules.participant.application.service.ProxyApplicationService;
 import com.api.bedhcd.shared.dto.ApiResponse;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/participant/meetings/{meetingId}/proxies")
+@RequestMapping("/api/v1/proxy")
+@Tag(name = "Quản lý uỷ quyền ", description = "API dành cho uỷ quyền")
 @RequiredArgsConstructor
 public class ProxyController {
 
     private final ProxyApplicationService proxyService;
 
-    @PostMapping
+    @Operation(summary = "Tạo uỷ quyền")
+    @PostMapping("/{meetingId}")
     public ApiResponse<ProxyDelegationResponse> createDelegation(
             @PathVariable String meetingId,
             @RequestBody ProxyDelegationRequest request) {
         return ApiResponse.success(proxyService.createDelegation(meetingId, request));
     }
 
-    @GetMapping
+    @Operation(summary = "Lấy danh sách uỷ quyền")
+    @GetMapping("/{meetingId}")
     public ApiResponse<?> getDelegations(
             @PathVariable String meetingId,
             @RequestParam(required = false) Integer page,
@@ -36,32 +42,46 @@ public class ProxyController {
         return ApiResponse.success(proxyService.getDelegationsPaginated(meetingId, page, size, search, status));
     }
 
-    @PostMapping("/{delegationId}/revoke")
-    public ApiResponse<Void> revokeDelegation(@PathVariable Long delegationId) {
+    @Operation(summary = "Thu hồi uỷ quyền")
+    @PostMapping("/{meetingId}/{delegationId}/revoke")
+    public ApiResponse<Void> revokeDelegation(
+            @PathVariable String meetingId,
+            @PathVariable Long delegationId) {
         proxyService.revokeDelegation(delegationId);
         return ApiResponse.success(null);
     }
 
-    @GetMapping("/delegator/{userId}")
+    @Operation(summary = "Lấy danh sách uỷ quyền theo người uỷ quyền")
+    @GetMapping("/{meetingId}/delegator/{userId}")
     public ApiResponse<List<ProxyDelegationResponse>> getProxiesByDelegator(
             @PathVariable String meetingId,
             @PathVariable String userId) {
         return ApiResponse.success(proxyService.getByDelegator(meetingId, userId));
     }
 
-    @GetMapping("/proxy/{userId}")
+    @Operation(summary = "Lấy danh sách uỷ quyền theo người được uỷ quyền")
+    @GetMapping("/{meetingId}/proxy/{userId}")
     public ApiResponse<List<ProxyDelegationResponse>> getProxiesByProxy(
             @PathVariable String meetingId,
             @PathVariable String userId) {
         return ApiResponse.success(proxyService.getByProxy(meetingId, userId));
     }
 
-    @PutMapping("/{delegationId}")
+    @Operation(summary = "Cập nhật số cổ phần được uỷ quyền")
+    @PutMapping("/{meetingId}/{delegationId}")
     public ApiResponse<ProxyDelegationResponse> updateDelegationShares(
             @PathVariable String meetingId,
             @PathVariable Long delegationId,
             @RequestBody java.util.Map<String, Long> payload) {
         long sharesDelegated = payload.getOrDefault("sharesDelegated", 0L);
         return ApiResponse.success(proxyService.updateDelegationShares(meetingId, delegationId, sharesDelegated));
+    }
+
+    @Operation(summary = "Tách phiếu bầu")
+    @PostMapping("/{meetingId}/split-tickets")
+    public ApiResponse<com.api.bedhcd.modules.participant.api.v1.dto.SplitTicketResponse> splitTickets(
+            @PathVariable String meetingId,
+            @RequestBody com.api.bedhcd.modules.participant.api.v1.dto.SplitTicketRequest request) {
+        return ApiResponse.success(proxyService.createSplitTickets(meetingId, request));
     }
 }

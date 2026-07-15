@@ -8,8 +8,9 @@ import com.api.bedhcd.modules.admin.infrastructure.persistence.entity.AdminRoleG
 import com.api.bedhcd.modules.admin.infrastructure.persistence.repository.AdminRoleGroupJpaRepository;
 import com.api.bedhcd.modules.admin.infrastructure.persistence.repository.RoleGroupJpaRepository;
 import com.api.bedhcd.modules.audit.application.service.AuditLogApplicationService;
-import com.api.bedhcd.modules.identity.api.v1.dto.CreateAdminRequest;
+import com.api.bedhcd.modules.admin.api.v1.dto.request.CreateAdminRequest;
 import com.api.bedhcd.modules.identity.domain.exception.IdentityException;
+import com.api.bedhcd.modules.notification.application.service.EmailNotificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -32,6 +33,7 @@ public class AdminManagementService {
     private final RoleGroupJpaRepository roleGroupJpaRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogApplicationService auditLogApplicationService;
+    private final EmailNotificationService emailNotificationService;
 
     @Transactional(readOnly = true)
     public List<AdminResponse> getAllAdmins() {
@@ -49,22 +51,26 @@ public class AdminManagementService {
 
     @Transactional
     public AdminResponse createAdmin(CreateAdminRequest request) {
-        if (adminRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw IdentityException.usernameAlreadyExists(request.getUsername());
+        String rawPassword = request.getPassword();
+        if (rawPassword == null || rawPassword.trim().isEmpty()) {
+            rawPassword = generateRandomPassword();
         }
 
         Admin admin = Admin.createNew(
                 request.getUsername(),
-                passwordEncoder.encode(request.getPassword()),
+                passwordEncoder.encode(rawPassword),
                 request.getFullName(),
                 request.getEmail(),
                 request.getDepartment(),
-                request.getJobTitle()
+                request.getJobTitle(),
+                adminRepository
         );
 
         admin = adminRepository.save(admin);
 
         saveAdminRoleGroups(admin.getId(), request.getRoleGroupIds());
+
+        emailNotificationService.sendAdminCreatedEmail(admin, rawPassword);
 
         String payload = "Tạo mới tài khoản Admin: " + request.getUsername() + ".\n" +
                          "Họ tên: " + request.getFullName() + ".\n" +
@@ -101,7 +107,8 @@ public class AdminManagementService {
             request.getFullName() != null ? request.getFullName() : admin.getFullName(),
             request.getEmail() != null ? request.getEmail() : admin.getEmail(),
             request.getDepartment() != null ? request.getDepartment() : admin.getDepartment(),
-            request.getJobTitle() != null ? request.getJobTitle() : admin.getJobTitle()
+            request.getJobTitle() != null ? request.getJobTitle() : admin.getJobTitle(),
+            adminRepository
         );
 
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
@@ -259,5 +266,28 @@ public class AdminManagementService {
         } catch (Exception e) {
             System.err.println("Failed to log manual activity: " + e.getMessage());
         }
+    }
+    private String generateRandomPassword() {
+        String upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        String lowerCase = "abcdefghijklmnopqrstuvwxyz";
+        String numbers = "0123456789";
+        String specialCharacters = "!@#$%^&*()-_=+";
+        String combinedChars = upperCase + lowerCase + numbers + specialCharacters;
+        
+        java.util.Random random = new java.security.SecureRandom();
+        StringBuilder password = new StringBuilder();
+        
+        password.append(upperCase.charAt(random.nextInt(upperCase.length())));
+        password.append(lowerCase.charAt(random.nextInt(lowerCase.length())));
+        password.append(numbers.charAt(random.nextInt(numbers.length())));
+        password.append(specialCharacters.charAt(random.nextInt(specialCharacters.length())));
+        
+        for (int i = 0; i < 4; i++) {
+            password.append(combinedChars.charAt(random.nextInt(combinedChars.length())));
+        }
+        
+        List<Character> charList = password.chars().mapToObj(c -> (char) c).collect(Collectors.toList());
+        java.util.Collections.shuffle(charList, random);
+        return charList.stream().map(String::valueOf).collect(Collectors.joining());
     }
 }

@@ -90,20 +90,7 @@ public class MeetingEditRequest {
                 .build();
     }
 
-    /**
-     * Tạo yêu cầu đổi trạng thái cuộc họp (UPDATE_STATUS).
-     */
-    public static MeetingEditRequest createUpdateStatusRequest(String meetingId, String requestedBy, String newStatus) {
-        return MeetingEditRequest.builder()
-                .id(UuidFactory.generate())
-                .meetingId(meetingId)
-                .requestedBy(requestedBy)
-                .actionType("UPDATE_STATUS")
-                .status(EditRequestStatus.PENDING)
-                .payload(newStatus)
-                .createdAt(LocalDateTime.now())
-                .build();
-    }
+
 
     // ─── Business Methods ──────────────────────────────────────────────────────
 

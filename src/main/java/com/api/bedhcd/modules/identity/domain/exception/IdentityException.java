@@ -41,6 +41,14 @@ public class IdentityException extends BaseDomainException {
         );
     }
 
+    public static IdentityException emailAlreadyExists(String email) {
+        return new IdentityException(
+                HttpStatus.CONFLICT,
+                "IDENTITY_EMAIL_EXISTS",
+                "Email already exists: " + email
+        );
+    }
+
     public static IdentityException invalidRefreshToken() {
         return new IdentityException(
                 HttpStatus.UNAUTHORIZED,

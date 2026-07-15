@@ -23,4 +23,8 @@ public class ElectionException extends BaseDomainException {
     public static ElectionException invalidState(String message) {
         return new ElectionException(HttpStatus.CONFLICT, "ELECTION_INVALID_STATE", message);
     }
+
+    public static ElectionException electionAlreadyExists(String meetingId, String type) {
+        return new ElectionException(HttpStatus.CONFLICT, "ELECTION_ALREADY_EXISTS", "Đợt bầu cử loại này đã tồn tại trong cuộc họp (mỗi cuộc họp chỉ có 1 đợt bầu cử cho mỗi loại).");
+    }
 }

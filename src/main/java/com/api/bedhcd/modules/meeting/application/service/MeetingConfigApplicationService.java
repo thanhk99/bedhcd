@@ -5,6 +5,8 @@ import com.api.bedhcd.modules.meeting.domain.model.MeetingConfig;
 import com.api.bedhcd.modules.meeting.domain.model.MeetingRules;
 import com.api.bedhcd.modules.meeting.domain.repository.MeetingConfigRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ public class MeetingConfigApplicationService {
 
     /**
      * Lấy danh sách tất cả cấu hình
+     * Không cache - List chứa Map lồng nhau phức tạp, dễ lỗi serialization
      */
     @Transactional(readOnly = true)
     public List<MeetingConfig> findAll() {
@@ -29,6 +32,7 @@ public class MeetingConfigApplicationService {
     /**
      * Lấy chi tiết cấu hình theo ID
      */
+    @Cacheable(value = "meeting-configs", key = "#id")
     @Transactional(readOnly = true)
     public MeetingConfig findById(String id) {
         return configRepository.findById(id).orElse(null);
@@ -37,6 +41,7 @@ public class MeetingConfigApplicationService {
     /**
      * Lưu cấu hình (tạo mới hoặc cập nhật)
      */
+    @CacheEvict(value = "meeting-configs", key = "#config.id")
     @Transactional
     public MeetingConfig save(MeetingConfig config) {
         return configRepository.save(config);
@@ -45,6 +50,7 @@ public class MeetingConfigApplicationService {
     /**
      * Xóa cấu hình
      */
+    @CacheEvict(value = "meeting-configs", key = "#id")
     @Transactional
     public void delete(String id) {
         configRepository.delete(id);
@@ -53,6 +59,7 @@ public class MeetingConfigApplicationService {
     /**
      * Tạo một bản mẫu cấu hình đại hội chuẩn
      */
+    @CacheEvict(value = "meeting-configs", key = "#id")
     @Transactional
     public MeetingConfig createStandardTemplate(String id, String name) {
         Map<String, MeetingRules> stateConfigs = new HashMap<>();
@@ -80,7 +87,7 @@ public class MeetingConfigApplicationService {
                 .allowVoting(true)
                 .permissions(Map.of("VOTE", List.of("USER", "PROXY"), "VIEW", List.of("ALL")))
                 .build());
-        
+
         // Cấu hình cho trạng thái Đã kết thúc
         stateConfigs.put(MeetingStatus.COMPLETED, MeetingRules.builder()
                 .name("Đã kết thúc")

@@ -19,9 +19,10 @@ public class MeetingEditRequestResponse {
     private String id;
     private String meetingId;
     private String requestedBy;
+    private String requestedByName;
 
     /**
-     * Loại thao tác: UPDATE | DELETE | UPDATE_STATUS
+     * Loại thao tác: UPDATE | DELETE
      */
     private String actionType;
 

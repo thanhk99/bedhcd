@@ -11,6 +11,8 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
 
         Optional<UserEntity> findByCccd(String cccd);
 
+        Optional<UserEntity> findByEmail(String email);
+
         java.util.List<UserEntity> findAllByCccdIn(java.util.List<String> cccds);
 
         boolean existsByRolesContaining(Role role);
@@ -29,4 +31,6 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
         java.util.List<UserEntity> searchTopByKeyword(
                         @org.springframework.data.repository.query.Param("keyword") String keyword,
                         org.springframework.data.domain.Pageable pageable);
+
+        long countBySplitAccountFalse();
 }

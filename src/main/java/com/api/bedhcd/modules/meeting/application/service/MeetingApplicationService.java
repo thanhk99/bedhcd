@@ -21,18 +21,25 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import com.api.bedhcd.shared.domain.UuidFactory;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class MeetingApplicationService {
+
+    // Cho phép chữ cái (Unicode), chữ số, khoảng trắng, dấu câu thông thường
+    private static final Pattern VALID_MEETING_TEXT = Pattern.compile("^[\\p{L}\\p{N}\\s,.:;\\-/()'\"!?&]+$");
 
     private final MeetingRepository meetingRepository;
     private final MeetingConfigRepository configRepository;
@@ -50,6 +57,7 @@ public class MeetingApplicationService {
 
     // ─── Queries ────────────────────────────────────────────────────────────────
 
+    // Không cache getAll() - List<MeetingResponse> phức tạp, dễ lỗi serialization
     @Transactional(readOnly = true)
     public List<MeetingResponse> getAll() {
         List<Meeting> meetings = meetingRepository.findAll();
@@ -59,6 +67,7 @@ public class MeetingApplicationService {
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "meetings", key = "#id")
     @Transactional(readOnly = true)
     public MeetingResponse getById(String id) {
         Meeting meeting = meetingRepository.findById(id)
@@ -67,6 +76,7 @@ public class MeetingApplicationService {
         return meetingMapper.toResponse(meeting, config);
     }
 
+    @Cacheable(value = "meetings:ongoing", unless = "#result == null")
     @Transactional(readOnly = true)
     public MeetingResponse getOngoingMeeting() {
         return meetingRepository.findOngoing()
@@ -77,6 +87,7 @@ public class MeetingApplicationService {
                 .orElse(null);
     }
 
+    @Cacheable(value = "meetings:realtime", key = "#id")
     @Transactional(readOnly = true)
     public MeetingRealtimeResponse getRealtimeStats(String id) {
         Meeting meeting = meetingRepository.findById(id)
@@ -130,8 +141,16 @@ public class MeetingApplicationService {
 
     // ─── Commands ────────────────────────────────────────────────────────────────
 
+    @Caching(evict = {
+        @CacheEvict(value = "meetings:all", allEntries = true),
+        @CacheEvict(value = "meetings:ongoing", allEntries = true)
+    })
     @Transactional
     public MeetingResponse createMeeting(Meeting meeting) {
+        // Validate các trường bắt buộc
+        validateMeetingFields(meeting.getTitle(), meeting.getDescription(), meeting.getLocation(),
+                meeting.getStartTime(), meeting.getEndTime());
+
         if (meeting.getMeetingCode() == null || meeting.getMeetingCode().trim().isEmpty()) {
             meeting.setMeetingCode(UuidFactory.generate().substring(0, 8).toUpperCase());
         }
@@ -171,8 +190,18 @@ public class MeetingApplicationService {
      *         SUPERADMIN cập nhật trực tiếp
      *         (client phân biệt qua field requiresApproval)
      */
+    @Caching(evict = {
+        @CacheEvict(value = "meetings:all", allEntries = true),
+        @CacheEvict(value = "meetings", key = "#id"),
+        @CacheEvict(value = "meetings:ongoing", allEntries = true),
+        @CacheEvict(value = "meetings:realtime", key = "#id")
+    })
     @Transactional
     public Object updateMeeting(String id, Meeting updateInfo) {
+        // Validate các trường dữ liệu đầu vào
+        validateMeetingFields(updateInfo.getTitle(), updateInfo.getDescription(), updateInfo.getLocation(),
+                updateInfo.getStartTime(), updateInfo.getEndTime());
+
         // Xác minh cuộc họp tồn tại
         Meeting meeting = meetingRepository.findById(id)
                 .orElseThrow(() -> MeetingException.notFound(id));
@@ -197,7 +226,20 @@ public class MeetingApplicationService {
             throw MeetingException.pendingRequestAlreadyExists(id);
         }
 
-        String payloadJson = serializeToJson(updateInfo);
+        java.util.Map<String, Object> changes = new java.util.HashMap<>();
+        if (!java.util.Objects.equals(meeting.getTitle(), updateInfo.getTitle())) changes.put("title", updateInfo.getTitle());
+        if (!java.util.Objects.equals(meeting.getDescription(), updateInfo.getDescription())) changes.put("description", updateInfo.getDescription());
+        if (!java.util.Objects.equals(meeting.getStartTime(), updateInfo.getStartTime())) changes.put("startTime", updateInfo.getStartTime());
+        if (!java.util.Objects.equals(meeting.getEndTime(), updateInfo.getEndTime())) changes.put("endTime", updateInfo.getEndTime());
+        if (!java.util.Objects.equals(meeting.getLocation(), updateInfo.getLocation())) changes.put("location", updateInfo.getLocation());
+        if (!java.util.Objects.equals(meeting.getConfigId(), updateInfo.getConfigId())) changes.put("configId", updateInfo.getConfigId());
+        if (!java.util.Objects.equals(meeting.getStatus(), updateInfo.getStatus())) changes.put("status", updateInfo.getStatus());
+
+        if (changes.isEmpty()) {
+            throw MeetingException.invalidState("Không có thay đổi nào để tạo yêu cầu.");
+        }
+
+        String payloadJson = serializeToJson(changes);
         String adminId = adminContextService.getCurrentAdminId();
         MeetingEditRequest request = MeetingEditRequest.createUpdateRequest(id, adminId, payloadJson);
         MeetingEditRequest saved = editRequestRepository.save(request);
@@ -209,6 +251,12 @@ public class MeetingApplicationService {
      * - SUPERADMIN: Đổi trực tiếp.
      * - ADMIN thường: Tạo MeetingEditRequest (PENDING) chờ duyệt.
      */
+    @Caching(evict = {
+        @CacheEvict(value = "meetings:all", allEntries = true),
+        @CacheEvict(value = "meetings", key = "#id"),
+        @CacheEvict(value = "meetings:ongoing", allEntries = true),
+        @CacheEvict(value = "meetings:realtime", key = "#id")
+    })
     @Transactional
     public Object updateStatus(String id, String status) {
         // Xác minh cuộc họp tồn tại
@@ -232,8 +280,12 @@ public class MeetingApplicationService {
             throw MeetingException.pendingRequestAlreadyExists(id);
         }
 
+        java.util.Map<String, Object> changes = new java.util.HashMap<>();
+        changes.put("status", status);
+
+        String payloadJson = serializeToJson(changes);
         String adminId = adminContextService.getCurrentAdminId();
-        MeetingEditRequest request = MeetingEditRequest.createUpdateStatusRequest(id, adminId, status);
+        MeetingEditRequest request = MeetingEditRequest.createUpdateRequest(id, adminId, payloadJson);
         MeetingEditRequest saved = editRequestRepository.save(request);
         return editRequestMapper.toResponse(saved);
     }
@@ -243,6 +295,12 @@ public class MeetingApplicationService {
      * - SUPERADMIN: Xóa trực tiếp.
      * - ADMIN thường: Tạo MeetingEditRequest DELETE (PENDING) chờ duyệt.
      */
+    @Caching(evict = {
+        @CacheEvict(value = "meetings:all", allEntries = true),
+        @CacheEvict(value = "meetings", key = "#id"),
+        @CacheEvict(value = "meetings:ongoing", allEntries = true),
+        @CacheEvict(value = "meetings:realtime", key = "#id")
+    })
     @Transactional
     public Object deleteMeeting(String id) {
         Meeting meeting = meetingRepository.findById(id)
@@ -277,6 +335,12 @@ public class MeetingApplicationService {
      * Phê duyệt một yêu cầu chỉnh sửa cuộc họp.
      * Áp dụng thay đổi thực tế vào cuộc họp và đánh dấu request là APPROVED.
      */
+    @Caching(evict = {
+        @CacheEvict(value = "meetings:all", allEntries = true),
+        @CacheEvict(value = "meetings", allEntries = true),
+        @CacheEvict(value = "meetings:ongoing", allEntries = true),
+        @CacheEvict(value = "meetings:realtime", allEntries = true)
+    })
     @Transactional
     public MeetingEditRequestResponse approveEditRequest(String requestId) {
         MeetingEditRequest request = editRequestRepository.findById(requestId)
@@ -319,21 +383,21 @@ public class MeetingApplicationService {
             case "UPDATE" -> {
                 Meeting meeting = meetingRepository.findById(request.getMeetingId())
                         .orElseThrow(() -> MeetingException.notFound(request.getMeetingId()));
-                Meeting updateInfo = deserializeFromJson(request.getPayload(), Meeting.class);
-                meeting.setTitle(updateInfo.getTitle());
-                meeting.setDescription(updateInfo.getDescription());
-                meeting.setStartTime(updateInfo.getStartTime());
-                meeting.setEndTime(updateInfo.getEndTime());
-                meeting.setLocation(updateInfo.getLocation());
-                meeting.setConfigId(updateInfo.getConfigId());
-                meeting.setStatus(updateInfo.getStatus());
-                meetingRepository.save(meeting);
-            }
-            case "UPDATE_STATUS" -> {
-                Meeting meeting = meetingRepository.findById(request.getMeetingId())
-                        .orElseThrow(() -> MeetingException.notFound(request.getMeetingId()));
-                meeting.setStatus(request.getPayload());
-                meeting.setUpdatedAt(java.time.LocalDateTime.now());
+                
+                com.fasterxml.jackson.databind.JsonNode root = parseJsonNode(request.getPayload());
+                if (root.has("title")) meeting.setTitle(root.get("title").isNull() ? null : root.get("title").asText());
+                if (root.has("description")) meeting.setDescription(root.get("description").isNull() ? null : root.get("description").asText());
+                if (root.has("location")) meeting.setLocation(root.get("location").isNull() ? null : root.get("location").asText());
+                if (root.has("configId")) meeting.setConfigId(root.get("configId").isNull() ? null : root.get("configId").asText());
+                if (root.has("status")) meeting.setStatus(root.get("status").isNull() ? null : root.get("status").asText());
+                
+                if (root.has("startTime")) {
+                    meeting.setStartTime(root.get("startTime").isNull() ? null : objectMapper.convertValue(root.get("startTime"), java.time.LocalDateTime.class));
+                }
+                if (root.has("endTime")) {
+                    meeting.setEndTime(root.get("endTime").isNull() ? null : objectMapper.convertValue(root.get("endTime"), java.time.LocalDateTime.class));
+                }
+                
                 meetingRepository.save(meeting);
             }
             case "DELETE" -> {
@@ -349,6 +413,14 @@ public class MeetingApplicationService {
             return objectMapper.writeValueAsString(obj);
         } catch (JsonProcessingException e) {
             throw MeetingException.invalidState("Không thể serialize payload: " + e.getMessage());
+        }
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode parseJsonNode(String json) {
+        try {
+            return objectMapper.readTree(json);
+        } catch (JsonProcessingException e) {
+            throw MeetingException.invalidState("Không thể parse payload: " + e.getMessage());
         }
     }
 
@@ -376,5 +448,26 @@ public class MeetingApplicationService {
         return configRepository.findAll().stream()
                 .filter(c -> configIds.contains(c.getId()))
                 .collect(Collectors.toMap(MeetingConfig::getId, c -> c));
+    }
+
+    /**
+     * Kiểm tra tính hợp lệ của thông tin cuộc họp.
+     * - Tên, mô tả, địa điểm không được chứa ký tự đặc biệt hoặc icon/emoji.
+     * - Thời gian bắt đầu phải trước thời gian kết thúc.
+     */
+    private void validateMeetingFields(String title, String description, String location,
+            java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
+        if (title != null && !title.isBlank() && !VALID_MEETING_TEXT.matcher(title).matches()) {
+            throw MeetingException.invalidState("Tên cuộc họp không được chứa ký tự đặc biệt hoặc icon/emoji.");
+        }
+        if (description != null && !description.isBlank() && !VALID_MEETING_TEXT.matcher(description).matches()) {
+            throw MeetingException.invalidState("Mô tả không được chứa ký tự đặc biệt hoặc icon/emoji.");
+        }
+        if (location != null && !location.isBlank() && !VALID_MEETING_TEXT.matcher(location).matches()) {
+            throw MeetingException.invalidState("Địa điểm không được chứa ký tự đặc biệt hoặc icon/emoji.");
+        }
+        if (startTime != null && endTime != null && !startTime.isBefore(endTime)) {
+            throw MeetingException.invalidState("Thời gian bắt đầu phải trước thời gian kết thúc.");
+        }
     }
 }

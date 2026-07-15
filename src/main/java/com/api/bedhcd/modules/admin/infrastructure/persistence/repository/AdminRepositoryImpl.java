@@ -34,6 +34,16 @@ public class AdminRepositoryImpl implements AdminRepository {
     }
 
     @Override
+    public Optional<Admin> findByEmail(String email) {
+        return jpaRepository.findFirstByEmail(email).map(this::toDomain);
+    }
+
+    @Override
+    public Optional<Admin> findByResetToken(String resetToken) {
+        return jpaRepository.findByResetToken(resetToken).map(this::toDomain);
+    }
+
+    @Override
     public Admin save(Admin domain) {
         AdminEntity entity = toEntity(domain);
         AdminEntity saved = jpaRepository.save(entity);
@@ -58,6 +68,8 @@ public class AdminRepositoryImpl implements AdminRepository {
                 .jobTitle(entity.getJobTitle())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .resetToken(entity.getResetToken())
+                .resetTokenExpiry(entity.getResetTokenExpiry())
                 .build();
     }
 
@@ -74,6 +86,8 @@ public class AdminRepositoryImpl implements AdminRepository {
                 .jobTitle(domain.getJobTitle())
                 .createdAt(domain.getCreatedAt())
                 .updatedAt(domain.getUpdatedAt())
+                .resetToken(domain.getResetToken())
+                .resetTokenExpiry(domain.getResetTokenExpiry())
                 .build();
     }
 }

@@ -4,6 +4,9 @@ import com.api.bedhcd.modules.audit.application.service.AuditLogApplicationServi
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+
+import java.util.Map;
+
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
@@ -11,8 +14,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
-import java.util.Optional;
 
 @Aspect
 @Component
@@ -28,16 +29,19 @@ public class AuditAspect {
             // Get actor ID
             String actorId = null;
             if (SecurityContextHolder.getContext().getAuthentication() != null) {
-                actorId = SecurityContextHolder.getContext().getAuthentication().getName(); // username as ID or depending on JWT
+                actorId = SecurityContextHolder.getContext().getAuthentication().getName(); // username as ID or
+                                                                                            // depending on JWT
             }
 
             // In our system, the 'userId' is often stored in the JWT claims and extracted.
-            // If the name is username, we might need to find adminId, but let's assume it's username for now 
+            // If the name is username, we might need to find adminId, but let's assume it's
+            // username for now
             // or we can just use it directly.
 
             // Get IP
             String ipAddress = null;
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
+                    .getRequestAttributes();
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
                 ipAddress = request.getHeader("X-Forwarded-For");
@@ -52,7 +56,8 @@ public class AuditAspect {
             if (args != null && args.length > 0) {
                 Object payloadObj = null;
                 for (Object arg : args) {
-                    if (arg != null && !(arg instanceof String) && !(arg instanceof HttpServletRequest) && !(arg.getClass().getName().contains("HttpServletResponse"))) {
+                    if (arg != null && !(arg instanceof String) && !(arg instanceof HttpServletRequest)
+                            && !(arg.getClass().getName().contains("HttpServletResponse"))) {
                         payloadObj = arg;
                         break;
                     }
@@ -68,9 +73,10 @@ public class AuditAspect {
             String targetId = null;
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
-                Object pathVarsObj = request.getAttribute(org.springframework.web.servlet.HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
-                if (pathVarsObj instanceof java.util.Map) {
-                    java.util.Map<String, String> pathVariables = (java.util.Map<String, String>) pathVarsObj;
+                Object pathVarsObj = request
+                        .getAttribute(org.springframework.web.servlet.HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+                if (pathVarsObj instanceof Map) {
+                    Map<String, String> pathVariables = (Map<String, String>) pathVarsObj;
                     if (pathVariables.containsKey("adminId")) {
                         targetId = pathVariables.get("adminId");
                     } else if (pathVariables.containsKey("id")) {
@@ -100,8 +106,7 @@ public class AuditAspect {
                     auditActivity.resource(),
                     targetId,
                     payload,
-                    ipAddress
-            );
+                    ipAddress);
 
         } catch (Exception e) {
             // Log error but don't interrupt the business flow

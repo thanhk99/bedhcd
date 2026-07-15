@@ -1,9 +1,8 @@
 package com.api.bedhcd.modules.admin.api.v1;
 
-import com.api.bedhcd.modules.admin.api.v1.dto.AdminPermissionDto;
 import com.api.bedhcd.modules.admin.api.v1.dto.AdminResponse;
+import com.api.bedhcd.modules.admin.api.v1.dto.request.CreateAdminRequest;
 import com.api.bedhcd.modules.admin.application.service.AdminManagementService;
-import com.api.bedhcd.modules.identity.api.v1.dto.CreateAdminRequest;
 import com.api.bedhcd.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,7 +39,8 @@ public class AdminManagementController {
 
     @Operation(summary = "Cập nhật tài khoản Admin")
     @PutMapping("/{adminId}")
-    public ApiResponse<AdminResponse> updateAdmin(@PathVariable String adminId, @RequestBody CreateAdminRequest request) {
+    public ApiResponse<AdminResponse> updateAdmin(@PathVariable String adminId,
+            @RequestBody CreateAdminRequest request) {
         return ApiResponse.success(adminManagementService.updateAdmin(adminId, request));
     }
 

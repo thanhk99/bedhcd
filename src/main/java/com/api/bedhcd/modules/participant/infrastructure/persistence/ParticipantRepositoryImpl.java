@@ -1,5 +1,6 @@
 package com.api.bedhcd.modules.participant.infrastructure.persistence;
 
+import com.api.bedhcd.shared.domain.enums.ParticipantStatus;
 import com.api.bedhcd.modules.participant.domain.model.Participant;
 import com.api.bedhcd.modules.participant.domain.repository.ParticipantRepository;
 import lombok.RequiredArgsConstructor;
@@ -43,13 +44,12 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
 
     @Override
     public List<Participant> findCheckedInParticipants(String meetingId) {
-        return jpaRepository.findByMeetingIdAndStatusIn(
+        return jpaRepository.findByMeetingIdAndStatusInOrderByCheckedInAtDesc(
                 meetingId,
                 List.of(
-                    com.api.bedhcd.shared.domain.enums.ParticipantStatus.CHECKED_IN,
-                    com.api.bedhcd.shared.domain.enums.ParticipantStatus.PRINT
-                )
-        ).stream().map(this::toDomain).collect(Collectors.toList());
+                        ParticipantStatus.CHECKED_IN,
+                        ParticipantStatus.PRINT))
+                .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
@@ -72,11 +72,10 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
     public long countByCheckedIn(boolean checkedIn) {
         if (checkedIn) {
             return jpaRepository.countByMeetingIdAndStatusIn(null, List.of( // Tạm thời null cho toàn cục
-                com.api.bedhcd.shared.domain.enums.ParticipantStatus.CHECKED_IN,
-                com.api.bedhcd.shared.domain.enums.ParticipantStatus.PRINT
-            ));
+                    ParticipantStatus.CHECKED_IN,
+                    ParticipantStatus.PRINT));
         } else {
-            return jpaRepository.countByMeetingIdAndStatusIn(null, List.of(com.api.bedhcd.shared.domain.enums.ParticipantStatus.PENDING));
+            return jpaRepository.countByMeetingIdAndStatusIn(null, List.of(ParticipantStatus.PENDING));
         }
     }
 
@@ -87,10 +86,10 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
 
     @Override
     public long countCheckedInByMeetingId(String meetingId) {
-        return jpaRepository.countByMeetingIdAndStatusIn(meetingId, List.of(
-            com.api.bedhcd.shared.domain.enums.ParticipantStatus.CHECKED_IN,
-            com.api.bedhcd.shared.domain.enums.ParticipantStatus.PRINT
-        ));
+        // Loại trừ các phiếu con từ tách phiếu (splitTicket = true) để không tính trùng người
+        return jpaRepository.countCheckedInExcludingSplitTickets(meetingId, List.of(
+                ParticipantStatus.CHECKED_IN,
+                ParticipantStatus.PRINT));
     }
 
     @Override
@@ -101,9 +100,8 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
     @Override
     public long sumCheckedInShares() {
         return jpaRepository.sumAttendingSharesByStatusIn(List.of(
-            com.api.bedhcd.shared.domain.enums.ParticipantStatus.CHECKED_IN,
-            com.api.bedhcd.shared.domain.enums.ParticipantStatus.PRINT
-        ));
+                ParticipantStatus.CHECKED_IN,
+                ParticipantStatus.PRINT));
     }
 
     @Override
@@ -114,9 +112,8 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
     @Override
     public long sumCheckedInSharesByMeetingId(String meetingId) {
         return jpaRepository.sumAttendingSharesByMeetingIdAndStatusIn(meetingId, List.of(
-            com.api.bedhcd.shared.domain.enums.ParticipantStatus.CHECKED_IN,
-            com.api.bedhcd.shared.domain.enums.ParticipantStatus.PRINT
-        ));
+                ParticipantStatus.CHECKED_IN,
+                ParticipantStatus.PRINT));
     }
 
     private Participant toDomain(ParticipantEntity entity) {
@@ -131,6 +128,7 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
                 .receivedProxyShares(entity.getReceivedProxyShares())
                 .delegatedShares(entity.getDelegatedShares())
                 .checkedInAt(entity.getCheckedInAt())
+                .splitTicket(entity.isSplitTicket())
                 .build();
     }
 
@@ -146,6 +144,7 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
                 .receivedProxyShares(domain.getReceivedProxyShares())
                 .delegatedShares(domain.getDelegatedShares())
                 .checkedInAt(domain.getCheckedInAt())
+                .splitTicket(domain.isSplitTicket())
                 .build();
     }
 }

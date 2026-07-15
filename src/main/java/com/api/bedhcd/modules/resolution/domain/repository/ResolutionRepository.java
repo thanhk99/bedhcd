@@ -11,4 +11,5 @@ public interface ResolutionRepository {
     void deleteById(String id);
     long count();
     long countByMeetingId(String meetingId);
+    boolean existsByMeetingIdAndDisplayOrder(String meetingId, int displayOrder);
 }

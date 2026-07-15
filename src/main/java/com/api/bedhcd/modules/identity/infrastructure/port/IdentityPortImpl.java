@@ -79,12 +79,13 @@ public class IdentityPortImpl implements IdentityPort {
                 .sharesOwned(entity.getSharesOwned())
                 .roles(entity.getRoles())
                 .enabled(entity.isEnabled())
+                .splitAccount(entity.isSplitAccount())
                 .build()).orElse(null);
     }
 
     @Override
     public long countUsers() {
-        return userRepository.count();
+        return userRepository.countBySplitAccountFalse();
     }
 
     @Override
@@ -99,6 +100,7 @@ public class IdentityPortImpl implements IdentityPort {
                         .password(passwordEncoder.encode(dto.getCccd())) // Dùng CCCD làm password mặc định
                         .roles(Set.of(Role.SHAREHOLDER))
                         .enabled(true) // Mặc định kích hoạt cho tài khoản mới
+                        .splitAccount(dto.isSplitAccount())
                         .build());
 
         entity.setPassword(passwordEncoder.encode(dto.getCccd()));
@@ -106,8 +108,14 @@ public class IdentityPortImpl implements IdentityPort {
         // Chỉ ghi đè thông tin cơ bản khi có giá trị
         if (dto.getFullName() != null)
             entity.setFullName(dto.getFullName());
-        if (dto.getEmail() != null)
+        if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
+            userRepository.findByEmail(dto.getEmail()).ifPresent(existingUser -> {
+                if (!existingUser.getId().equals(entity.getId())) {
+                    throw com.api.bedhcd.modules.identity.domain.exception.IdentityException.emailAlreadyExists(dto.getEmail());
+                }
+            });
             entity.setEmail(dto.getEmail());
+        }
         if (dto.getInvestorCode() != null)
             entity.setInvestorCode(dto.getInvestorCode());
         if (dto.getPhoneNumber() != null)
@@ -124,6 +132,7 @@ public class IdentityPortImpl implements IdentityPort {
 
         if (!isExisting) {
             entity.setEnabled(true);
+            entity.setSplitAccount(dto.isSplitAccount());
         }
 
         if (dto.getRoles() != null && !dto.getRoles().isEmpty()) {
@@ -161,14 +170,22 @@ public class IdentityPortImpl implements IdentityPort {
                         .password(passwordEncoder.encode(dto.getCccd()))
                         .roles(Set.of(Role.SHAREHOLDER))
                         .enabled(true)
+                        .splitAccount(dto.isSplitAccount())
                         .build();
             }
 
             // KHÔNG gọi setPassword cho user cũ (tránh bcrypt N lần)
             if (dto.getFullName() != null)
                 entity.setFullName(dto.getFullName());
-            if (dto.getEmail() != null)
+            if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
+                final UserEntity currentEntity = entity;
+                userRepository.findByEmail(dto.getEmail()).ifPresent(existingUser -> {
+                    if (!existingUser.getId().equals(currentEntity.getId())) {
+                        throw com.api.bedhcd.modules.identity.domain.exception.IdentityException.emailAlreadyExists(dto.getEmail());
+                    }
+                });
                 entity.setEmail(dto.getEmail());
+            }
             if (dto.getInvestorCode() != null)
                 entity.setInvestorCode(dto.getInvestorCode());
             if (dto.getPhoneNumber() != null)
@@ -198,6 +215,7 @@ public class IdentityPortImpl implements IdentityPort {
                         .sharesOwned(entity.getSharesOwned())
                         .roles(entity.getRoles())
                         .enabled(entity.isEnabled())
+                        .splitAccount(entity.isSplitAccount())
                         .build())
                 .toList();
     }

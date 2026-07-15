@@ -1,22 +1,38 @@
 package com.api.bedhcd.modules.participant.domain.repository;
 
-import com.api.bedhcd.modules.participant.domain.model.Participant;
+import java.util.List;
 import java.util.Optional;
+
+import com.api.bedhcd.modules.participant.domain.model.Participant;
 
 public interface ParticipantRepository {
     Optional<Participant> findByMeetingIdAndUserId(String meetingId, String userId);
-    java.util.List<Participant> findAllByMeetingIdAndUserIdIn(String meetingId, java.util.List<String> userIds);
-    java.util.List<Participant> findByUserId(String userId);
-    java.util.List<Participant> findByMeetingId(String meetingId);
-    java.util.List<Participant> findCheckedInParticipants(String meetingId);
+
+    List<Participant> findAllByMeetingIdAndUserIdIn(String meetingId, List<String> userIds);
+
+    List<Participant> findByUserId(String userId);
+
+    List<Participant> findByMeetingId(String meetingId);
+
+    List<Participant> findCheckedInParticipants(String meetingId);
+
     Participant save(Participant participant);
-    java.util.List<Participant> saveAll(java.util.List<Participant> participants);
+
+    List<Participant> saveAll(List<Participant> participants);
+
     long count();
+
     long countByCheckedIn(boolean checkedIn);
+
     long countByMeetingId(String meetingId);
+
     long countCheckedInByMeetingId(String meetingId);
+
     long sumTotalShares();
+
     long sumCheckedInShares();
+
     long sumTotalSharesByMeetingId(String meetingId);
+
     long sumCheckedInSharesByMeetingId(String meetingId);
 }

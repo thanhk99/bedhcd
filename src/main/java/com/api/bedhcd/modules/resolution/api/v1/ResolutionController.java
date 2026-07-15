@@ -23,27 +23,27 @@ public class ResolutionController {
     private final ResolutionApplicationService resolutionService;
 
     @Operation(summary = "Lấy danh sách nghị quyết của cuộc họp theo ID")
-    @GetMapping("/meeting/meetings/{meetingId}/resolutions")
+    @GetMapping("/{meetingId}/resolutions")
     public ApiResponse<List<ResolutionResponse>> listResolutionsByMeetingId(@PathVariable String meetingId) {
         return ApiResponse.success(resolutionService.listResolutionsByMeetingId(meetingId));
     }
 
     @Operation(summary = "Tạo nghị quyết mới cho cuộc họp")
-    @PostMapping("/meeting/meetings/{meetingId}/resolutions")
+    @PostMapping("/{meetingId}/resolutions")
     public ApiResponse<ResolutionResponse> create(@PathVariable String meetingId,
             @RequestBody ResolutionRequest request) {
         return ApiResponse.success(resolutionService.createResolution(meetingId, request));
     }
 
     @Operation(summary = "Cập nhật nghị quyết")
-    @PatchMapping("/meeting/meetings/{meetingId}/resolutions/{id}")
+    @PutMapping("/{meetingId}/resolutions/{id}")
     public ApiResponse<ResolutionResponse> updateResolution(@PathVariable String meetingId, @PathVariable String id,
             @RequestBody ResolutionRequest request) {
         return ApiResponse.success(resolutionService.updateResolution(meetingId, id, request));
     }
 
     @Operation(summary = "Xóa nghị quyết")
-    @DeleteMapping("/meeting/meetings/{meetingId}/resolutions/{id}")
+    @DeleteMapping("/{meetingId}/resolutions/{id}")
     public ApiResponse<Void> deleteResolution(@PathVariable String meetingId, @PathVariable String id) {
         resolutionService.deleteResolution(meetingId, id);
         return ApiResponse.success(null);

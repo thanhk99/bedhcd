@@ -3,7 +3,7 @@ package com.api.bedhcd.modules.meeting.api.v1;
 import com.api.bedhcd.modules.admin.domain.model.ActionCode;
 import com.api.bedhcd.modules.admin.domain.model.ResourceCode;
 import com.api.bedhcd.modules.admin.infrastructure.security.RequireAdminPermission;
-import com.api.bedhcd.modules.meeting.api.v1.dto.MeetingEditRequestResponse;
+import com.api.bedhcd.modules.audit.infrastructure.security.AuditActivity;
 import com.api.bedhcd.modules.meeting.api.v1.dto.MeetingRealtimeResponse;
 import com.api.bedhcd.modules.meeting.api.v1.dto.MeetingResponse;
 import com.api.bedhcd.modules.meeting.application.service.MeetingApplicationService;
@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/meeting/meetings")
+@RequestMapping("/api/v1/meeting")
 @Tag(name = "Meeting Management", description = "Các API quản lý cuộc họp. Thao tác chỉnh sửa của ADMIN thường sẽ tạo yêu cầu chờ duyệt.")
 @RequiredArgsConstructor
 public class MeetingController {
@@ -52,6 +52,7 @@ public class MeetingController {
     @Operation(summary = "Tạo cuộc họp mới")
     @PostMapping
     @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.CREATE)
+    @AuditActivity(action = "CREATE", resource = "MANAGE_MEETING")
     public ApiResponse<MeetingResponse> create(@RequestBody Meeting meeting) {
         return ApiResponse.success(meetingApplicationService.createMeeting(meeting));
     }
@@ -59,11 +60,13 @@ public class MeetingController {
     /**
      * Cập nhật cuộc họp.
      * - SUPERADMIN: Cập nhật trực tiếp, trả về MeetingResponse.
-     * - ADMIN thường: Tạo yêu cầu chờ duyệt, trả về MeetingEditRequestResponse (requiresApproval=true).
+     * - ADMIN thường: Tạo yêu cầu chờ duyệt, trả về MeetingEditRequestResponse
+     * (requiresApproval=true).
      */
     @Operation(summary = "Cập nhật cuộc họp. SUPERADMIN cập nhật trực tiếp; ADMIN thường tạo yêu cầu chờ duyệt.")
     @PutMapping("/{id}")
     @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.UPDATE)
+    @AuditActivity(action = "UPDATE", resource = "MANAGE_MEETING")
     public ApiResponse<Object> update(@PathVariable String id, @RequestBody Meeting updateInfo) {
         return ApiResponse.success(meetingApplicationService.updateMeeting(id, updateInfo));
     }
@@ -76,6 +79,7 @@ public class MeetingController {
     @Operation(summary = "Cập nhật trạng thái cuộc họp. SUPERADMIN cập nhật trực tiếp; ADMIN thường tạo yêu cầu chờ duyệt.")
     @PatchMapping("/{id}/status")
     @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.UPDATE)
+    @AuditActivity(action = "UPDATE", resource = "MANAGE_MEETING")
     public ApiResponse<Object> updateStatus(@PathVariable String id, @RequestParam String status) {
         return ApiResponse.success(meetingApplicationService.updateStatus(id, status));
     }
@@ -88,6 +92,7 @@ public class MeetingController {
     @Operation(summary = "Xóa cuộc họp. SUPERADMIN xóa trực tiếp; ADMIN thường tạo yêu cầu xóa chờ duyệt.")
     @DeleteMapping("/{id}")
     @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.DELETE)
+    @AuditActivity(action = "DELETE", resource = "MANAGE_MEETING")
     public ApiResponse<Object> delete(@PathVariable String id) {
         return ApiResponse.success(meetingApplicationService.deleteMeeting(id));
     }

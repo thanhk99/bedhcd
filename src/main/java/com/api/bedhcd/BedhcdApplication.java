@@ -2,6 +2,7 @@ package com.api.bedhcd;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cache.annotation.EnableCaching;
 
 import java.util.TimeZone;
 
@@ -12,6 +13,7 @@ import java.util.TimeZone;
 		"com.api.bedhcd.util",
 		"com.api.bedhcd.listener"
 })
+@EnableCaching
 @org.springframework.boot.autoconfigure.domain.EntityScan(basePackages = {
 		"com.api.bedhcd.modules",
 		"com.api.bedhcd.shared"

@@ -12,8 +12,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "meeting_participants", indexes = {
-    @Index(name = "idx_participant_meeting_user", columnList = "meeting_id, user_id"),
-    @Index(name = "idx_participant_meeting_id", columnList = "meeting_id")
+        @Index(name = "idx_participant_meeting_user", columnList = "meeting_id, user_id"),
+        @Index(name = "idx_participant_meeting_id", columnList = "meeting_id")
 })
 @Data
 @Builder
@@ -41,4 +41,7 @@ public class ParticipantEntity {
     private Long receivedProxyShares;
     private Long delegatedShares;
     private LocalDateTime checkedInAt;
+    @Column(name = "split_ticket", nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean splitTicket = false;
 }

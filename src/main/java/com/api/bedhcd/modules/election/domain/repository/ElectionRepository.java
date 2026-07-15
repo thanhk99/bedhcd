@@ -8,4 +8,5 @@ public interface ElectionRepository {
     Optional<Election> findById(String id);
     List<Election> findByMeetingId(String meetingId);
     Election save(Election election);
+    void delete(Election election);
 }

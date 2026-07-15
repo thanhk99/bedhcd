@@ -60,6 +60,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/identity/auth/**").permitAll()
                         .requestMatchers("/api/v1/admin/auth/login").permitAll()
                         .requestMatchers("/api/v1/admin/auth/refresh").permitAll()
+                        .requestMatchers("/api/v1/admin/forgot-password").permitAll()
+                        .requestMatchers("/api/v1/admin/reset-password").permitAll()
                         .requestMatchers("/public/**").permitAll()
                         .requestMatchers("/ws/**", "/api/ws/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
@@ -79,7 +81,7 @@ public class SecurityConfig {
                 .setAllowedOrigins(
                         List.of("http://localhost:3000", "http://localhost:3001", "http://dhcd.vix.local:3001",
                                 "http://dhcd.vix.local:3000", "http://10.16.6.62:3001",
-                                "http://10.16.6.62:3000"));
+                                "http://10.16.6.62:3000", "http://10.16.7.73:3000"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

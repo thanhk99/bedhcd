@@ -34,6 +34,11 @@ public class ElectionRepositoryImpl implements ElectionRepository {
         return toDomain(jpaRepository.save(toEntity(domain)));
     }
 
+    @Override
+    public void delete(Election domain) {
+        jpaRepository.deleteById(domain.getId());
+    }
+
     private Election toDomain(ElectionEntity entity) {
         return Election.builder()
                 .id(entity.getId())

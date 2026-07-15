@@ -33,7 +33,7 @@ public class MeetingEditRequestEntity {
     private String requestedBy;
 
     /**
-     * Loại thao tác: UPDATE | DELETE | UPDATE_STATUS
+     * Loại thao tác: UPDATE | DELETE
      */
     @Column(name = "action_type", nullable = false)
     private String actionType;

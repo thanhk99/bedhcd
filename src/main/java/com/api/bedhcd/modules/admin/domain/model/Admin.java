@@ -1,6 +1,8 @@
 package com.api.bedhcd.modules.admin.domain.model;
 
 import com.api.bedhcd.modules.admin.domain.exception.AdminException;
+import com.api.bedhcd.modules.admin.domain.repository.AdminRepository;
+import com.api.bedhcd.modules.identity.domain.exception.IdentityException;
 import com.api.bedhcd.shared.domain.enums.Role;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -32,6 +34,9 @@ public class Admin {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    private String resetToken;
+    private LocalDateTime resetTokenExpiry;
+
     @Builder.Default
     private Set<AdminPermission> permissions = new HashSet<>();
 
@@ -40,7 +45,16 @@ public class Admin {
     }
 
     public static Admin createNew(String username, String encodedPassword, String fullName, String email,
-            String department, String jobTitle) {
+            String department, String jobTitle,
+            AdminRepository repository) {
+
+        if (repository.findByUsername(username).isPresent()) {
+            throw IdentityException.usernameAlreadyExists(username);
+        }
+        if (email != null && !email.isBlank() && repository.findByEmail(email).isPresent()) {
+            throw IdentityException.emailAlreadyExists(email);
+        }
+
         return Admin.builder()
                 .id(UuidFactory.generate())
                 .username(username)
@@ -56,7 +70,14 @@ public class Admin {
                 .build();
     }
 
-    public void updateProfile(String fullName, String email, String department, String jobTitle) {
+    public void updateProfile(String fullName, String email, String department, String jobTitle,
+            com.api.bedhcd.modules.admin.domain.repository.AdminRepository repository) {
+        if (email != null && !email.isBlank() && !email.equals(this.email)) {
+            if (repository.findByEmail(email).isPresent()) {
+                throw IdentityException.emailAlreadyExists(email);
+            }
+        }
+
         this.fullName = fullName;
         this.email = email;
         this.department = department;
@@ -79,6 +100,28 @@ public class Admin {
             throw AdminException.cannotDeactivateSuperAdmin();
         }
         this.isActive = false;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void setResetToken(String token, LocalDateTime expiry) {
+        this.resetToken = token;
+        this.resetTokenExpiry = expiry;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public boolean isResetTokenValid(String token) {
+        if (this.resetToken == null || !this.resetToken.equals(token)) {
+            return false;
+        }
+        if (this.resetTokenExpiry == null || this.resetTokenExpiry.isBefore(LocalDateTime.now())) {
+            return false;
+        }
+        return true;
+    }
+
+    public void clearResetToken() {
+        this.resetToken = null;
+        this.resetTokenExpiry = null;
         this.updatedAt = LocalDateTime.now();
     }
 }

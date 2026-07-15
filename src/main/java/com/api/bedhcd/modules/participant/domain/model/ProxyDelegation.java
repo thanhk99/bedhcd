@@ -21,4 +21,14 @@ public class ProxyDelegation {
     private DelegationStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime revokedAt;
+
+    public boolean isRevocable() {
+        return this.status == DelegationStatus.ACTIVE;
+    }
+
+    public void validateEditable() {
+        if (this.status != DelegationStatus.ACTIVE) {
+            throw new RuntimeException("Chỉ có thể cập nhật uỷ quyền đang hoạt động");
+        }
+    }
 }

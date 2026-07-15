@@ -50,6 +50,11 @@ public class ResolutionRepositoryImpl implements ResolutionRepository {
         return jpaRepository.countByMeetingId(meetingId);
     }
 
+    @Override
+    public boolean existsByMeetingIdAndDisplayOrder(String meetingId, int displayOrder) {
+        return jpaRepository.existsByMeetingIdAndDisplayOrder(meetingId, displayOrder);
+    }
+
     private Resolution toDomain(ResolutionEntity entity) {
         return Resolution.builder()
                 .id(entity.getId())

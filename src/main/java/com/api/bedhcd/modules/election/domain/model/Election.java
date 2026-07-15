@@ -1,5 +1,6 @@
 package com.api.bedhcd.modules.election.domain.model;
 
+import com.api.bedhcd.modules.election.domain.exception.ElectionException;
 import com.api.bedhcd.shared.domain.enums.ElectionType;
 
 import lombok.AllArgsConstructor;
@@ -25,7 +26,7 @@ public class Election {
     private Integer displayOrder;
     @Builder.Default
     private List<Candidate> candidates = new ArrayList<>();
-    
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -35,5 +36,17 @@ public class Election {
     public long calculateVotingPower(long baseVotingPower) {
         int seats = (numSeats != null && numSeats > 0) ? numSeats : (candidates != null ? candidates.size() : 0);
         return baseVotingPower * seats;
+    }
+
+    /**
+     * Kiểm tra xem có được phép xoá đợt bầu cử hay không
+     */
+    public void validateCanBeDeleted(long totalVoters) {
+        if (this.candidates != null && !this.candidates.isEmpty()) {
+            throw ElectionException.invalidState("Không thể xóa đợt bầu cử đã có ứng viên (người) ở trong.");
+        }
+        if (totalVoters > 0) {
+            throw ElectionException.invalidState("Không thể xóa đợt bầu cử đã có người tham gia bỏ phiếu.");
+        }
     }
 }

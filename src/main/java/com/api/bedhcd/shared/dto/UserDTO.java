@@ -23,4 +23,5 @@ public class UserDTO {
     private Long sharesOwned;
     private Set<Role> roles;
     private boolean enabled;
+    private boolean splitAccount;
 }

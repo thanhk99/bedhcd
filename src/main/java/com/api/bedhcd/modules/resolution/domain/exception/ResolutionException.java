@@ -35,4 +35,9 @@ public class ResolutionException extends BaseDomainException {
         return new ResolutionException(HttpStatus.FORBIDDEN, "resolution_CLOSED",
                 "Biểu quyết đã đóng (Trạng thái: " + status + ")");
     }
+
+    public static ResolutionException duplicateDisplayOrder(int displayOrder) {
+        return new ResolutionException(HttpStatus.CONFLICT, "DUPLICATE_DISPLAY_ORDER",
+                "Thứ tự hiển thị " + displayOrder + " đã tồn tại trong cuộc họp này");
+    }
 }

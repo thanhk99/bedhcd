@@ -24,6 +24,8 @@ public class CheckInBundleResponse {
         private Long delegationId;
         private Long sharesDelegated;
         private AttendanceResponse delegatorParticipant;
+        private String delegatorName;
+        private String delegatorCccd;
     }
 
     @Data

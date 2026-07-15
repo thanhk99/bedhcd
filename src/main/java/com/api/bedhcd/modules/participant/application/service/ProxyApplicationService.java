@@ -4,6 +4,8 @@ import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 import com.api.bedhcd.modules.meeting.application.port.MeetingPort;
 import com.api.bedhcd.modules.participant.api.v1.dto.ProxyDelegationRequest;
 import com.api.bedhcd.modules.participant.api.v1.dto.ProxyDelegationResponse;
+import com.api.bedhcd.modules.participant.api.v1.dto.SplitTicketRequest;
+import com.api.bedhcd.modules.participant.api.v1.dto.SplitTicketResponse;
 import com.api.bedhcd.modules.participant.domain.model.Participant;
 import com.api.bedhcd.modules.participant.domain.model.ProxyDelegation;
 import com.api.bedhcd.modules.participant.domain.repository.ParticipantRepository;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,10 +48,7 @@ public class ProxyApplicationService {
         Participant delegator = getOrCreateParticipant(meetingId, delegatorUser);
         Participant proxy = getOrCreateParticipant(meetingId, proxyUser);
 
-        long available = delegator.getSharesOwned() - delegator.getDelegatedShares();
-        if (request.getSharesDelegated() > available) {
-            throw new RuntimeException("Số cổ phần uỷ quyền vượt quá số dư khả dụng (" + available + ")");
-        }
+        delegator.validateCanDelegate(request.getSharesDelegated());
 
         ProxyDelegation delegation = ProxyDelegation.builder()
                 .meetingId(meetingId)
@@ -61,8 +61,8 @@ public class ProxyApplicationService {
 
         delegation = proxyRepository.save(delegation);
 
-        delegator.setDelegatedShares(delegator.getDelegatedShares() + request.getSharesDelegated());
-        proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() + request.getSharesDelegated());
+        delegator.addDelegatedShares(request.getSharesDelegated());
+        proxy.addReceivedProxyShares(request.getSharesDelegated());
 
         participantRepository.save(delegator);
         participantRepository.save(proxy);
@@ -75,15 +75,18 @@ public class ProxyApplicationService {
         ProxyDelegation delegation = proxyRepository.findById(delegationId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy uỷ quyền"));
 
-        if (delegation.getStatus() != DelegationStatus.ACTIVE) return;
+        if (!delegation.isRevocable())
+            return;
 
         proxyRepository.revokeById(delegationId);
 
-        Participant delegator = participantRepository.findByMeetingIdAndUserId(delegation.getMeetingId(), delegation.getDelegatorId()).get();
-        Participant proxy = participantRepository.findByMeetingIdAndUserId(delegation.getMeetingId(), delegation.getProxyId()).get();
+        Participant delegator = participantRepository
+                .findByMeetingIdAndUserId(delegation.getMeetingId(), delegation.getDelegatorId()).get();
+        Participant proxy = participantRepository
+                .findByMeetingIdAndUserId(delegation.getMeetingId(), delegation.getProxyId()).get();
 
-        delegator.setDelegatedShares(delegator.getDelegatedShares() - delegation.getSharesDelegated());
-        proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() - delegation.getSharesDelegated());
+        delegator.adjustDelegatedShares(-delegation.getSharesDelegated());
+        proxy.adjustReceivedProxyShares(-delegation.getSharesDelegated());
 
         participantRepository.save(delegator);
         participantRepository.save(proxy);
@@ -101,40 +104,39 @@ public class ProxyApplicationService {
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<ProxyDelegationResponse> getDelegationsPaginated(
             String meetingId, int page, int size, String search, String status) {
-        
+
         List<ProxyDelegationResponse> allResponses = getByMeeting(meetingId);
-        
+
         java.util.stream.Stream<ProxyDelegationResponse> stream = allResponses.stream();
-        
+
         // 1. Lọc theo status
         if (status != null && !status.equalsIgnoreCase("all")) {
             stream = stream.filter(res -> res.getStatus() != null && res.getStatus().name().equalsIgnoreCase(status));
         }
-        
+
         // 2. Lọc theo search
         if (search != null && !search.trim().isEmpty()) {
             String lowerSearch = search.trim().toLowerCase();
-            stream = stream.filter(res -> 
-                (res.getDelegatorName() != null && res.getDelegatorName().toLowerCase().contains(lowerSearch)) ||
-                (res.getDelegatorCccd() != null && res.getDelegatorCccd().contains(lowerSearch)) ||
-                (res.getProxyName() != null && res.getProxyName().toLowerCase().contains(lowerSearch)) ||
-                (res.getProxyCccd() != null && res.getProxyCccd().contains(lowerSearch))
-            );
+            stream = stream.filter(res -> (res.getDelegatorName() != null
+                    && res.getDelegatorName().toLowerCase().contains(lowerSearch)) ||
+                    (res.getDelegatorCccd() != null && res.getDelegatorCccd().contains(lowerSearch)) ||
+                    (res.getProxyName() != null && res.getProxyName().toLowerCase().contains(lowerSearch)) ||
+                    (res.getProxyCccd() != null && res.getProxyCccd().contains(lowerSearch)));
         }
-        
+
         List<ProxyDelegationResponse> filteredList = stream.collect(Collectors.toList());
-        
+
         // 3. Phân trang
-        int start = Math.min((int) org.springframework.data.domain.PageRequest.of(page, size).getOffset(), filteredList.size());
+        int start = Math.min((int) org.springframework.data.domain.PageRequest.of(page, size).getOffset(),
+                filteredList.size());
         int end = Math.min((start + size), filteredList.size());
-        
+
         List<ProxyDelegationResponse> subList = filteredList.subList(start, end);
-        
+
         return new org.springframework.data.domain.PageImpl<>(
                 subList,
                 org.springframework.data.domain.PageRequest.of(page, size),
-                filteredList.size()
-        );
+                filteredList.size());
     }
 
     @Transactional(readOnly = true)
@@ -164,9 +166,7 @@ public class ProxyApplicationService {
             throw new RuntimeException("Uỷ quyền không thuộc cuộc họp này");
         }
 
-        if (delegation.getStatus() != DelegationStatus.ACTIVE) {
-            throw new RuntimeException("Chỉ có thể cập nhật uỷ quyền đang hoạt động");
-        }
+        delegation.validateEditable();
 
         long oldShares = delegation.getSharesDelegated();
         if (oldShares == newShares) {
@@ -180,16 +180,17 @@ public class ProxyApplicationService {
         Participant proxy = participantRepository.findByMeetingIdAndUserId(meetingId, delegation.getProxyId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin người nhận uỷ quyền"));
 
-        long available = delegator.getSharesOwned() - (delegator.getDelegatedShares() - oldShares);
-        if (newShares > available) {
-            throw new RuntimeException("Số cổ phần uỷ quyền vượt quá số dư khả dụng (" + available + ")");
-        }
+        // Adjust delegator temporarily to validate remaining capacity
+        long delta = newShares - oldShares;
+        delegator.adjustDelegatedShares(-oldShares);
+        delegator.validateCanDelegate(newShares);
+        delegator.adjustDelegatedShares(oldShares); // Revert to let the next line apply correctly
 
         delegation.setSharesDelegated(newShares);
         proxyRepository.save(delegation);
 
-        delegator.setDelegatedShares(delegator.getDelegatedShares() - oldShares + newShares);
-        proxy.setReceivedProxyShares(proxy.getReceivedProxyShares() - oldShares + newShares);
+        delegator.adjustDelegatedShares(delta);
+        proxy.adjustReceivedProxyShares(delta);
 
         participantRepository.save(delegator);
         participantRepository.save(proxy);
@@ -277,6 +278,77 @@ public class ProxyApplicationService {
                 .sharesDelegated(del.getSharesDelegated())
                 .status(del.getStatus())
                 .createdAt(del.getCreatedAt())
+                .build();
+    }
+
+    @Transactional
+    public SplitTicketResponse createSplitTickets(String meetingId, SplitTicketRequest request) {
+        UserDTO proxyUser = identityPort.getUserInfo(request.getProxyUserId());
+        Participant proxyParticipant = participantRepository
+                .findByMeetingIdAndUserId(meetingId, request.getProxyUserId())
+                .orElseThrow(() -> new RuntimeException("Proxy chưa check-in hoặc không tồn tại."));
+
+        long totalProxyRights = (proxyParticipant.getAttendingShares() != null ? proxyParticipant.getAttendingShares()
+                : 0L)
+                + (proxyParticipant.getReceivedProxyShares() != null ? proxyParticipant.getReceivedProxyShares() : 0L);
+
+        long requestedTotal = request.getTickets().stream()
+                .mapToLong(SplitTicketRequest.TicketRequest::getShares)
+                .sum();
+
+        if (requestedTotal > totalProxyRights) {
+            throw new RuntimeException("Tổng số cổ phần tách (" + requestedTotal + ") lớn hơn tổng quyền biểu quyết ("
+                    + totalProxyRights + ")");
+        }
+
+        if (request.getTickets().size() < 2) {
+            throw new RuntimeException("Phải tách thành ít nhất 2 phiếu.");
+        }
+
+        List<SplitTicketResponse.TicketResponse> responseTickets = new ArrayList<>();
+        String baseCccd = proxyUser.getCccd();
+        String baseInvestorCode = proxyUser.getInvestorCode() != null ? proxyUser.getInvestorCode() : baseCccd;
+
+        for (int i = 0; i < request.getTickets().size(); i++) {
+            char suffixChar = (char) ('A' + i);
+            String ticketLabel = String.valueOf(suffixChar);
+            String newCccd = baseCccd + ticketLabel;
+            long shares = request.getTickets().get(i).getShares();
+
+            UserDTO subAccountDto = UserDTO.builder()
+                    .cccd(newCccd)
+                    .fullName(proxyUser.getFullName())
+                    .investorCode(baseInvestorCode + ticketLabel)
+                    .sharesOwned(shares)
+                    .splitAccount(true)
+                    .build();
+
+            subAccountDto = identityPort.createOrUpdateUser(subAccountDto);
+
+            // Tạo Participant cho sub-account (đánh dấu là splitTicket để không tính trùng số người)
+            Participant subParticipant = getOrCreateParticipant(meetingId, subAccountDto);
+            subParticipant.setAttendingShares(shares);
+            subParticipant.setParticipationType(ParticipationType.PROXY);
+            subParticipant.setStatus(ParticipantStatus.PRINT); // Đánh dấu là đã in
+            subParticipant.setCheckedInAt(LocalDateTime.now());
+            subParticipant.setSplitTicket(true); // Không tính vào số người tham dự
+            participantRepository.save(subParticipant);
+
+            responseTickets.add(SplitTicketResponse.TicketResponse.builder()
+                    .ticketLabel(ticketLabel)
+                    .cccd(newCccd)
+                    .shares(shares)
+                    .build());
+        }
+
+        // Cập nhật participant gốc để tránh bầu đúp
+        proxyParticipant.setAttendingShares(0L);
+        proxyParticipant.setReceivedProxyShares(0L);
+        proxyParticipant.setStatus(ParticipantStatus.PRINT);
+        participantRepository.save(proxyParticipant);
+
+        return SplitTicketResponse.builder()
+                .tickets(responseTickets)
                 .build();
     }
 }

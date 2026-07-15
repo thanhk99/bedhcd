@@ -10,5 +10,7 @@ import java.util.Optional;
 @Repository
 public interface AdminJpaRepository extends JpaRepository<AdminEntity, String> {
     Optional<AdminEntity> findByUsername(String username);
+    Optional<AdminEntity> findFirstByEmail(String email);
+    Optional<AdminEntity> findByResetToken(String resetToken);
     boolean existsByRole(Role role);
 }

@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 
 @Entity
@@ -18,26 +19,26 @@ import java.util.Set;
 public class UserEntity {
     @Id
     private String id;
-    
+
     @Column(unique = true, nullable = false)
     private String username;
-    
+
     private String password;
-    
+
     @Column(nullable = false)
     private String fullName;
-    
+
     private String email;
-    
+
     private String phoneNumber;
-    
+
     private String address;
-    
+
     @Column(unique = true)
     private String cccd;
-    
+
     private String investorCode;
-    
+
     private Long sharesOwned;
 
     @ElementCollection(fetch = FetchType.EAGER)
@@ -48,17 +49,21 @@ public class UserEntity {
     @Builder.Default
     private boolean enabled = true;
 
-    private java.time.LocalDateTime createdAt;
-    private java.time.LocalDateTime updatedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    @Column(name = "split_account", nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean splitAccount = false;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = java.time.LocalDateTime.now();
-        updatedAt = java.time.LocalDateTime.now();
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = java.time.LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
     }
 }

@@ -4,9 +4,7 @@ import com.api.bedhcd.config.JwtUtil;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
 import com.api.bedhcd.modules.identity.api.v1.dto.AuthResponse;
 import com.api.bedhcd.modules.identity.api.v1.dto.ChangePasswordRequest;
-import com.api.bedhcd.modules.identity.api.v1.dto.CreateAdminRequest;
 import com.api.bedhcd.modules.identity.api.v1.dto.LoginRequest;
-import com.api.bedhcd.modules.identity.api.v1.dto.UpdateUserRequest;
 import com.api.bedhcd.modules.identity.api.v1.dto.UserResponse;
 import com.api.bedhcd.modules.identity.domain.exception.IdentityException;
 import com.api.bedhcd.modules.identity.domain.model.LoginHistory;
@@ -17,13 +15,11 @@ import com.api.bedhcd.modules.identity.domain.model.User;
 import com.api.bedhcd.modules.identity.domain.repository.LoginHistoryRepository;
 import com.api.bedhcd.modules.identity.domain.repository.RefreshTokenRepository;
 import com.api.bedhcd.modules.identity.domain.repository.UserRepository;
-import com.api.bedhcd.shared.domain.enums.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,13 +27,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import com.api.bedhcd.shared.domain.UuidFactory;
-import java.util.stream.Collectors;
-
-import com.api.bedhcd.shared.dto.PageResponse;
 
 @Service
 @RequiredArgsConstructor
@@ -182,137 +171,6 @@ public class IdentityApplicationService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> IdentityException.userNotFound(userId));
         return mapToResponse(user);
-    }
-
-    @Transactional(readOnly = true)
-    public List<UserResponse> searchUsers(String keyword) {
-        return userRepository.searchTop10ByKeyword(keyword).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public PageResponse<UserResponse> getUsers(int page, int size) {
-        return getUsers(page, size, null);
-    }
-
-    @Transactional(readOnly = true)
-    public PageResponse<UserResponse> getUsers(int page, int size, String keyword) {
-        List<UserResponse> allUsers;
-        if (keyword != null && !keyword.isBlank()) {
-            allUsers = userRepository.searchByKeyword(keyword).stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
-        } else {
-            allUsers = userRepository.findAll(page, size).stream()
-                    .map(this::mapToResponse)
-                    .collect(Collectors.toList());
-        }
-        long total = (keyword != null && !keyword.isBlank()) ? allUsers.size() : userRepository.count();
-        int fromIndex = (keyword != null && !keyword.isBlank()) ? Math.min(page * size, allUsers.size()) : 0;
-        int toIndex = (keyword != null && !keyword.isBlank()) ? Math.min(fromIndex + size, allUsers.size())
-                : allUsers.size();
-        List<UserResponse> pageItems = (keyword != null && !keyword.isBlank())
-                ? allUsers.subList(fromIndex, toIndex)
-                : allUsers;
-        return com.api.bedhcd.shared.dto.PageResponse.of(pageItems, total, page, size);
-    }
-
-    @Transactional
-    public UserResponse updateRoles(String userId, Set<Role> roles) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> IdentityException.userNotFound(userId));
-
-        // Lấy tập Role của người đang thực hiện thao tác từ Security Context
-        Set<Role> assignerRoles = getCurrentUserRoles();
-
-        // Xóa toàn bộ roles hiện tại và cấp lại từng role
-        // (với sự kiểm duyệt của Domain Model)
-        user.setRoles(new HashSet<>());
-        for (Role role : roles) {
-            user.assignRole(role, assignerRoles);
-        }
-        return mapToResponse(userRepository.save(user));
-    }
-
-    /**
-     * Tạo tài khoản Sub-Admin (ADMIN): Chỉ SUPER_ADMIN mới được phép gọi.
-     * Nghị vụ kiểm tra thẩm quyền được ủy thác cho Domain Model (User.assignRole).
-     */
-    @Transactional
-    public UserResponse createSubAdmin(CreateAdminRequest request) {
-        // Kiểm tra username tồn tại
-        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw IdentityException.usernameAlreadyExists(request.getUsername());
-        }
-
-        // Lấy tập Role của người đang thực hiện thao tác
-        Set<Role> assignerRoles = getCurrentUserRoles();
-
-        // Tạo User mới với trạng thái rỗng
-        User newAdmin = User.builder()
-                .id(UuidFactory.generate())
-                .username(request.getUsername())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName())
-                .email(request.getEmail())
-                .phoneNumber(request.getPhoneNumber())
-                .roles(new java.util.HashSet<>())
-                .enabled(true)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-
-        // Ủy thác việc kiểm tra thẩm quyền cho Domain Model
-        // Nếu người gọi không phải SUPER_ADMIN, Domain sẽ tự động ném lỗi AccessDenied
-        newAdmin.assignRole(Role.ADMIN, assignerRoles);
-
-        return mapToResponse(userRepository.save(newAdmin));
-    }
-
-    /**
-     * Helper: Lấy tập Role của User đang đăng nhập từ Spring Security Context.
-     */
-    private Set<Role> getCurrentUserRoles() {
-        return SecurityContextHolder.getContext().getAuthentication()
-                .getAuthorities()
-                .stream()
-                .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .map(role -> {
-                    try {
-                        return Role.valueOf(role);
-                    } catch (IllegalArgumentException e) {
-                        return null;
-                    }
-                })
-                .filter(java.util.Objects::nonNull)
-                .collect(java.util.stream.Collectors.toSet());
-    }
-
-    @Transactional
-    public UserResponse updateStatus(String userId, boolean enabled) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> IdentityException.userNotFound(userId));
-
-        user.setEnabled(enabled);
-        return mapToResponse(userRepository.save(user));
-    }
-
-    @Transactional
-    public UserResponse updateUser(String userId, UpdateUserRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> IdentityException.userNotFound(userId));
-
-        if (request.getFullName() != null)
-            user.setFullName(request.getFullName());
-        if (request.getEmail() != null)
-            user.setEmail(request.getEmail());
-        if (request.getPhoneNumber() != null)
-            user.setPhoneNumber(request.getPhoneNumber());
-        if (request.getEnabled() != null)
-            user.setEnabled(request.getEnabled());
-
-        return mapToResponse(userRepository.save(user));
     }
 
     private UserResponse mapToResponse(User user) {
