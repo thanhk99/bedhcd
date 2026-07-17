@@ -8,4 +8,6 @@ public interface RefreshTokenRepository {
     Optional<RefreshToken> findByToken(String token);
     void save(RefreshToken refreshToken);
     void deleteByToken(String token);
+    void saveAdminToken(String adminId, String token, java.time.LocalDateTime expiryDate);
+    void deleteByAdminId(String adminId);
 }

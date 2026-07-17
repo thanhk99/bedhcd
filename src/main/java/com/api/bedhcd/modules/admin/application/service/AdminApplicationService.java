@@ -30,6 +30,10 @@ public class AdminApplicationService {
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
     private final com.api.bedhcd.modules.audit.application.service.AuditLogApplicationService auditLogApplicationService;
+    private final com.api.bedhcd.modules.identity.domain.repository.RefreshTokenRepository refreshTokenRepository;
+
+    @org.springframework.beans.factory.annotation.Value("${jwt.refresh-token-expiration}")
+    private Long refreshTokenExpiration;
 
     @Transactional
     public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
@@ -65,6 +69,13 @@ public class AdminApplicationService {
                 admin.getId(),
                 payload,
                 ipAddress);
+
+        // Lưu refresh token cho Admin vào database
+        refreshTokenRepository.saveAdminToken(
+                admin.getId(),
+                refreshToken,
+                java.time.LocalDateTime.now().plusSeconds(refreshTokenExpiration / 1000)
+        );
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -144,5 +155,35 @@ public class AdminApplicationService {
                 admin.getId(),
                 "Admin đã thay đổi mật khẩu thành công.",
                 null);
+    }
+
+    @Transactional
+    public AuthResponse refresh(String refreshTokenStr) {
+        com.api.bedhcd.modules.identity.domain.model.RefreshToken storedToken = refreshTokenRepository.findByToken(refreshTokenStr)
+                .orElseThrow(IdentityException::invalidRefreshToken);
+
+        if (storedToken.isExpired()) {
+            refreshTokenRepository.deleteByToken(refreshTokenStr);
+            throw IdentityException.invalidRefreshToken();
+        }
+
+        AdminEntity admin = adminJpaRepository.findById(storedToken.getAdminId())
+                .orElseThrow(() -> IdentityException.unauthorized("Tài khoản quản trị không tồn tại"));
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername(admin.getUsername());
+        String newAccessToken = jwtUtil.generateAccessToken(userDetails);
+
+        return AuthResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(refreshTokenStr)
+                .userId(admin.getId())
+                .fullName(admin.getFullName())
+                .roles(Set.of(admin.getRole()))
+                .build();
+    }
+
+    @Transactional
+    public void logout(String refreshTokenStr) {
+        refreshTokenRepository.deleteByToken(refreshTokenStr);
     }
 }
