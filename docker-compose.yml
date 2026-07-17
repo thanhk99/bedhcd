@@ -1,5 +1,9 @@
 version: '3.8'
 
+networks:
+  bedhcd-network:
+    driver: bridge
+
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -10,6 +14,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - bedhcd-network
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -23,10 +29,47 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      # PLAINTEXT dùng cho client bên ngoài Docker (host machine)
+      # PLAINTEXT_INTERNAL dùng cho các container trong cùng network
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - bedhcd-network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - bedhcd-network
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://dhcd:OdQpfy1dU9ZUfVL1BTFiLYqNY@10.16.3.95:5432/dhcd?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - bedhcd-network
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: kafka-exporter
+    depends_on:
+      - kafka
+    # Dùng internal port 29092 để giao tiếp trong Docker network
+    command: ["--kafka.server=kafka:29092"]
+    ports:
+      - "9308:9308"
+    networks:
+      - bedhcd-network
 
   prometheus:
     image: prom/prometheus:v2.45.0
@@ -35,6 +78,11 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - kafka-exporter
+      - postgres-exporter
+    networks:
+      - bedhcd-network
 
   grafana:
     image: grafana/grafana:10.0.3
@@ -46,30 +94,30 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - bedhcd-network
 
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.15.0
-    container_name: postgres-exporter
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bedhcd-api
+    ports:
+      - "8085:8085"
+    depends_on:
+      - kafka
+      - redis
     environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:thanh48@localhost:5432/dhcd?sslmode=disable"
-    ports:
-      - "9187:9187"
-
-  kafka-exporter:
-    image: danielqsj/kafka-exporter:v1.7.0
-    container_name: kafka-exporter
-    command: ["--kafka.server=localhost:9092"]
-    ports:
-      - "9308:9308"
-
-  redis:
-    image: redis:7.2-alpine
-    container_name: redis
-    ports:
-      - "6379:6379"
-    command: redis-server --save 60 1 --loglevel warning
-    volumes:
-      - redis_data:/data
+      # Override các giá trị trong application.properties khi chạy trong Docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://10.16.3.95:5432/dhcd
+      SPRING_DATASOURCE_USERNAME: dhcd
+      SPRING_DATASOURCE_PASSWORD: OdQpfy1dU9ZUfVL1BTFiLYqNY
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    networks:
+      - bedhcd-network
+    restart: on-failure
 
 volumes:
   redis_data:
