@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/resolution")
 @Tag(name = "Resolution Management", description = "Quản lý các chức năng liên quan đến nghị quyết, bao gồm tạo, cập nhật, xóa và bỏ phiếu")
 @RequiredArgsConstructor
 public class ResolutionController {
@@ -23,47 +23,47 @@ public class ResolutionController {
     private final ResolutionApplicationService resolutionService;
 
     @Operation(summary = "Lấy danh sách nghị quyết của cuộc họp theo ID")
-    @GetMapping("/{meetingId}/resolutions")
+    @GetMapping("meeting/{meetingId}")
     public ApiResponse<List<ResolutionResponse>> listResolutionsByMeetingId(@PathVariable String meetingId) {
         return ApiResponse.success(resolutionService.listResolutionsByMeetingId(meetingId));
     }
 
     @Operation(summary = "Tạo nghị quyết mới cho cuộc họp")
-    @PostMapping("/{meetingId}/resolutions")
+    @PostMapping("meeting/{meetingId}")
     public ApiResponse<ResolutionResponse> create(@PathVariable String meetingId,
             @RequestBody ResolutionRequest request) {
         return ApiResponse.success(resolutionService.createResolution(meetingId, request));
     }
 
     @Operation(summary = "Cập nhật nghị quyết")
-    @PutMapping("/{meetingId}/resolutions/{id}")
+    @PutMapping("/{meetingId}/{id}")
     public ApiResponse<ResolutionResponse> updateResolution(@PathVariable String meetingId, @PathVariable String id,
             @RequestBody ResolutionRequest request) {
         return ApiResponse.success(resolutionService.updateResolution(meetingId, id, request));
     }
 
     @Operation(summary = "Xóa nghị quyết")
-    @DeleteMapping("/{meetingId}/resolutions/{id}")
+    @DeleteMapping("/{meetingId}/{id}")
     public ApiResponse<Void> deleteResolution(@PathVariable String meetingId, @PathVariable String id) {
         resolutionService.deleteResolution(meetingId, id);
         return ApiResponse.success(null);
     }
 
     @Operation(summary = "Lấy thông tin chi tiết về nghị quyết")
-    @GetMapping("/resolutions/{id}")
+    @GetMapping("/{id}")
     public ApiResponse<ResolutionResponse> getById(@PathVariable String id) {
         return ApiResponse.success(resolutionService.getById(id));
     }
 
     @Operation(summary = "Bỏ phiếu cho nghị quyết")
-    @PostMapping("/resolutions/{id}/vote")
+    @PostMapping("/{id}/vote")
     public ApiResponse<Void> vote(@PathVariable String id, @RequestBody VoteRequest request) {
         resolutionService.submitVote(id, request);
         return ApiResponse.success(null);
     }
 
     @Operation(summary = "Lấy kết quả bỏ phiếu cho nghị quyết")
-    @GetMapping("/resolutions/{id}/results")
+    @GetMapping("/{id}/results")
     public ApiResponse<VotingResultResponse> getResults(@PathVariable String id) {
         return ApiResponse.success(resolutionService.getResults(id));
     }
