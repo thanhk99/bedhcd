@@ -109,11 +109,6 @@ public class IdentityPortImpl implements IdentityPort {
         if (dto.getFullName() != null)
             entity.setFullName(dto.getFullName());
         if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
-            userRepository.findByEmail(dto.getEmail()).ifPresent(existingUser -> {
-                if (!existingUser.getId().equals(entity.getId())) {
-                    throw com.api.bedhcd.modules.identity.domain.exception.IdentityException.emailAlreadyExists(dto.getEmail());
-                }
-            });
             entity.setEmail(dto.getEmail());
         }
         if (dto.getInvestorCode() != null)
@@ -178,12 +173,6 @@ public class IdentityPortImpl implements IdentityPort {
             if (dto.getFullName() != null)
                 entity.setFullName(dto.getFullName());
             if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
-                final UserEntity currentEntity = entity;
-                userRepository.findByEmail(dto.getEmail()).ifPresent(existingUser -> {
-                    if (!existingUser.getId().equals(currentEntity.getId())) {
-                        throw com.api.bedhcd.modules.identity.domain.exception.IdentityException.emailAlreadyExists(dto.getEmail());
-                    }
-                });
                 entity.setEmail(dto.getEmail());
             }
             if (dto.getInvestorCode() != null)

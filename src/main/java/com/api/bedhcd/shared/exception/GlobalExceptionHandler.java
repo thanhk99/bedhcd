@@ -18,6 +18,15 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getErrorCode(), ex.getMessage()));
     }
 
+    @ExceptionHandler({
+        org.springframework.web.context.request.async.AsyncRequestNotUsableException.class,
+        java.io.IOException.class
+    })
+    public void handleClientAbortException(Exception ex) {
+        // Client đã ngắt kết nối — không cần log lỗi, bỏ qua
+        log.warn("Client disconnected before response was sent: {}", ex.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneralException(Exception ex) {
         log.error("Unexpected error occurred", ex);

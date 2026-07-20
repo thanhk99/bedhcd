@@ -15,6 +15,7 @@ public class RefreshToken {
     private Long id;
     private String token;
     private String userId;
+    private String adminId;
     private LocalDateTime expiryDate;
     private LocalDateTime createdAt;
 

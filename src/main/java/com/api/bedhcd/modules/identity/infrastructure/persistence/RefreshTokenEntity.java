@@ -24,8 +24,12 @@ public class RefreshTokenEntity {
     private String token;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = true)
     private UserEntity user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "admin_id", nullable = true)
+    private com.api.bedhcd.modules.admin.infrastructure.persistence.entity.AdminEntity admin;
 
     @Column(nullable = false)
     private LocalDateTime expiryDate;

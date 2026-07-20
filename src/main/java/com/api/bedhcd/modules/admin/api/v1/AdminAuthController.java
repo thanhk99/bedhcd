@@ -36,4 +36,17 @@ public class AdminAuthController {
         adminApplicationService.changePassword(authentication.getName(), request);
         return ApiResponse.success(null);
     }
+
+    @Operation(summary = "Làm mới access token cho Admin")
+    @PostMapping("/refresh")
+    public ApiResponse<AuthResponse> refresh(@RequestBody com.api.bedhcd.modules.identity.api.v1.dto.RefreshTokenRequest request) {
+        return ApiResponse.success(adminApplicationService.refresh(request.getRefreshToken()));
+    }
+
+    @Operation(summary = "Đăng xuất Admin")
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(@RequestBody com.api.bedhcd.modules.identity.api.v1.dto.RefreshTokenRequest request) {
+        adminApplicationService.logout(request.getRefreshToken());
+        return ApiResponse.success(null);
+    }
 }
