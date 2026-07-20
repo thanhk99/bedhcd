@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.api.bedhcd.shared.domain.enums.Role;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
@@ -11,9 +12,9 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
 
         Optional<UserEntity> findByCccd(String cccd);
 
-        Optional<UserEntity> findByEmail(String email);
+        List<UserEntity> findByEmail(String email);
 
-        java.util.List<UserEntity> findAllByCccdIn(java.util.List<String> cccds);
+        List<UserEntity> findAllByCccdIn(List<String> cccds);
 
         boolean existsByRolesContaining(Role role);
 
@@ -21,14 +22,14 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
                         "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword)) OR " +
                         "LOWER(u.cccd) LIKE LOWER(CONCAT('%', :keyword)) OR " +
                         "LOWER(u.investorCode) LIKE LOWER(CONCAT('%', :keyword))")
-        java.util.List<UserEntity> searchByKeyword(
+        List<UserEntity> searchByKeyword(
                         @org.springframework.data.repository.query.Param("keyword") String keyword);
 
         @org.springframework.data.jpa.repository.Query("SELECT u FROM UserEntity u WHERE " +
                         "LOWER(u.fullName) LIKE LOWER(CONCAT(:keyword, '%')) OR " +
                         "LOWER(u.cccd) LIKE LOWER(CONCAT(:keyword, '%')) OR " +
                         "LOWER(u.investorCode) LIKE LOWER(CONCAT(:keyword, '%'))")
-        java.util.List<UserEntity> searchTopByKeyword(
+        List<UserEntity> searchTopByKeyword(
                         @org.springframework.data.repository.query.Param("keyword") String keyword,
                         org.springframework.data.domain.Pageable pageable);
 
