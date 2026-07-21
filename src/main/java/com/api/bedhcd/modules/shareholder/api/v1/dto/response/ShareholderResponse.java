@@ -1,5 +1,7 @@
 package com.api.bedhcd.modules.shareholder.api.v1.dto.response;
 
+import java.time.LocalDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,11 +23,12 @@ public class ShareholderResponse {
     private boolean enabled;
 
     private String meetingId;
+    private String meetingName;
     private Long attendingShares;
     private Long receivedProxyShares;
     private Long delegatedShares;
-    private java.time.LocalDateTime checkedInAt;
+    private LocalDateTime checkedInAt;
 
-    private java.time.LocalDateTime createdAt;
-    private java.time.LocalDateTime updatedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

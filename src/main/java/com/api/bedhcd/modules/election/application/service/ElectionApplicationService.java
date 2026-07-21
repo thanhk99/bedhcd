@@ -55,7 +55,6 @@ public class ElectionApplicationService {
                                 .meetingId(meetingId)
                                 .title(request.getTitle())
                                 .description(request.getDescription())
-                                .numSeats(request.getNumSeats())
                                 .electionType(request.getType())
                                 .displayOrder(request.getDisplayOrder())
                                 .createdAt(LocalDateTime.now())
@@ -69,7 +68,6 @@ public class ElectionApplicationService {
                                 .orElseThrow(() -> ElectionException.electionNotFound(electionId));
                 election.setTitle(request.getTitle());
                 election.setDescription(request.getDescription());
-                election.setNumSeats(request.getNumSeats());
                 election.setElectionType(request.getType());
                 election.setDisplayOrder(request.getDisplayOrder());
                 return toResponse(electionRepository.save(election));
@@ -206,7 +204,6 @@ public class ElectionApplicationService {
                 return ElectionResultResponse.builder()
                                 .electionId(electionId)
                                 .title(election.getTitle())
-                                .numSeats(election.getNumSeats())
                                 .results(results)
                                 .totalWeight(results.stream()
                                                 .mapToLong(ElectionResultResponse.CandidateResult::getTotalWeight)
@@ -234,7 +231,6 @@ public class ElectionApplicationService {
                                 .meetingId(domain.getMeetingId())
                                 .title(domain.getTitle())
                                 .description(domain.getDescription())
-                                .numSeats(domain.getNumSeats())
                                 .type(domain.getElectionType())
                                 .displayOrder(domain.getDisplayOrder())
                                 .candidates(domain.getCandidates() == null ? Collections.emptyList()

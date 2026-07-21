@@ -31,4 +31,6 @@ public interface MeetingPort {
     boolean canImportShareholder(String meetingId);
     boolean canRegisterProxy(String meetingId);
     boolean canVote(String meetingId);
+    String getMeetingName(String meetingId);
+    String getFallbackMeetingId();
 }

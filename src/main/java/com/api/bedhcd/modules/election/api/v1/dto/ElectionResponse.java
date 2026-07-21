@@ -17,7 +17,6 @@ public class ElectionResponse {
     private String meetingId;
     private String title;
     private String description;
-    private Integer numSeats;
     private ElectionType type;
     private Integer displayOrder;
     private List<CandidateResponse> candidates;

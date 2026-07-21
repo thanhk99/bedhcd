@@ -1,5 +1,7 @@
 package com.api.bedhcd.modules.shareholder.application.service;
 
+import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
+
 import com.api.bedhcd.modules.shareholder.api.v1.dto.request.CreateShareholderRequest;
 import com.api.bedhcd.modules.shareholder.api.v1.dto.request.UpdateShareholderRequest;
 import com.api.bedhcd.modules.shareholder.api.v1.dto.response.ShareholderResponse;
@@ -28,6 +30,7 @@ public class ShareholderApplicationService {
     private final ShareholderRepository shareholderRepository;
     private final ShareholderMapper shareholderMapper;
     private final PasswordEncoder passwordEncoder;
+    private final ParticipantPort participantPort;
 
     @Cacheable(value = "shareholders:page", key = "#page + '-' + #size + '-' + (#keyword != null ? #keyword : '') + '-' + (#meetingId != null ? #meetingId : '')")
     @Transactional(readOnly = true)
@@ -147,6 +150,7 @@ public class ShareholderApplicationService {
                 .build();
 
         Shareholder saved = shareholderRepository.save(shareholder);
+        participantPort.createParticipant(request.getMeetingId(), saved.getId(), saved.getSharesOwned());
         return shareholderMapper.toResponse(saved);
     }
 

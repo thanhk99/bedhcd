@@ -8,7 +8,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @Table(name = "elections")
@@ -17,6 +16,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ElectionEntity {
+
     @Id
     private String id;
 
@@ -32,12 +32,20 @@ public class ElectionEntity {
     @Enumerated(EnumType.STRING)
     private ElectionType electionType;
 
-    private Integer numSeats;
     private Integer displayOrder;
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    @JoinColumn(name = "election_id")
-    private List<CandidateEntity> candidates;
+    // Đúng rule: KHÔNG dùng @OneToMany — candidates được quản lý riêng qua CandidateJpaRepository
+    // Dùng @PrePersist/@PreUpdate để quản lý timestamp
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

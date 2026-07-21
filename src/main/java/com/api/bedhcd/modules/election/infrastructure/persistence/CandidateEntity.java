@@ -13,8 +13,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CandidateEntity {
+
     @Id
     private String id;
+
+    // FK plain String — đúng rule: KHÔNG dùng @ManyToOne
+    @Column(name = "election_id", nullable = false)
+    private String electionId;
 
     @Column(nullable = false)
     private String name;

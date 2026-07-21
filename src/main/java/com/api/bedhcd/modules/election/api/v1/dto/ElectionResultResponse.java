@@ -14,7 +14,6 @@ import java.util.List;
 public class ElectionResultResponse {
     private String electionId;
     private String title;
-    private Integer numSeats;
     private List<CandidateResult> results;
     private long totalVoters;
     private long totalWeight;

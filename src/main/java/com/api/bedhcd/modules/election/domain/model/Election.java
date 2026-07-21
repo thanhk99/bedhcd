@@ -22,7 +22,6 @@ public class Election {
     private String title;
     private String description;
     private ElectionType electionType;
-    private Integer numSeats;
     private Integer displayOrder;
     @Builder.Default
     private List<Candidate> candidates = new ArrayList<>();
@@ -34,7 +33,7 @@ public class Election {
      * Tính tổng quyền biểu quyết cho bầu cử này
      */
     public long calculateVotingPower(long baseVotingPower) {
-        int seats = (numSeats != null && numSeats > 0) ? numSeats : (candidates != null ? candidates.size() : 0);
+        int seats = (candidates != null && !candidates.isEmpty()) ? candidates.size() : 1;
         return baseVotingPower * seats;
     }
 

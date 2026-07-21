@@ -7,6 +7,9 @@ import lombok.Data;
 @Data
 public class CreateShareholderRequest {
     
+    @NotBlank(message = "Meeting ID không được để trống")
+    private String meetingId;
+
     @NotBlank(message = "CCCD không được để trống")
     @Pattern(regexp = "^\\d{9}|\\d{12}$", message = "CCCD/CMND phải là 9 hoặc 12 số")
     private String cccd;

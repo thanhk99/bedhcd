@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -16,6 +18,8 @@ public class MeetingRealtimeResponse {
 
     private AttendanceStats attendance;
     private VotingStats voting;
+    private List<ResolutionStats> resolutions;
+    private List<ElectionStats> elections;
 
     @Data
     @Builder
@@ -36,5 +40,50 @@ public class MeetingRealtimeResponse {
     public static class VotingStats {
         private long totalResolutions;
         private long totalVotes;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ResolutionStats {
+        private String resolutionId;
+        private String title;
+        private String description;
+        private Integer displayOrder;
+        private List<OptionInfo> options;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class OptionInfo {
+        private String optionId;
+        private String name;
+        private String type;
+        private Integer displayOrder;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ElectionStats {
+        private String electionId;
+        private String title;
+        private String electionType;
+        private List<CandidateInfo> candidates;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CandidateInfo {
+        private String candidateId;
+        private String name;
+        private String description;
+        private Integer displayOrder;
     }
 }

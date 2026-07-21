@@ -113,4 +113,24 @@ public class MeetingPortImpl implements MeetingPort {
         }
         return configRepository.findById(meeting.getConfigId()).orElse(null);
     }
+
+    @Override
+    public String getMeetingName(String meetingId) {
+        if (meetingId == null || meetingId.isBlank()) {
+            return null;
+        }
+        return meetingRepository.findById(meetingId)
+                .map(Meeting::getTitle)
+                .orElse(null);
+    }
+
+    @Override
+    public String getFallbackMeetingId() {
+        return meetingRepository.findOngoing()
+                .map(Meeting::getId)
+                .orElseGet(() -> meetingRepository.findAll().stream()
+                        .map(Meeting::getId)
+                        .findFirst()
+                        .orElse(null));
+    }
 }

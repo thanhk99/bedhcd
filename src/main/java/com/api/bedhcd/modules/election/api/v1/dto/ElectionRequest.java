@@ -13,7 +13,6 @@ import lombok.NoArgsConstructor;
 public class ElectionRequest {
     private String title;
     private String description;
-    private Integer numSeats;
     private ElectionType type;
     private Integer displayOrder;
 }

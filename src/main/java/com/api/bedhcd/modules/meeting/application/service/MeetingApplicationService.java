@@ -13,6 +13,7 @@ import com.api.bedhcd.modules.meeting.domain.model.MeetingEditRequest;
 import com.api.bedhcd.modules.meeting.domain.repository.MeetingConfigRepository;
 import com.api.bedhcd.modules.meeting.domain.repository.MeetingEditRequestRepository;
 import com.api.bedhcd.modules.meeting.domain.repository.MeetingRepository;
+import com.api.bedhcd.modules.election.application.port.ElectionPort;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
 import com.api.bedhcd.modules.resolution.application.port.ResolutionPort;
 import com.api.bedhcd.modules.voting.application.port.VotingPort;
@@ -50,6 +51,7 @@ public class MeetingApplicationService {
     private final ParticipantPort participantPort;
     private final ResolutionPort resolutionPort;
     private final VotingPort votingPort;
+    private final ElectionPort electionPort;
     private final AdminContextService adminContextService;
 
     // Sử dụng ObjectMapper với JavaTimeModule để hỗ trợ serialize LocalDateTime
@@ -87,7 +89,6 @@ public class MeetingApplicationService {
                 .orElse(null);
     }
 
-    @Cacheable(value = "meetings:realtime", key = "#id")
     @Transactional(readOnly = true)
     public MeetingRealtimeResponse getRealtimeStats(String id) {
         Meeting meeting = meetingRepository.findById(id)
@@ -105,6 +106,43 @@ public class MeetingApplicationService {
         long totalResolutions = resolutionPort.countResolutionsByMeetingId(id);
         long totalVotes = votingPort.countVotesByMeetingId(id);
 
+        // Lấy danh sách resolutions kèm options qua ResolutionPort
+        List<MeetingRealtimeResponse.ResolutionStats> resolutionStats = resolutionPort.getResolutionsByMeetingId(id)
+                .stream()
+                .map(r -> MeetingRealtimeResponse.ResolutionStats.builder()
+                        .resolutionId(r.resolutionId())
+                        .title(r.title())
+                        .description(r.description())
+                        .displayOrder(r.displayOrder())
+                        .options(r.options().stream()
+                                .map(opt -> MeetingRealtimeResponse.OptionInfo.builder()
+                                        .optionId(opt.optionId())
+                                        .name(opt.name())
+                                        .type(opt.type())
+                                        .displayOrder(opt.displayOrder())
+                                        .build())
+                                .collect(Collectors.toList()))
+                        .build())
+                .collect(Collectors.toList());
+
+        // Lấy danh sách elections kèm candidates qua ElectionPort
+        List<MeetingRealtimeResponse.ElectionStats> electionStats = electionPort.getElectionsByMeetingId(id)
+                .stream()
+                .map(e -> MeetingRealtimeResponse.ElectionStats.builder()
+                        .electionId(e.electionId())
+                        .title(e.title())
+                        .electionType(e.electionType())
+                        .candidates(e.candidates().stream()
+                                .map(c -> MeetingRealtimeResponse.CandidateInfo.builder()
+                                        .candidateId(c.candidateId())
+                                        .name(c.name())
+                                        .description(c.description())
+                                        .displayOrder(c.displayOrder())
+                                        .build())
+                                .collect(Collectors.toList()))
+                        .build())
+                .collect(Collectors.toList());
+
         return MeetingRealtimeResponse.builder()
                 .meetingId(meeting.getId())
                 .title(meeting.getTitle())
@@ -120,6 +158,8 @@ public class MeetingApplicationService {
                         .totalResolutions(totalResolutions)
                         .totalVotes(totalVotes)
                         .build())
+                .resolutions(resolutionStats)
+                .elections(electionStats)
                 .build();
     }
 

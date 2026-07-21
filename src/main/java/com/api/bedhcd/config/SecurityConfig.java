@@ -81,7 +81,7 @@ public class SecurityConfig {
                 .setAllowedOrigins(
                         List.of("http://localhost:3000", "http://localhost:3001", "http://dhcd.vix.local:3001",
                                 "http://dhcd.vix.local:3000", "http://10.16.6.62:3001",
-                                "http://10.16.6.62:3000", "http://10.16.7.73:3000"));
+                                "http://10.16.6.62:3000", "http://10.16.7.73:3000", "http://127.0.0.1:5500"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

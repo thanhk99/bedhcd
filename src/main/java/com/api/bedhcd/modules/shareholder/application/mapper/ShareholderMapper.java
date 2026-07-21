@@ -3,6 +3,7 @@ package com.api.bedhcd.modules.shareholder.application.mapper;
 import com.api.bedhcd.modules.shareholder.api.v1.dto.response.ShareholderResponse;
 import com.api.bedhcd.modules.shareholder.domain.model.Shareholder;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
+import com.api.bedhcd.modules.meeting.application.port.MeetingPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -11,15 +12,22 @@ import org.springframework.stereotype.Component;
 public class ShareholderMapper {
 
     private final ParticipantPort participantPort;
+    private final MeetingPort meetingPort;
 
     public ShareholderResponse toResponse(Shareholder shareholder) {
         String meetingId = participantPort.getLastMeetingId(shareholder.getId());
+        if (meetingId == null) {
+            meetingId = meetingPort.getFallbackMeetingId(); // Fallback lấy cuộc họp mặc định
+        }
+
+        String meetingName = null;
         long attendingShares = 0L;
         long receivedProxyShares = 0L;
         long delegatedShares = 0L;
         java.time.LocalDateTime checkedInAt = null;
 
         if (meetingId != null) {
+            meetingName = meetingPort.getMeetingName(meetingId);
             attendingShares = participantPort.getAttendingShares(meetingId, shareholder.getId());
             receivedProxyShares = participantPort.getReceivedProxyShares(meetingId, shareholder.getId());
             delegatedShares = participantPort.getDelegatedShares(meetingId, shareholder.getId());
@@ -37,6 +45,7 @@ public class ShareholderMapper {
                 .sharesOwned(shareholder.getSharesOwned())
                 .enabled(shareholder.isEnabled())
                 .meetingId(meetingId)
+                .meetingName(meetingName)
                 .attendingShares(attendingShares)
                 .receivedProxyShares(receivedProxyShares)
                 .delegatedShares(delegatedShares)

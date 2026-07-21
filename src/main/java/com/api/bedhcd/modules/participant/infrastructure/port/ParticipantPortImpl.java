@@ -3,6 +3,8 @@ package com.api.bedhcd.modules.participant.infrastructure.port;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
 import com.api.bedhcd.modules.participant.domain.model.Participant;
 import com.api.bedhcd.modules.participant.domain.repository.ParticipantRepository;
+import com.api.bedhcd.shared.domain.enums.ParticipantStatus;
+import com.api.bedhcd.shared.domain.enums.ParticipationType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -100,5 +102,24 @@ public class ParticipantPortImpl implements ParticipantPort {
                 .map(Participant::getMeetingId)
                 .findFirst() // Tạm lấy cái đầu tiên tìm thấy
                 .orElse(null);
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void createParticipant(String meetingId, String userId, Long sharesOwned) {
+        Participant participant = participantRepository.findByMeetingIdAndUserId(meetingId, userId)
+                .orElseGet(() -> Participant.builder()
+                        .meetingId(meetingId)
+                        .userId(userId)
+                        .build());
+        
+        participant.setSharesOwned(sharesOwned != null ? sharesOwned : 0L);
+        participant.setStatus(ParticipantStatus.PENDING);
+        participant.setParticipationType(ParticipationType.DIRECT);
+        if (participant.getAttendingShares() == null) participant.setAttendingShares(0L);
+        if (participant.getReceivedProxyShares() == null) participant.setReceivedProxyShares(0L);
+        if (participant.getDelegatedShares() == null) participant.setDelegatedShares(0L);
+
+        participantRepository.save(participant);
     }
 }
