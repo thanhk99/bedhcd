@@ -1,7 +1,6 @@
 package com.api.bedhcd.modules.meeting.domain.model;
 
 import com.api.bedhcd.modules.meeting.domain.exception.MeetingException;
-import com.api.bedhcd.shared.domain.enums.MeetingStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -38,31 +37,76 @@ public class Meeting {
     }
 
     /**
-     * Nghiệp vụ: Kiểm tra xem TÍNH NĂNG ĐIỂM DANH có được mở không
+     * Nghiệp vụ: Kiểm tra xem TÍNH NĂNG ĐIỂM DANH có được mở không (đối với
+     * admin/staff)
      */
     public boolean canAttend(MeetingConfig config) {
         MeetingRules rules = config.getRulesForStatus(this.status);
-        return rules != null && rules.isAllowAttendance();
+        return rules != null && rules.getAdminRules() != null && rules.getAdminRules().getEligibilityCheck() != null
+                && rules.getAdminRules().getEligibilityCheck().isAllowAction();
     }
 
     public boolean canEditMeeting(MeetingConfig config) {
         MeetingRules rules = config.getRulesForStatus(this.status);
-        return rules != null && rules.isAllowEditMeeting();
+        return rules != null && rules.getAdminRules() != null && rules.getAdminRules().getMeeting() != null
+                && rules.getAdminRules().getMeeting().isAllowEdit();
     }
 
     public boolean canImportShareholder(MeetingConfig config) {
         MeetingRules rules = config.getRulesForStatus(this.status);
-        return rules != null && rules.isAllowImportShareholder();
+        return rules != null && rules.getAdminRules() != null && rules.getAdminRules().getShareholder() != null
+                && rules.getAdminRules().getShareholder().isAllowAdd();
     }
 
     public boolean canRegisterProxy(MeetingConfig config) {
         MeetingRules rules = config.getRulesForStatus(this.status);
-        return rules != null && rules.isAllowProxyRegistration();
+        return rules != null && rules.getAdminRules() != null && rules.getAdminRules().getEligibilityCheck() != null
+                && rules.getAdminRules().getEligibilityCheck().isAllowAction();
     }
 
     public boolean canVote(MeetingConfig config) {
         MeetingRules rules = config.getRulesForStatus(this.status);
-        return rules != null && rules.isAllowVoting();
+        return rules != null && rules.getShareholderRules() != null
+                && rules.getShareholderRules().getVotingAndElection() != null
+                && rules.getShareholderRules().getVotingAndElection().isAllowVote();
+    }
+
+    public boolean canViewResolutionOrElection(MeetingConfig config) {
+        MeetingRules rules = config.getRulesForStatus(this.status);
+        return rules != null && rules.getShareholderRules() != null
+                && rules.getShareholderRules().getVotingAndElection() != null
+                && rules.getShareholderRules().getVotingAndElection().isAllowView();
+    }
+
+    public boolean shareholderCanViewMeeting(MeetingConfig config) {
+        MeetingRules rules = config.getRulesForStatus(this.status);
+        return rules != null && rules.getShareholderRules() != null && rules.getShareholderRules().getMeeting() != null
+                && rules.getShareholderRules().getMeeting().isAllowView();
+    }
+
+    public boolean shareholderCanAction(MeetingConfig config) {
+        MeetingRules rules = config.getRulesForStatus(this.status);
+        return rules != null && rules.getShareholderRules() != null && rules.getShareholderRules().getMeeting() != null
+                && rules.getShareholderRules().getMeeting().isAllowAction();
+    }
+
+    public boolean shareholderCanEditAccount(MeetingConfig config) {
+        MeetingRules rules = config.getRulesForStatus(this.status);
+        return rules != null && rules.getShareholderRules() != null
+                && rules.getShareholderRules().getAccountManagement() != null
+                && rules.getShareholderRules().getAccountManagement().isAllowEdit();
+    }
+
+    public boolean canAddResolutionOrElection(MeetingConfig config) {
+        MeetingRules rules = config.getRulesForStatus(this.status);
+        return rules != null && rules.getAdminRules() != null && rules.getAdminRules().getMeeting() != null
+                && rules.getAdminRules().getMeeting().isAllowAdd();
+    }
+
+    public boolean canEditResolutionOrElection(MeetingConfig config) {
+        MeetingRules rules = config.getRulesForStatus(this.status);
+        return rules != null && rules.getAdminRules() != null && rules.getAdminRules().getMeeting() != null
+                && rules.getAdminRules().getMeeting().isAllowEdit();
     }
 
     public void transitTo(MeetingConfig config, String newStatus) {
@@ -78,7 +122,11 @@ public class Meeting {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public boolean canDelete() {
-        return MeetingStatus.SCHEDULED.equals(this.status);
+    public boolean canDelete(MeetingConfig config) {
+        if (config == null)
+            return false;
+        MeetingRules rules = config.getRulesForStatus(this.status);
+        return rules != null && rules.getAdminRules() != null && rules.getAdminRules().getMeeting() != null
+                && rules.getAdminRules().getMeeting().isAllowDelete();
     }
 }

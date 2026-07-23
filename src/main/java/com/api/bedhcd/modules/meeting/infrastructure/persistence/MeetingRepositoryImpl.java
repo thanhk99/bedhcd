@@ -2,7 +2,6 @@ package com.api.bedhcd.modules.meeting.infrastructure.persistence;
 
 import com.api.bedhcd.modules.meeting.domain.model.Meeting;
 import com.api.bedhcd.modules.meeting.domain.repository.MeetingRepository;
-import com.api.bedhcd.shared.domain.enums.MeetingStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -28,9 +27,10 @@ public class MeetingRepositoryImpl implements MeetingRepository {
     }
 
     @Override
-    public Optional<Meeting> findOngoing() {
-        return jpaRepository.findFirstByStatus(MeetingStatus.ONGOING)
-                .map(this::toDomain);
+    public java.util.List<Meeting> findAllOrderByCreatedAtDesc() {
+        return jpaRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toDomain)
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @Override

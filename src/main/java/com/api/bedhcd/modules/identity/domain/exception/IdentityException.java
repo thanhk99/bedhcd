@@ -72,4 +72,12 @@ public class IdentityException extends BaseDomainException {
                 message
         );
     }
+
+    public static IdentityException invalidState(String message) {
+        return new IdentityException(
+                HttpStatus.FORBIDDEN,
+                "IDENTITY_INVALID_STATE",
+                message
+        );
+    }
 }

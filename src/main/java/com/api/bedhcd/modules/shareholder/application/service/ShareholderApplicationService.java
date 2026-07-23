@@ -1,14 +1,21 @@
 package com.api.bedhcd.modules.shareholder.application.service;
 
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
-
+import com.api.bedhcd.modules.meeting.application.port.MeetingPort;
+import com.api.bedhcd.modules.resolution.domain.model.Resolution;
+import com.api.bedhcd.modules.resolution.domain.model.VotingOption;
+import com.api.bedhcd.modules.resolution.domain.repository.ResolutionRepository;
+import com.api.bedhcd.modules.voting.application.port.VotingPort;
+import com.api.bedhcd.modules.voting.domain.model.Vote;
 import com.api.bedhcd.modules.shareholder.api.v1.dto.request.CreateShareholderRequest;
 import com.api.bedhcd.modules.shareholder.api.v1.dto.request.UpdateShareholderRequest;
 import com.api.bedhcd.modules.shareholder.api.v1.dto.response.ShareholderResponse;
+import com.api.bedhcd.modules.shareholder.api.v1.dto.response.VoteHistoryResponse;
 import com.api.bedhcd.modules.shareholder.application.mapper.ShareholderMapper;
 import com.api.bedhcd.modules.shareholder.domain.exception.ShareholderException;
 import com.api.bedhcd.modules.shareholder.domain.model.Shareholder;
 import com.api.bedhcd.modules.shareholder.domain.repository.ShareholderRepository;
+import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 import com.api.bedhcd.shared.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -31,6 +38,10 @@ public class ShareholderApplicationService {
     private final ShareholderMapper shareholderMapper;
     private final PasswordEncoder passwordEncoder;
     private final ParticipantPort participantPort;
+    private final VotingPort votingPort;
+    private final ResolutionRepository resolutionRepository;
+    private final MeetingPort meetingPort;
+    private final IdentityPort identityPort;
 
     @Cacheable(value = "shareholders:page", key = "#page + '-' + #size + '-' + (#keyword != null ? #keyword : '') + '-' + (#meetingId != null ? #meetingId : '')")
     @Transactional(readOnly = true)
@@ -170,5 +181,57 @@ public class ShareholderApplicationService {
         shareholder.setEnabled(false); // soft delete: khoá tài khoản
         shareholder.setDeletedAt(LocalDateTime.now());
         shareholderRepository.save(shareholder);
+    }
+
+    /**
+     * Lấy lịch sử biểu quyết của cổ đông đang đăng nhập.
+     */
+    @Transactional(readOnly = true)
+    public List<VoteHistoryResponse> getVotingHistory() {
+        String userId = identityPort.getCurrentUserId();
+        if (userId == null) {
+            throw ShareholderException.notFound("current user");
+        }
+
+        List<Vote> votes = votingPort.getVotesByUser(userId);
+
+        return votes.stream().map(vote -> {
+            // Lấy thông tin nghị quyết
+            String resolutionTitle = null;
+            String meetingId = null;
+            String meetingTitle = null;
+            String votingOptionName = null;
+
+            if (vote.getResolutionId() != null) {
+                Resolution resolution = resolutionRepository.findById(vote.getResolutionId()).orElse(null);
+                if (resolution != null) {
+                    resolutionTitle = resolution.getTitle();
+                    meetingId = resolution.getMeetingId();
+                    meetingTitle = meetingPort.getMeetingName(meetingId);
+
+                    if (vote.getVotingOptionId() != null && resolution.getOptions() != null) {
+                        votingOptionName = resolution.getOptions().stream()
+                                .filter(o -> o.getId().equals(vote.getVotingOptionId()))
+                                .map(VotingOption::getName)
+                                .findFirst().orElse(vote.getVotingOptionId());
+                    }
+                }
+            }
+
+            return VoteHistoryResponse.builder()
+                    .voteId(vote.getId() != null ? vote.getId().toString() : null)
+                    .resolutionId(vote.getResolutionId())
+                    .resolutionTitle(resolutionTitle)
+                    .meetingId(meetingId)
+                    .meetingTitle(meetingTitle)
+                    .votingOptionId(vote.getVotingOptionId())
+                    .votingOptionName(votingOptionName)
+                    .voteWeight(vote.getVoteWeight())
+                    .ipAddress(vote.getIpAddress())
+                    .userAgent(vote.getUserAgent())
+                    .votedAt(vote.getVotedAt())
+                    .action("VOTE_CAST")
+                    .build();
+        }).collect(Collectors.toList());
     }
 }

@@ -1,6 +1,7 @@
 package com.api.bedhcd.modules.identity.application.service;
 
 import com.api.bedhcd.config.JwtUtil;
+import com.api.bedhcd.modules.meeting.application.port.MeetingPort;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
 import com.api.bedhcd.modules.identity.api.v1.dto.AuthResponse;
 import com.api.bedhcd.modules.identity.api.v1.dto.ChangePasswordRequest;
@@ -34,6 +35,7 @@ public class IdentityApplicationService {
 
     private final UserRepository userRepository;
     private final ParticipantPort participantPort;
+    private final MeetingPort meetingPort;
     private final RefreshTokenRepository refreshTokenRepository;
     private final LoginHistoryRepository loginHistoryRepository;
     private final PasswordEncoder passwordEncoder;
@@ -158,6 +160,17 @@ public class IdentityApplicationService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> IdentityException.userNotFound(username));
 
+        // Nếu là cổ đông (không phải admin), kiểm tra cấu hình cuộc họp
+        boolean isAdmin = user.getRoles() != null && user.getRoles().stream()
+                .anyMatch(r -> r.name().startsWith("ROLE_ADMIN"));
+        if (!isAdmin) {
+            String meetingId = participantPort.getLastMeetingId(user.getId());
+            if (meetingId != null && !meetingPort.shareholderCanEditAccount(meetingId)) {
+                throw IdentityException
+                        .invalidState("Cấu hình cuộc họp hiện tại không cho phép cổ đông thay đổi mật khẩu.");
+            }
+        }
+
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
             throw IdentityException.invalidCredentials();
         }
@@ -178,7 +191,7 @@ public class IdentityApplicationService {
         long attendingShares = 0L;
         long receivedProxyShares = 0L;
         long delegatedShares = 0L;
-        java.time.LocalDateTime checkedInAt = null;
+        LocalDateTime checkedInAt = null;
 
         if (meetingId != null) {
             attendingShares = participantPort.getAttendingShares(meetingId, user.getId());

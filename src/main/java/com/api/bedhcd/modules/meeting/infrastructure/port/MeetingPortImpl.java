@@ -107,6 +107,55 @@ public class MeetingPortImpl implements MeetingPort {
         return meeting != null && config != null && meeting.canVote(config);
     }
 
+    @Override
+    public boolean canDeleteMeeting(String meetingId) {
+        Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
+        MeetingConfig config = getMeetingConfig(meeting);
+        return meeting != null && config != null && meeting.canDelete(config);
+    }
+
+    @Override
+    public boolean canAddResolutionOrElection(String meetingId) {
+        Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
+        MeetingConfig config = getMeetingConfig(meeting);
+        return meeting != null && config != null && meeting.canAddResolutionOrElection(config);
+    }
+
+    @Override
+    public boolean canEditResolutionOrElection(String meetingId) {
+        Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
+        MeetingConfig config = getMeetingConfig(meeting);
+        return meeting != null && config != null && meeting.canEditResolutionOrElection(config);
+    }
+
+    @Override
+    public boolean canViewResolutionOrElection(String meetingId) {
+        Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
+        MeetingConfig config = getMeetingConfig(meeting);
+        return meeting != null && config != null && meeting.canViewResolutionOrElection(config);
+    }
+
+    @Override
+    public boolean shareholderCanViewMeeting(String meetingId) {
+        Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
+        MeetingConfig config = getMeetingConfig(meeting);
+        return meeting != null && config != null && meeting.shareholderCanViewMeeting(config);
+    }
+
+    @Override
+    public boolean shareholderCanAction(String meetingId) {
+        Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
+        MeetingConfig config = getMeetingConfig(meeting);
+        return meeting != null && config != null && meeting.shareholderCanAction(config);
+    }
+
+    @Override
+    public boolean shareholderCanEditAccount(String meetingId) {
+        Meeting meeting = meetingRepository.findById(meetingId).orElse(null);
+        MeetingConfig config = getMeetingConfig(meeting);
+        return meeting != null && config != null && meeting.shareholderCanEditAccount(config);
+    }
+
     private MeetingConfig getMeetingConfig(Meeting meeting) {
         if (meeting == null || meeting.getConfigId() == null) {
             return null;
@@ -122,15 +171,5 @@ public class MeetingPortImpl implements MeetingPort {
         return meetingRepository.findById(meetingId)
                 .map(Meeting::getTitle)
                 .orElse(null);
-    }
-
-    @Override
-    public String getFallbackMeetingId() {
-        return meetingRepository.findOngoing()
-                .map(Meeting::getId)
-                .orElseGet(() -> meetingRepository.findAll().stream()
-                        .map(Meeting::getId)
-                        .findFirst()
-                        .orElse(null));
     }
 }

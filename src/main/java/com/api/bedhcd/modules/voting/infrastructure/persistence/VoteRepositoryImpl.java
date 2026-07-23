@@ -40,6 +40,13 @@ public class VoteRepositoryImpl implements VoteRepository {
     }
 
     @Override
+    public List<Vote> findByUser(String userId) {
+        return jpaRepository.findByUserIdOrderByVotedAtDesc(userId).stream()
+                .map(this::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public long count() {
         return jpaRepository.count();
     }

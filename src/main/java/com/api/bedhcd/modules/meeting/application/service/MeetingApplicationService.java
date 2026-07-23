@@ -17,7 +17,6 @@ import com.api.bedhcd.modules.election.application.port.ElectionPort;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
 import com.api.bedhcd.modules.resolution.application.port.ResolutionPort;
 import com.api.bedhcd.modules.voting.application.port.VotingPort;
-import com.api.bedhcd.shared.domain.enums.MeetingStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -34,6 +33,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import com.api.bedhcd.shared.domain.UuidFactory;
 import java.util.stream.Collectors;
+
+import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 
 @Service
 @RequiredArgsConstructor
@@ -52,6 +53,7 @@ public class MeetingApplicationService {
     private final ResolutionPort resolutionPort;
     private final VotingPort votingPort;
     private final ElectionPort electionPort;
+    private final IdentityPort identityPort;
     private final AdminContextService adminContextService;
 
     // Sử dụng ObjectMapper với JavaTimeModule để hỗ trợ serialize LocalDateTime
@@ -74,19 +76,54 @@ public class MeetingApplicationService {
     public MeetingResponse getById(String id) {
         Meeting meeting = meetingRepository.findById(id)
                 .orElseThrow(() -> MeetingException.notFound(id));
+
+        // Nếu người dùng hiện tại là cổ đông, kiểm tra cấu hình xem cuộc họp
+        String currentUserId = identityPort.getCurrentUserId();
+        if (currentUserId != null && !identityPort.hasRole(com.api.bedhcd.shared.domain.enums.Role.ADMIN)) {
+            if (!meetingPort.shareholderCanViewMeeting(id)) {
+                throw MeetingException.invalidState("Cấu hình cuộc họp hiện tại không cho phép cổ đông xem thông tin.");
+            }
+        }
+
         MeetingConfig config = loadConfig(meeting.getConfigId());
         return meetingMapper.toResponse(meeting, config);
     }
 
-    @Cacheable(value = "meetings:ongoing", unless = "#result == null")
+    /**
+     * Dành cho Cổ đông gọi qua API.
+     * Gọi cached method rồi áp dụng kiểm tra phân quyền ở ngoài cache.
+     */
     @Transactional(readOnly = true)
-    public MeetingResponse getOngoingMeeting() {
-        return meetingRepository.findOngoing()
-                .map(m -> {
-                    MeetingConfig config = loadConfig(m.getConfigId());
-                    return meetingMapper.toResponse(m, config);
-                })
-                .orElse(null);
+    public MeetingResponse getOngoingMeetingForShareholder() {
+        // Lấy danh sách cuộc họp từ mới nhất
+        java.util.List<Meeting> allMeetings = meetingRepository.findAllOrderByCreatedAtDesc();
+        if (allMeetings == null || allMeetings.isEmpty())
+            return null;
+
+        // Duyệt danh sách, tìm cuộc họp đầu tiên mà cổ đông được phép xem
+        String currentUserId = identityPort.getCurrentUserId();
+        boolean isShareholder = currentUserId != null
+                && !identityPort.hasRole(com.api.bedhcd.shared.domain.enums.Role.ADMIN);
+
+        Meeting ongoingMeeting = null;
+        for (Meeting m : allMeetings) {
+            if (isShareholder) {
+                if (meetingPort.shareholderCanViewMeeting(m.getId())) {
+                    ongoingMeeting = m;
+                    break;
+                }
+            } else {
+                // Nếu là Admin, lấy cuộc họp mới nhất
+                ongoingMeeting = m;
+                break;
+            }
+        }
+
+        if (ongoingMeeting == null)
+            return null;
+
+        MeetingConfig config = loadConfig(ongoingMeeting.getConfigId());
+        return meetingMapper.toResponse(ongoingMeeting, config);
     }
 
     @Transactional(readOnly = true)
@@ -182,8 +219,8 @@ public class MeetingApplicationService {
     // ─── Commands ────────────────────────────────────────────────────────────────
 
     @Caching(evict = {
-        @CacheEvict(value = "meetings:all", allEntries = true),
-        @CacheEvict(value = "meetings:ongoing", allEntries = true)
+            @CacheEvict(value = "meetings:all", allEntries = true),
+            @CacheEvict(value = "meetings:ongoing", allEntries = true)
     })
     @Transactional
     public MeetingResponse createMeeting(Meeting meeting) {
@@ -213,10 +250,6 @@ public class MeetingApplicationService {
             }
         }
 
-        if (meeting.getStatus() == null || meeting.getStatus().isEmpty()) {
-            meeting.setStatus(MeetingStatus.SCHEDULED);
-        }
-
         Meeting saved = meetingRepository.save(meeting);
         return meetingMapper.toResponse(saved, config);
     }
@@ -231,10 +264,10 @@ public class MeetingApplicationService {
      *         (client phân biệt qua field requiresApproval)
      */
     @Caching(evict = {
-        @CacheEvict(value = "meetings:all", allEntries = true),
-        @CacheEvict(value = "meetings", key = "#id"),
-        @CacheEvict(value = "meetings:ongoing", allEntries = true),
-        @CacheEvict(value = "meetings:realtime", key = "#id")
+            @CacheEvict(value = "meetings:all", allEntries = true),
+            @CacheEvict(value = "meetings", key = "#id"),
+            @CacheEvict(value = "meetings:ongoing", allEntries = true),
+            @CacheEvict(value = "meetings:realtime", key = "#id")
     })
     @Transactional
     public Object updateMeeting(String id, Meeting updateInfo) {
@@ -267,13 +300,20 @@ public class MeetingApplicationService {
         }
 
         java.util.Map<String, Object> changes = new java.util.HashMap<>();
-        if (!java.util.Objects.equals(meeting.getTitle(), updateInfo.getTitle())) changes.put("title", updateInfo.getTitle());
-        if (!java.util.Objects.equals(meeting.getDescription(), updateInfo.getDescription())) changes.put("description", updateInfo.getDescription());
-        if (!java.util.Objects.equals(meeting.getStartTime(), updateInfo.getStartTime())) changes.put("startTime", updateInfo.getStartTime());
-        if (!java.util.Objects.equals(meeting.getEndTime(), updateInfo.getEndTime())) changes.put("endTime", updateInfo.getEndTime());
-        if (!java.util.Objects.equals(meeting.getLocation(), updateInfo.getLocation())) changes.put("location", updateInfo.getLocation());
-        if (!java.util.Objects.equals(meeting.getConfigId(), updateInfo.getConfigId())) changes.put("configId", updateInfo.getConfigId());
-        if (!java.util.Objects.equals(meeting.getStatus(), updateInfo.getStatus())) changes.put("status", updateInfo.getStatus());
+        if (!java.util.Objects.equals(meeting.getTitle(), updateInfo.getTitle()))
+            changes.put("title", updateInfo.getTitle());
+        if (!java.util.Objects.equals(meeting.getDescription(), updateInfo.getDescription()))
+            changes.put("description", updateInfo.getDescription());
+        if (!java.util.Objects.equals(meeting.getStartTime(), updateInfo.getStartTime()))
+            changes.put("startTime", updateInfo.getStartTime());
+        if (!java.util.Objects.equals(meeting.getEndTime(), updateInfo.getEndTime()))
+            changes.put("endTime", updateInfo.getEndTime());
+        if (!java.util.Objects.equals(meeting.getLocation(), updateInfo.getLocation()))
+            changes.put("location", updateInfo.getLocation());
+        if (!java.util.Objects.equals(meeting.getConfigId(), updateInfo.getConfigId()))
+            changes.put("configId", updateInfo.getConfigId());
+        if (!java.util.Objects.equals(meeting.getStatus(), updateInfo.getStatus()))
+            changes.put("status", updateInfo.getStatus());
 
         if (changes.isEmpty()) {
             throw MeetingException.invalidState("Không có thay đổi nào để tạo yêu cầu.");
@@ -292,10 +332,10 @@ public class MeetingApplicationService {
      * - ADMIN thường: Tạo MeetingEditRequest (PENDING) chờ duyệt.
      */
     @Caching(evict = {
-        @CacheEvict(value = "meetings:all", allEntries = true),
-        @CacheEvict(value = "meetings", key = "#id"),
-        @CacheEvict(value = "meetings:ongoing", allEntries = true),
-        @CacheEvict(value = "meetings:realtime", key = "#id")
+            @CacheEvict(value = "meetings:all", allEntries = true),
+            @CacheEvict(value = "meetings", key = "#id"),
+            @CacheEvict(value = "meetings:ongoing", allEntries = true),
+            @CacheEvict(value = "meetings:realtime", key = "#id")
     })
     @Transactional
     public Object updateStatus(String id, String status) {
@@ -336,24 +376,25 @@ public class MeetingApplicationService {
      * - ADMIN thường: Tạo MeetingEditRequest DELETE (PENDING) chờ duyệt.
      */
     @Caching(evict = {
-        @CacheEvict(value = "meetings:all", allEntries = true),
-        @CacheEvict(value = "meetings", key = "#id"),
-        @CacheEvict(value = "meetings:ongoing", allEntries = true),
-        @CacheEvict(value = "meetings:realtime", key = "#id")
+            @CacheEvict(value = "meetings:all", allEntries = true),
+            @CacheEvict(value = "meetings", key = "#id"),
+            @CacheEvict(value = "meetings:ongoing", allEntries = true),
+            @CacheEvict(value = "meetings:realtime", key = "#id")
     })
     @Transactional
     public Object deleteMeeting(String id) {
-        Meeting meeting = meetingRepository.findById(id)
-                .orElseThrow(() -> MeetingException.notFound(id));
+
+        if (!meetingPort.canDeleteMeeting(id)) {
+            throw MeetingException.invalidState("Trạng thái cuộc họp hiện tại không cho phép xóa cuộc họp.");
+        }
+
+        // Kiểm tra xem có cổ đông nào trong bảng tham dự của cuộc họp này không
+        if (participantPort.countByMeetingId(id) > 0) {
+            throw MeetingException.invalidState("Không thể xóa vì cuộc họp đã tồn tại danh sách cổ đông tham dự.");
+        }
 
         if (adminContextService.isCurrentAdminSuperAdmin()) {
             // SUPERADMIN: xóa trực tiếp
-            if (!meetingPort.canEditMeeting(id)) {
-                throw MeetingException.invalidState("Trạng thái hiện tại không cho phép xóa cuộc họp.");
-            }
-            if (!meeting.canDelete()) {
-                throw MeetingException.invalidState("Chỉ có thể xóa cuộc họp ở trạng thái Sắp diễn ra.");
-            }
             meetingRepository.deleteById(id);
             return null;
         }
@@ -376,10 +417,10 @@ public class MeetingApplicationService {
      * Áp dụng thay đổi thực tế vào cuộc họp và đánh dấu request là APPROVED.
      */
     @Caching(evict = {
-        @CacheEvict(value = "meetings:all", allEntries = true),
-        @CacheEvict(value = "meetings", allEntries = true),
-        @CacheEvict(value = "meetings:ongoing", allEntries = true),
-        @CacheEvict(value = "meetings:realtime", allEntries = true)
+            @CacheEvict(value = "meetings:all", allEntries = true),
+            @CacheEvict(value = "meetings", allEntries = true),
+            @CacheEvict(value = "meetings:ongoing", allEntries = true),
+            @CacheEvict(value = "meetings:realtime", allEntries = true)
     })
     @Transactional
     public MeetingEditRequestResponse approveEditRequest(String requestId) {
@@ -423,24 +464,39 @@ public class MeetingApplicationService {
             case "UPDATE" -> {
                 Meeting meeting = meetingRepository.findById(request.getMeetingId())
                         .orElseThrow(() -> MeetingException.notFound(request.getMeetingId()));
-                
+
                 com.fasterxml.jackson.databind.JsonNode root = parseJsonNode(request.getPayload());
-                if (root.has("title")) meeting.setTitle(root.get("title").isNull() ? null : root.get("title").asText());
-                if (root.has("description")) meeting.setDescription(root.get("description").isNull() ? null : root.get("description").asText());
-                if (root.has("location")) meeting.setLocation(root.get("location").isNull() ? null : root.get("location").asText());
-                if (root.has("configId")) meeting.setConfigId(root.get("configId").isNull() ? null : root.get("configId").asText());
-                if (root.has("status")) meeting.setStatus(root.get("status").isNull() ? null : root.get("status").asText());
-                
+                if (root.has("title"))
+                    meeting.setTitle(root.get("title").isNull() ? null : root.get("title").asText());
+                if (root.has("description"))
+                    meeting.setDescription(root.get("description").isNull() ? null : root.get("description").asText());
+                if (root.has("location"))
+                    meeting.setLocation(root.get("location").isNull() ? null : root.get("location").asText());
+                if (root.has("configId"))
+                    meeting.setConfigId(root.get("configId").isNull() ? null : root.get("configId").asText());
+                if (root.has("status"))
+                    meeting.setStatus(root.get("status").isNull() ? null : root.get("status").asText());
+
                 if (root.has("startTime")) {
-                    meeting.setStartTime(root.get("startTime").isNull() ? null : objectMapper.convertValue(root.get("startTime"), java.time.LocalDateTime.class));
+                    meeting.setStartTime(root.get("startTime").isNull() ? null
+                            : objectMapper.convertValue(root.get("startTime"), java.time.LocalDateTime.class));
                 }
                 if (root.has("endTime")) {
-                    meeting.setEndTime(root.get("endTime").isNull() ? null : objectMapper.convertValue(root.get("endTime"), java.time.LocalDateTime.class));
+                    meeting.setEndTime(root.get("endTime").isNull() ? null
+                            : objectMapper.convertValue(root.get("endTime"), java.time.LocalDateTime.class));
                 }
-                
+
                 meetingRepository.save(meeting);
             }
             case "DELETE" -> {
+                if (!meetingPort.canDeleteMeeting(request.getMeetingId())) {
+                    throw MeetingException
+                            .invalidState("Trạng thái cuộc họp tại thời điểm duyệt không cho phép thực thi xóa.");
+                }
+                if (participantPort.countByMeetingId(request.getMeetingId()) > 0) {
+                    throw MeetingException
+                            .invalidState("Không thể thực thi xóa vì cuộc họp đã tồn tại danh sách cổ đông tham dự.");
+                }
                 meetingRepository.deleteById(request.getMeetingId());
             }
             default -> throw MeetingException.invalidState(

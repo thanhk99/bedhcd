@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 @Data
@@ -26,11 +27,11 @@ public class MeetingConfig {
     private LocalDateTime updatedAt;
 
     /**
-     * Factory method để tạo cấu hình mặc định
+     * Factory method để tạo cấu hình mặc định trống (không có sẵn cấu hình tự động, hoặc nếu cần thì tạo một map rỗng)
      */
     public static MeetingConfig createDefault() {
-        // Logic tạo cấu hình mặc định sẽ được triển khai ở đây
         return MeetingConfig.builder()
+                .stateConfigs(new HashMap<>())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -45,3 +46,4 @@ public class MeetingConfig {
         return stateConfigs.get(status);
     }
 }
+

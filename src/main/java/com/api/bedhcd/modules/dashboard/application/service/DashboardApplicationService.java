@@ -6,7 +6,6 @@ import com.api.bedhcd.modules.meeting.application.port.MeetingPort;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
 import com.api.bedhcd.modules.resolution.application.port.ResolutionPort;
 import com.api.bedhcd.modules.voting.application.port.VotingPort;
-import com.api.bedhcd.shared.domain.enums.MeetingStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,10 +23,10 @@ public class DashboardApplicationService {
     @Transactional(readOnly = true)
     public DashboardSummaryResponse getSummary() {
         long totalMeetings = meetingPort.countMeetings();
-        long scheduledMeetings = meetingPort.countByStatus(MeetingStatus.SCHEDULED);
-        long ongoingMeetings = meetingPort.countByStatus(MeetingStatus.ONGOING);
-        long completedMeetings = meetingPort.countByStatus(MeetingStatus.COMPLETED);
-        long cancelledMeetings = meetingPort.countByStatus(MeetingStatus.CANCELLED);
+        long scheduledMeetings = meetingPort.countByStatus("SCHEDULED");
+        long ongoingMeetings = meetingPort.countByStatus("ONGOING");
+        long completedMeetings = meetingPort.countByStatus("COMPLETED");
+        long cancelledMeetings = meetingPort.countByStatus("CANCELLED");
 
         long checkedInCount = participantPort.countTotalCheckedIn();
         long totalSharesRepresented = participantPort.sumTotalShares();

@@ -74,6 +74,11 @@ public class VotingPortImpl implements VotingPort {
     }
 
     @Override
+    public List<Vote> getVotesByUser(String userId) {
+        return voteRepository.findByUser(userId);
+    }
+
+    @Override
     public long countVotersByTarget(String targetId) {
         return voteRepository.findByResolution(targetId).stream()
                 .map(Vote::getUserId)

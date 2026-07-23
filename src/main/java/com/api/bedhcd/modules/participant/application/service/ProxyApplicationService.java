@@ -12,7 +12,6 @@ import com.api.bedhcd.modules.participant.domain.model.ProxyDelegation;
 import com.api.bedhcd.modules.participant.domain.repository.ParticipantRepository;
 import com.api.bedhcd.modules.participant.domain.repository.ProxyDelegationRepository;
 import com.api.bedhcd.shared.domain.enums.DelegationStatus;
-import com.api.bedhcd.shared.domain.enums.MeetingStatus;
 import com.api.bedhcd.shared.domain.enums.ParticipantStatus;
 import com.api.bedhcd.shared.domain.enums.ParticipationType;
 import com.api.bedhcd.shared.dto.UserDTO;
@@ -38,10 +37,9 @@ public class ProxyApplicationService {
 
         @Transactional
         public ProxyDelegationResponse createDelegation(String meetingId, ProxyDelegationRequest request) {
-                String meetingStatus = meetingPort.getStatus(meetingId);
-                if (MeetingStatus.VOTING.equals(meetingStatus) || MeetingStatus.COMPLETED.equals(meetingStatus)) {
+                if (!meetingPort.shareholderCanAction(meetingId)) {
                         throw new RuntimeException(
-                                        "Không thể tạo uỷ quyền khi cuộc họp đang biểu quyết hoặc đã kết thúc");
+                                        "Cấu hình cuộc họp hiện tại không cho phép thực hiện đăng ký tham dự hoặc ủy quyền.");
                 }
 
                 UserDTO delegatorUser = identityPort.getUserInfo(request.getDelegatorId());

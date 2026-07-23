@@ -40,7 +40,7 @@ public class MeetingController {
     @Operation(summary = "Lấy cuộc họp đang diễn ra")
     @GetMapping("/ongoing")
     public ApiResponse<MeetingResponse> getOngoing() {
-        return ApiResponse.success(meetingApplicationService.getOngoingMeeting());
+        return ApiResponse.success(meetingApplicationService.getOngoingMeetingForShareholder());
     }
 
     @Operation(summary = "Lấy thông tin realtime của cuộc họp theo ID")

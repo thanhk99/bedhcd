@@ -16,9 +16,6 @@ public class ShareholderMapper {
 
     public ShareholderResponse toResponse(Shareholder shareholder) {
         String meetingId = participantPort.getLastMeetingId(shareholder.getId());
-        if (meetingId == null) {
-            meetingId = meetingPort.getFallbackMeetingId(); // Fallback lấy cuộc họp mặc định
-        }
 
         String meetingName = null;
         long attendingShares = 0L;

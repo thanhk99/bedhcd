@@ -1,6 +1,5 @@
 package com.api.bedhcd.modules.meeting.infrastructure.persistence;
 
-import com.api.bedhcd.shared.domain.enums.MeetingStatus;
 import com.api.bedhcd.modules.meeting.domain.model.MeetingRules;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

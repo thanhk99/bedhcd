@@ -1,6 +1,5 @@
 package com.api.bedhcd.modules.meeting.api.v1.dto;
 
-import com.api.bedhcd.shared.domain.enums.MeetingStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

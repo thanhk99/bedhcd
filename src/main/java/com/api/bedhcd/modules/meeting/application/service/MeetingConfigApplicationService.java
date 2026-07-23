@@ -1,6 +1,5 @@
 package com.api.bedhcd.modules.meeting.application.service;
 
-import com.api.bedhcd.shared.domain.enums.MeetingStatus;
 import com.api.bedhcd.modules.meeting.domain.model.MeetingConfig;
 import com.api.bedhcd.modules.meeting.domain.model.MeetingRules;
 import com.api.bedhcd.modules.meeting.domain.repository.MeetingConfigRepository;
@@ -57,44 +56,18 @@ public class MeetingConfigApplicationService {
     }
 
     /**
-     * Tạo một bản mẫu cấu hình đại hội chuẩn
+     * Tạo một bản mẫu cấu hình đại hội chuẩn nhưng thiết lập toàn bộ rule là false
+     * để admin tự cấu hình
      */
     @CacheEvict(value = "meeting-configs", key = "#id")
     @Transactional
     public MeetingConfig createStandardTemplate(String id, String name) {
         Map<String, MeetingRules> stateConfigs = new HashMap<>();
 
-        // Cấu hình cho trạng thái Sắp diễn ra
-        stateConfigs.put(MeetingStatus.SCHEDULED, MeetingRules.builder()
-                .name("Sắp diễn ra")
-                .nextState(MeetingStatus.ONGOING)
-                .allowEditMeeting(true)
-                .allowImportShareholder(true)
-                .allowProxyRegistration(true)
-                .allowAttendance(true)
-                .allowVoting(false)
-                .permissions(Map.of("EDIT", List.of("ADMIN"), "IMPORT", List.of("ADMIN", "STAFF")))
-                .build());
+        // Chỉ khởi tạo trạng thái PREPARING và đặt toàn bộ rule là false
+        MeetingRules preparingRules = MeetingRules.createEmpty("Chuẩn bị", null);
 
-        // Cấu hình cho trạng thái Đang diễn ra
-        stateConfigs.put(MeetingStatus.ONGOING, MeetingRules.builder()
-                .name("Đang diễn ra")
-                .nextState(MeetingStatus.COMPLETED)
-                .allowEditMeeting(false)
-                .allowImportShareholder(false)
-                .allowProxyRegistration(false)
-                .allowAttendance(true)
-                .allowVoting(true)
-                .permissions(Map.of("VOTE", List.of("USER", "PROXY"), "VIEW", List.of("ALL")))
-                .build());
-
-        // Cấu hình cho trạng thái Đã kết thúc
-        stateConfigs.put(MeetingStatus.COMPLETED, MeetingRules.builder()
-                .name("Đã kết thúc")
-                .allowEditMeeting(false)
-                .allowAttendance(false)
-                .allowVoting(false)
-                .build());
+        stateConfigs.put("PREPARING", preparingRules);
 
         MeetingConfig config = MeetingConfig.builder()
                 .id(id)

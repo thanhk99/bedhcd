@@ -9,6 +9,7 @@ public interface VoteRepository {
     Vote save(Vote vote);
     void delete(Long id);
     List<Vote> findByResolution(String resolutionId);
+    List<Vote> findByUser(String userId);
     long count();
     long countByMeetingId(String meetingId);
 }

@@ -41,6 +41,15 @@ public class ResolutionApplicationService {
             throw ResolutionException.notFound("Cuộc họp", meetingId);
         }
 
+        // Nếu người dùng hiện tại là cổ đông, kiểm tra quyền xem
+        String currentUserId = identityPort.getCurrentUserId();
+        if (currentUserId != null && !identityPort.hasRole(com.api.bedhcd.shared.domain.enums.Role.ADMIN)) {
+            if (!meetingPort.canViewResolutionOrElection(meetingId)) {
+                throw ResolutionException
+                        .invalidState("Cấu hình cuộc họp hiện tại không cho phép cổ đông xem nội dung nghị quyết.");
+            }
+        }
+
         return resolutionRepository.findByMeetingId(meetingId).stream()
                 .map(resolutionMapper::toResponse)
                 .collect(Collectors.toList());
@@ -55,7 +64,12 @@ public class ResolutionApplicationService {
 
     @Transactional
     public ResolutionResponse createResolution(String meetingId, ResolutionRequest request) {
-        if (request.getDisplayOrder() != null && resolutionRepository.existsByMeetingIdAndDisplayOrder(meetingId, request.getDisplayOrder())) {
+        if (!meetingPort.canAddResolutionOrElection(meetingId)) {
+            throw ResolutionException.invalidState("Trạng thái cuộc họp hiện tại không cho phép thêm nghị quyết mới.");
+        }
+
+        if (request.getDisplayOrder() != null
+                && resolutionRepository.existsByMeetingIdAndDisplayOrder(meetingId, request.getDisplayOrder())) {
             throw ResolutionException.duplicateDisplayOrder(request.getDisplayOrder());
         }
 
@@ -69,13 +83,18 @@ public class ResolutionApplicationService {
 
     @Transactional
     public ResolutionResponse updateResolution(String meetingId, String id, ResolutionRequest request) {
+        if (!meetingPort.canEditResolutionOrElection(meetingId)) {
+            throw ResolutionException.invalidState("Trạng thái cuộc họp hiện tại không cho phép chỉnh sửa nghị quyết.");
+        }
+
         Resolution resolution = resolutionRepository.findById(id)
                 .orElseThrow(() -> ResolutionException.notFound("Nghị quyết", id));
 
         resolution.setTitle(request.getTitle());
         resolution.setDescription(request.getDescription());
         if (request.getDisplayOrder() != null) {
-            if (resolution.getDisplayOrder() == null || !resolution.getDisplayOrder().equals(request.getDisplayOrder())) {
+            if (resolution.getDisplayOrder() == null
+                    || !resolution.getDisplayOrder().equals(request.getDisplayOrder())) {
                 if (resolutionRepository.existsByMeetingIdAndDisplayOrder(meetingId, request.getDisplayOrder())) {
                     throw ResolutionException.duplicateDisplayOrder(request.getDisplayOrder());
                 }
@@ -88,6 +107,10 @@ public class ResolutionApplicationService {
 
     @Transactional
     public void deleteResolution(String meetingId, String id) {
+        if (!meetingPort.canEditResolutionOrElection(meetingId)) {
+            throw ResolutionException.invalidState("Trạng thái cuộc họp hiện tại không cho phép xóa nghị quyết.");
+        }
+
         Resolution resolution = resolutionRepository.findById(id)
                 .orElseThrow(() -> ResolutionException.notFound("Nghị quyết", id));
 
@@ -97,24 +120,29 @@ public class ResolutionApplicationService {
     @Transactional
     public void submitVote(String resolutionId, VoteRequest request) {
         String userId = identityPort.getCurrentUserId();
-        if (userId == null) throw ResolutionException.unauthorized();
+        if (userId == null)
+            throw ResolutionException.unauthorized();
 
         Resolution resolution = resolutionRepository.findById(resolutionId)
                 .orElseThrow(() -> ResolutionException.notFound("Nghị quyết", resolutionId));
+
+        if (!meetingPort.canVote(resolution.getMeetingId())) {
+            throw ResolutionException.invalidState("Cấu hình cuộc họp hiện tại không cho phép cổ đông bỏ phiếu.");
+        }
 
         if (!participantPort.isCheckedIn(resolution.getMeetingId(), userId)) {
             throw ResolutionException.invalidState("Cổ đông chưa điểm danh, không thể bỏ phiếu.");
         }
 
         long votingPower = participantPort.getVotingPower(resolution.getMeetingId(), userId);
-        
+
         List<OptionVote> optionVotes = request.getOptionVotes().stream()
-            .filter(opt -> resolution.findOption(opt.getVotingOptionId()) != null)
-            .map(opt -> OptionVote.builder()
-                .optionId(opt.getVotingOptionId())
-                .weight(votingPower)
-                .build())
-            .collect(Collectors.toList());
+                .filter(opt -> resolution.findOption(opt.getVotingOptionId()) != null)
+                .map(opt -> OptionVote.builder()
+                        .optionId(opt.getVotingOptionId())
+                        .weight(votingPower)
+                        .build())
+                .collect(Collectors.toList());
 
         votingPort.submitVotes(resolutionId, userId, optionVotes);
     }
@@ -123,14 +151,16 @@ public class ResolutionApplicationService {
     public VotingResultResponse getResults(String resolutionId) {
         Resolution resolution = resolutionRepository.findById(resolutionId)
                 .orElseThrow(() -> ResolutionException.notFound("Nghị quyết", resolutionId));
-        
+
         List<VoteResult> portResults = votingPort.getVotesByTarget(resolutionId);
-        
-        List<VotingOption> options = resolution.getOptions() != null ? resolution.getOptions() : java.util.Collections.emptyList();
-        
+
+        List<VotingOption> options = resolution.getOptions() != null ? resolution.getOptions()
+                : java.util.Collections.emptyList();
+
         List<VotingResultResponse.VotingOptionResult> optionResults = options.stream()
                 .map(opt -> {
-                    VoteResult pr = portResults.stream().filter(r -> r.getOptionId().equals(opt.getId())).findFirst().orElse(null);
+                    VoteResult pr = portResults.stream().filter(r -> r.getOptionId().equals(opt.getId())).findFirst()
+                            .orElse(null);
                     long weight = pr != null ? pr.getTotalWeight() : 0;
                     long count = pr != null ? pr.getVoteCount() : 0;
                     return VotingResultResponse.VotingOptionResult.builder()
@@ -141,8 +171,9 @@ public class ResolutionApplicationService {
                             .build();
                 }).collect(Collectors.toList());
 
-        long totalWeight = optionResults.stream().mapToLong(VotingResultResponse.VotingOptionResult::getTotalWeight).sum();
-        
+        long totalWeight = optionResults.stream().mapToLong(VotingResultResponse.VotingOptionResult::getTotalWeight)
+                .sum();
+
         // Tính %
         if (totalWeight > 0) {
             for (VotingResultResponse.VotingOptionResult res : optionResults) {

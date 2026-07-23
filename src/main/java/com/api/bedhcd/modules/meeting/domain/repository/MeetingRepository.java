@@ -7,7 +7,7 @@ public interface MeetingRepository {
     Optional<Meeting> findById(String id);
     Optional<Meeting> findByMeetingCode(String code);
     java.util.List<Meeting> findAll();
-    Optional<Meeting> findOngoing();
+    java.util.List<Meeting> findAllOrderByCreatedAtDesc();
     Meeting save(Meeting meeting);
     void deleteById(String id);
     long count();

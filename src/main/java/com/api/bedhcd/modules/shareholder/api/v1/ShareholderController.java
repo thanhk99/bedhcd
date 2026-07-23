@@ -4,6 +4,7 @@ import com.api.bedhcd.modules.audit.infrastructure.security.AuditActivity;
 import com.api.bedhcd.modules.shareholder.api.v1.dto.request.CreateShareholderRequest;
 import com.api.bedhcd.modules.shareholder.api.v1.dto.request.UpdateShareholderRequest;
 import com.api.bedhcd.modules.shareholder.api.v1.dto.response.ShareholderResponse;
+import com.api.bedhcd.modules.shareholder.api.v1.dto.response.VoteHistoryResponse;
 import com.api.bedhcd.modules.shareholder.application.service.ShareholderApplicationService;
 import com.api.bedhcd.shared.dto.ApiResponse;
 import com.api.bedhcd.shared.dto.PageResponse;
@@ -36,6 +37,12 @@ public class ShareholderController {
     @GetMapping("/search")
     public ApiResponse<List<ShareholderResponse>> search(@RequestParam String keyword) {
         return ApiResponse.success(shareholderService.searchShareholders(keyword));
+    }
+
+    @Operation(summary = "Lấy lịch sử biểu quyết của cổ đông đang đăng nhập")
+    @GetMapping("/me/votes")
+    public ApiResponse<List<VoteHistoryResponse>> getMyVotingHistory() {
+        return ApiResponse.success(shareholderService.getVotingHistory());
     }
 
     @Operation(summary = "Lấy chi tiết một cổ đông theo ID")
