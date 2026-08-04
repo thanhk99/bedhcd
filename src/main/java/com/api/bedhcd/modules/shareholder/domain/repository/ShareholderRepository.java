@@ -22,4 +22,6 @@ public interface ShareholderRepository {
 
     long count();
     long countByKeywordAndMeetingId(String keyword, String meetingId);
+
+    List<Shareholder> findAllActive();
 }

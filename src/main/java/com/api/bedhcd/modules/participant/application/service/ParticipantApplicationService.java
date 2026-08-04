@@ -13,6 +13,7 @@ import com.api.bedhcd.modules.participant.domain.repository.ProxyDelegationRepos
 import com.api.bedhcd.shared.domain.enums.DelegationStatus;
 import com.api.bedhcd.shared.domain.enums.ParticipantStatus;
 import com.api.bedhcd.shared.domain.enums.ParticipationType;
+import com.api.bedhcd.shared.dto.PageResponse;
 import com.api.bedhcd.shared.dto.UserDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -93,10 +94,12 @@ public class ParticipantApplicationService {
         }
 
         @Transactional(readOnly = true)
-        public List<AttendanceResponse> getAttendedParticipants(String meetingId) {
-                return participantRepository.findCheckedInParticipants(meetingId).stream()
+        public PageResponse<AttendanceResponse> getAttendedParticipants(String meetingId, int page, int size, String keyword) {
+                List<AttendanceResponse> items = participantRepository.findCheckedInParticipants(meetingId, page, size, keyword).stream()
                                 .map(p -> mapToResponse(p, identityPort.getUserInfo(p.getUserId())))
                                 .collect(Collectors.toList());
+                long total = participantRepository.countCheckedInParticipants(meetingId, keyword);
+                return PageResponse.of(items, total, page, size);
         }
 
         @Transactional

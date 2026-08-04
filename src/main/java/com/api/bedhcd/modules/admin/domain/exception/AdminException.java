@@ -72,4 +72,28 @@ public class AdminException extends BaseDomainException {
                 "Chỉ Super Admin mới có quyền xoá tài khoản Admin"
         );
     }
+
+    public static AdminException incorrectOldPassword() {
+        return new AdminException(
+                HttpStatus.BAD_REQUEST,
+                "ADMIN_INCORRECT_OLD_PASSWORD",
+                "Mật khẩu cũ không chính xác"
+        );
+    }
+
+    public static AdminException newPasswordSameAsOld() {
+        return new AdminException(
+                HttpStatus.BAD_REQUEST,
+                "ADMIN_NEW_PASSWORD_SAME_AS_OLD",
+                "Mật khẩu mới không được trùng với mật khẩu cũ"
+        );
+    }
+
+    public static AdminException weakPassword() {
+        return new AdminException(
+                HttpStatus.BAD_REQUEST,
+                "ADMIN_WEAK_PASSWORD",
+                "Mật khẩu yếu. Mật khẩu phải chứa ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và số"
+        );
+    }
 }

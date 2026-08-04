@@ -11,25 +11,19 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MeetingRealtimeResponse {
-    private String meetingId;
-    private String title;
-    private String status;
-
-    private AttendanceStats attendance;
-    private List<ResolutionResult> resolutions;
-    private List<ElectionResult> elections;
-
+public class MeetingWebSocketResponse {
+    private String type;
+    private Payload data;
+    private long timestamp;
+    
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class AttendanceStats {
-        private long totalParticipants;
-        private long checkedInCount;
-        private long totalShares;
-        private long checkedInShares;
-        private double participationRate;
+    public static class Payload {
+        private String meetingId;
+        private List<ResolutionResult> resolutionResults;
+        private List<ElectionResult> electionResults;
     }
 
     @Data
@@ -38,10 +32,8 @@ public class MeetingRealtimeResponse {
     @AllArgsConstructor
     public static class ResolutionResult {
         private String resolutionId;
-        private String title;
-        private String description;
-        private Integer displayOrder;
-        private List<VoteOptionResult> options;
+        private String resolutionTitle;
+        private List<VoteOptionResult> results;
         private long totalVoters;
         private long totalWeight;
     }
@@ -52,9 +44,8 @@ public class MeetingRealtimeResponse {
     @AllArgsConstructor
     public static class ElectionResult {
         private String electionId;
-        private String title;
-        private String electionType;
-        private List<VoteOptionResult> candidates;
+        private String electionTitle;
+        private List<VoteOptionResult> results;
         private long totalVoters;
         private long totalWeight;
     }

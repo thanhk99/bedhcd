@@ -43,4 +43,30 @@ public interface ParticipantJpaRepository extends JpaRepository<ParticipantEntit
     long sumAttendingSharesByMeetingIdAndStatusIn(
             @org.springframework.data.repository.query.Param("meetingId") String meetingId,
             @org.springframework.data.repository.query.Param("statuses") List<ParticipantStatus> statuses);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM ParticipantEntity p WHERE p.meetingId = :meetingId AND p.status IN :statuses AND " +
+            "(:keyword IS NULL OR :keyword = '' OR p.userId IN (" +
+            "    SELECT u.id FROM UserEntity u WHERE " +
+            "    LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "    LOWER(u.cccd) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "    LOWER(u.investorCode) LIKE LOWER(CONCAT('%', :keyword, '%'))" +
+            ")) ORDER BY p.checkedInAt DESC")
+    org.springframework.data.domain.Page<ParticipantEntity> findCheckedInParticipants(
+            @org.springframework.data.repository.query.Param("meetingId") String meetingId,
+            @org.springframework.data.repository.query.Param("statuses") List<ParticipantStatus> statuses,
+            @org.springframework.data.repository.query.Param("keyword") String keyword,
+            org.springframework.data.domain.Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(p) FROM ParticipantEntity p WHERE p.meetingId = :meetingId AND p.status IN :statuses AND " +
+            "(:keyword IS NULL OR :keyword = '' OR p.userId IN (" +
+            "    SELECT u.id FROM UserEntity u WHERE " +
+            "    LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "    LOWER(u.cccd) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "    LOWER(u.investorCode) LIKE LOWER(CONCAT('%', :keyword, '%'))" +
+            "))")
+    long countCheckedInParticipants(
+            @org.springframework.data.repository.query.Param("meetingId") String meetingId,
+            @org.springframework.data.repository.query.Param("statuses") List<ParticipantStatus> statuses,
+            @org.springframework.data.repository.query.Param("keyword") String keyword);
 }
+

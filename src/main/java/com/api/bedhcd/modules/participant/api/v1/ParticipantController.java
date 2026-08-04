@@ -5,6 +5,7 @@ import com.api.bedhcd.modules.participant.api.v1.dto.AttendanceResponse;
 import com.api.bedhcd.modules.participant.api.v1.dto.CheckInBundleResponse;
 import com.api.bedhcd.modules.participant.application.service.ParticipantApplicationService;
 import com.api.bedhcd.shared.dto.ApiResponse;
+import com.api.bedhcd.shared.dto.PageResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,10 +40,14 @@ public class ParticipantController {
         return ApiResponse.success(participantService.cancelAttendance(meetingId, cccd));
     }
 
-    @Operation(summary = "Lấy danh sách đã điểm danh")
+    @Operation(summary = "Lấy danh sách đã điểm danh (có phân trang và tìm kiếm)")
     @GetMapping("/list/{meetingId}")
-    public ApiResponse<List<AttendanceResponse>> getList(@PathVariable String meetingId) {
-        return ApiResponse.success(participantService.getAttendedParticipants(meetingId));
+    public ApiResponse<PageResponse<AttendanceResponse>> getList(
+            @PathVariable String meetingId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String keyword) {
+        return ApiResponse.success(participantService.getAttendedParticipants(meetingId, page, size, keyword));
     }
 
     @Operation(summary = "Lấy thông tin")

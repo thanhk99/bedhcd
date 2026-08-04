@@ -16,4 +16,8 @@ public class ShareholderException extends BaseDomainException {
     public static ShareholderException badRequest(String message) {
         return new ShareholderException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", message);
     }
+
+    public static ShareholderException locked(String message) {
+        return new ShareholderException(HttpStatus.CONFLICT, "SHAREHOLDER_LOCKED", message);
+    }
 }

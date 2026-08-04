@@ -41,6 +41,7 @@ public class ShareholderMapper {
                 .investorCode(shareholder.getInvestorCode())
                 .sharesOwned(shareholder.getSharesOwned())
                 .enabled(shareholder.isEnabled())
+                .status(shareholder.getStatus())
                 .meetingId(meetingId)
                 .meetingName(meetingName)
                 .attendingShares(attendingShares)

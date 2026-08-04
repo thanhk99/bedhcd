@@ -1,6 +1,7 @@
 package com.api.bedhcd.shared.dto;
 
 import com.api.bedhcd.shared.domain.enums.Role;
+import com.api.bedhcd.shared.domain.enums.ShareholderStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,4 +25,5 @@ public class UserDTO {
     private Set<Role> roles;
     private boolean enabled;
     private boolean splitAccount;
+    private ShareholderStatus shareholderStatus;
 }

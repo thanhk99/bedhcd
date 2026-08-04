@@ -32,9 +32,16 @@ public class VoteRepositoryImpl implements VoteRepository {
         jpaRepository.deleteById(id);
     }
 
-    @Override
+@Override
     public List<Vote> findByResolution(String resolutionId) {
         return jpaRepository.findByResolutionId(resolutionId).stream()
+                .map(this::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Vote> findByElection(String electionId) {
+        return jpaRepository.findByElectionId(electionId).stream()
                 .map(this::toDomain)
                 .collect(Collectors.toList());
     }

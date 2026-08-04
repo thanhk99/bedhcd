@@ -5,6 +5,7 @@ import com.api.bedhcd.modules.identity.infrastructure.persistence.UserEntity;
 import com.api.bedhcd.modules.identity.infrastructure.persistence.UserJpaRepository;
 import com.api.bedhcd.shared.domain.UuidFactory;
 import com.api.bedhcd.shared.domain.enums.Role;
+import com.api.bedhcd.shared.domain.enums.ShareholderStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -80,6 +81,7 @@ public class IdentityPortImpl implements IdentityPort {
                 .roles(entity.getRoles())
                 .enabled(entity.isEnabled())
                 .splitAccount(entity.isSplitAccount())
+                .shareholderStatus(entity.getShareholderStatus())
                 .build()).orElse(null);
     }
 
@@ -101,7 +103,12 @@ public class IdentityPortImpl implements IdentityPort {
                         .roles(Set.of(Role.SHAREHOLDER))
                         .enabled(true) // Mặc định kích hoạt cho tài khoản mới
                         .splitAccount(dto.isSplitAccount())
+                        .shareholderStatus(ShareholderStatus.ACTIVE)
                         .build());
+
+        if (isExisting && entity.getShareholderStatus() == ShareholderStatus.EXPIRED) {
+            entity.setShareholderStatus(ShareholderStatus.ACTIVE);
+        }
 
         entity.setPassword(passwordEncoder.encode(dto.getCccd()));
 
@@ -166,7 +173,12 @@ public class IdentityPortImpl implements IdentityPort {
                         .roles(Set.of(Role.SHAREHOLDER))
                         .enabled(true)
                         .splitAccount(dto.isSplitAccount())
+                        .shareholderStatus(ShareholderStatus.ACTIVE)
                         .build();
+            } else {
+                if (entity.getShareholderStatus() == ShareholderStatus.EXPIRED) {
+                    entity.setShareholderStatus(ShareholderStatus.ACTIVE);
+                }
             }
 
             // KHÔNG gọi setPassword cho user cũ (tránh bcrypt N lần)
@@ -205,7 +217,28 @@ public class IdentityPortImpl implements IdentityPort {
                         .roles(entity.getRoles())
                         .enabled(entity.isEnabled())
                         .splitAccount(entity.isSplitAccount())
+                        .shareholderStatus(entity.getShareholderStatus())
                         .build())
                 .toList();
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void updateShareholderStatus(String userId, ShareholderStatus status) {
+        userRepository.findById(userId).ifPresent(user -> {
+            user.setShareholderStatus(status);
+            userRepository.save(user);
+        });
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void updateShareholderStatusBatch(java.util.List<String> userIds, ShareholderStatus status) {
+        if (userIds == null || userIds.isEmpty()) return;
+        java.util.List<UserEntity> users = userRepository.findAllById(userIds);
+        for (UserEntity user : users) {
+            user.setShareholderStatus(status);
+        }
+        userRepository.saveAll(users);
     }
 }

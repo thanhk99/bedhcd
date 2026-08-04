@@ -1,6 +1,7 @@
 package com.api.bedhcd.modules.identity.infrastructure.persistence;
 
 import com.api.bedhcd.shared.domain.enums.Role;
+import com.api.bedhcd.shared.domain.enums.ShareholderStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -55,6 +56,12 @@ public class UserEntity {
     @Column(name = "split_account", nullable = false, columnDefinition = "boolean default false")
     @Builder.Default
     private boolean splitAccount = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "shareholder_status", nullable = false, length = 20)
+    @org.hibernate.annotations.ColumnDefault("'ACTIVE'")
+    @Builder.Default
+    private ShareholderStatus shareholderStatus = ShareholderStatus.ACTIVE;
 
     @PrePersist
     protected void onCreate() {

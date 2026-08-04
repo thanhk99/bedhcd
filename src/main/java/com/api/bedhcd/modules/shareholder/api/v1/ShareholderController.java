@@ -75,4 +75,25 @@ public class ShareholderController {
         shareholderService.deleteShareholder(id);
         return ApiResponse.success(null);
     }
+
+    @Operation(summary = "Gửi email giả lập và chốt trạng thái cổ đông")
+    @PostMapping("/{id}/send-email")
+    public ApiResponse<ShareholderResponse> sendEmailAndLock(@PathVariable String id) {
+        return ApiResponse.success(shareholderService.sendSimulatedEmailAndLock(id));
+    }
+
+    @Operation(summary = "Gửi email giả lập và chốt trạng thái tất cả cổ đông ACTIVE")
+    @PostMapping("/send-email-all")
+    public ApiResponse<Void> sendEmailAndLockAll() {
+        shareholderService.sendSimulatedEmailAndLockAllAsync();
+        return ApiResponse.success(null);
+    }
+
+    @Operation(summary = "Gửi email giả lập và chốt trạng thái hàng loạt cổ đông theo cuộc họp")
+    @PostMapping("/send-email-batch")
+    public ApiResponse<Void> sendEmailAndLockBatch(@RequestParam String meetingId) {
+        shareholderService.sendSimulatedEmailAndLockBatch(meetingId);
+        return ApiResponse.success(null);
+    }
 }
+

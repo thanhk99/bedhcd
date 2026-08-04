@@ -18,19 +18,21 @@ import java.time.LocalDateTime;
 public class AdminEntity {
     @Id
     private String id;
-    
+
     @Column(unique = true, nullable = false)
     private String username;
-    
+
     private String password;
     private String fullName;
 
     @Column(unique = true)
     private String email;
-    
+
+    private String phoneNumber;
+
     @Enumerated(EnumType.STRING)
     private Role role;
-    
+
     @Builder.Default
     private boolean isActive = true;
 

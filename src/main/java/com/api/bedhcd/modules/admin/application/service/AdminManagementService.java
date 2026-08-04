@@ -61,10 +61,10 @@ public class AdminManagementService {
                 passwordEncoder.encode(rawPassword),
                 request.getFullName(),
                 request.getEmail(),
+                request.getPhoneNumber(),
                 request.getDepartment(),
                 request.getJobTitle(),
-                adminRepository
-        );
+                adminRepository);
 
         admin = adminRepository.save(admin);
 
@@ -73,10 +73,17 @@ public class AdminManagementService {
         emailNotificationService.sendAdminCreatedEmail(admin, rawPassword);
 
         String payload = "Tạo mới tài khoản Admin: " + request.getUsername() + ".\n" +
-                         "Họ tên: " + request.getFullName() + ".\n" +
-                         "Phòng ban: " + (request.getDepartment() != null && !request.getDepartment().isBlank() ? request.getDepartment() : "Không có") + ".\n" +
-                         "Chức vụ: " + (request.getJobTitle() != null && !request.getJobTitle().isBlank() ? request.getJobTitle() : "Không có") + ".\n" +
-                         "Số nhóm quyền được gán: " + (request.getRoleGroupIds() != null ? request.getRoleGroupIds().size() : 0) + ".";
+                "Họ tên: " + request.getFullName() + ".\n" +
+                "Phòng ban: "
+                + (request.getDepartment() != null && !request.getDepartment().isBlank() ? request.getDepartment()
+                        : "Không có")
+                + ".\n" +
+                "Chức vụ: "
+                + (request.getJobTitle() != null && !request.getJobTitle().isBlank() ? request.getJobTitle()
+                        : "Không có")
+                + ".\n" +
+                "Số nhóm quyền được gán: " + (request.getRoleGroupIds() != null ? request.getRoleGroupIds().size() : 0)
+                + ".";
 
         logManualActivity("CREATE_ADMIN", "MANAGE_ADMIN", admin.getId(), payload);
 
@@ -89,27 +96,57 @@ public class AdminManagementService {
                 .orElseThrow(() -> IdentityException.userNotFound(adminId));
 
         StringBuilder diff = new StringBuilder("Cập nhật tài khoản Admin (" + admin.getUsername() + "):\n");
-        
+
         if (request.getFullName() != null && !java.util.Objects.equals(admin.getFullName(), request.getFullName())) {
-            diff.append("- Họ tên: '").append(admin.getFullName() != null ? admin.getFullName() : "").append("' -> '").append(request.getFullName()).append("'\n");
+            diff.append("- Họ tên: '").append(admin.getFullName() != null ? admin.getFullName() : "").append("' -> '")
+                    .append(request.getFullName()).append("'\n");
         }
         if (request.getEmail() != null && !java.util.Objects.equals(admin.getEmail(), request.getEmail())) {
-            diff.append("- Email: '").append(admin.getEmail() != null ? admin.getEmail() : "").append("' -> '").append(request.getEmail()).append("'\n");
+            diff.append("- Email: '").append(admin.getEmail() != null ? admin.getEmail() : "").append("' -> '")
+                    .append(request.getEmail()).append("'\n");
         }
-        if (request.getDepartment() != null && !java.util.Objects.equals(admin.getDepartment(), request.getDepartment())) {
-            diff.append("- Phòng ban: '").append(admin.getDepartment() != null ? admin.getDepartment() : "").append("' -> '").append(request.getDepartment()).append("'\n");
+        if (request.getDepartment() != null
+                && !java.util.Objects.equals(admin.getDepartment(), request.getDepartment())) {
+            diff.append("- Phòng ban: '").append(admin.getDepartment() != null ? admin.getDepartment() : "")
+                    .append("' -> '").append(request.getDepartment()).append("'\n");
         }
         if (request.getJobTitle() != null && !java.util.Objects.equals(admin.getJobTitle(), request.getJobTitle())) {
-            diff.append("- Chức vụ: '").append(admin.getJobTitle() != null ? admin.getJobTitle() : "").append("' -> '").append(request.getJobTitle()).append("'\n");
+            diff.append("- Chức vụ: '").append(admin.getJobTitle() != null ? admin.getJobTitle() : "").append("' -> '")
+                    .append(request.getJobTitle()).append("'\n");
         }
-        
-        admin.updateProfile(
-            request.getFullName() != null ? request.getFullName() : admin.getFullName(),
-            request.getEmail() != null ? request.getEmail() : admin.getEmail(),
-            request.getDepartment() != null ? request.getDepartment() : admin.getDepartment(),
-            request.getJobTitle() != null ? request.getJobTitle() : admin.getJobTitle(),
-            adminRepository
-        );
+        // Cập nhật thông tin admin
+        boolean hasChanges = false;
+
+        if (request.getPhoneNumber() != null
+                && !java.util.Objects.equals(admin.getPhoneNumber(), request.getPhoneNumber())) {
+            diff.append("- Số điện thoại: '").append(admin.getPhoneNumber() != null ? admin.getPhoneNumber() : "")
+                    .append("' -> '").append(request.getPhoneNumber()).append("'\n");
+            hasChanges = true;
+        }
+
+        // Gọi phương thức cập nhật thông tin admin
+        if (hasChanges) {
+            // Chỉ cập nhật phoneNumber nếu có thay đổi
+            if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank()) {
+                admin.updatePhone(request.getPhoneNumber(), adminRepository);
+            }
+        }
+
+        // Cập nhật các trường khác nếu có thay đổi
+        boolean hasOtherChanges = request.getFullName() != null || request.getEmail() != null ||
+                request.getDepartment() != null || request.getJobTitle() != null;
+
+        if (hasOtherChanges) {
+            admin.updateProfile(
+                    request.getFullName() != null && !request.getFullName().isBlank() ? request.getFullName()
+                            : admin.getFullName(),
+                    request.getEmail() != null && !request.getEmail().isBlank() ? request.getEmail() : admin.getEmail(),
+                    request.getDepartment() != null && !request.getDepartment().isBlank() ? request.getDepartment()
+                            : admin.getDepartment(),
+                    request.getJobTitle() != null && !request.getJobTitle().isBlank() ? request.getJobTitle()
+                            : admin.getJobTitle(),
+                    adminRepository);
+        }
 
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             diff.append("- Mật khẩu: Đã được thay đổi\n");
@@ -118,20 +155,28 @@ public class AdminManagementService {
 
         // Diff role groups
         List<AdminRoleGroupEntity> oldGroups = adminRoleGroupJpaRepository.findByAdminId(adminId);
-        List<String> oldGroupIds = oldGroups.stream().map(AdminRoleGroupEntity::getRoleGroupId).collect(Collectors.toList());
-        List<String> newGroupIds = request.getRoleGroupIds() != null ? request.getRoleGroupIds() : new java.util.ArrayList<>();
-        
-        List<String> addedGroups = newGroupIds.stream().filter(id -> !oldGroupIds.contains(id)).collect(Collectors.toList());
-        List<String> removedGroups = oldGroupIds.stream().filter(id -> !newGroupIds.contains(id)).collect(Collectors.toList());
-        
+        List<String> oldGroupIds = oldGroups.stream().map(AdminRoleGroupEntity::getRoleGroupId)
+                .collect(Collectors.toList());
+        List<String> newGroupIds = request.getRoleGroupIds() != null ? request.getRoleGroupIds()
+                : new java.util.ArrayList<>();
+
+        List<String> addedGroups = newGroupIds.stream().filter(id -> !oldGroupIds.contains(id))
+                .collect(Collectors.toList());
+        List<String> removedGroups = oldGroupIds.stream().filter(id -> !newGroupIds.contains(id))
+                .collect(Collectors.toList());
+
         if (!addedGroups.isEmpty() || !removedGroups.isEmpty()) {
             diff.append("- Nhóm quyền:\n");
             if (!addedGroups.isEmpty()) {
-                String addedNames = addedGroups.stream().map(id -> roleGroupJpaRepository.findById(id).map(g -> g.getName()).orElse(id)).collect(Collectors.joining(", "));
+                String addedNames = addedGroups.stream()
+                        .map(id -> roleGroupJpaRepository.findById(id).map(g -> g.getName()).orElse(id))
+                        .collect(Collectors.joining(", "));
                 diff.append("  + Thêm: [").append(addedNames).append("]\n");
             }
             if (!removedGroups.isEmpty()) {
-                String removedNames = removedGroups.stream().map(id -> roleGroupJpaRepository.findById(id).map(g -> g.getName()).orElse(id)).collect(Collectors.joining(", "));
+                String removedNames = removedGroups.stream()
+                        .map(id -> roleGroupJpaRepository.findById(id).map(g -> g.getName()).orElse(id))
+                        .collect(Collectors.joining(", "));
                 diff.append("  + Bớt: [").append(removedNames).append("]\n");
             }
         }
@@ -163,7 +208,8 @@ public class AdminManagementService {
         // deactivate() trong Domain sẽ tự chặn nếu target là SUPER_ADMIN
         admin.deactivate();
         adminRepository.save(admin);
-        logManualActivity("DEACTIVATE_ADMIN", "MANAGE_ADMIN", adminId, "Vô hiệu hoá tài khoản Admin: " + admin.getUsername());
+        logManualActivity("DEACTIVATE_ADMIN", "MANAGE_ADMIN", adminId,
+                "Vô hiệu hoá tài khoản Admin: " + admin.getUsername());
     }
 
     @Transactional
@@ -180,7 +226,8 @@ public class AdminManagementService {
                 .orElseThrow(() -> IdentityException.userNotFound(adminId));
         admin.activate();
         adminRepository.save(admin);
-        logManualActivity("ACTIVATE_ADMIN", "MANAGE_ADMIN", adminId, "Kích hoạt tài khoản Admin: " + admin.getUsername());
+        logManualActivity("ACTIVATE_ADMIN", "MANAGE_ADMIN", adminId,
+                "Kích hoạt tài khoản Admin: " + admin.getUsername());
     }
 
     @Transactional
@@ -195,14 +242,14 @@ public class AdminManagementService {
 
         Admin admin = adminRepository.findById(adminId)
                 .orElseThrow(() -> IdentityException.userNotFound(adminId));
-        
+
         if (admin.isSuperAdmin()) {
             throw AdminException.cannotDeleteSuperAdmin();
         }
 
         adminRoleGroupJpaRepository.deleteByAdminId(adminId);
         adminRepository.delete(admin);
-        
+
         logManualActivity("DELETE_ADMIN", "MANAGE_ADMIN", adminId, "Xoá tài khoản Admin: " + admin.getUsername());
     }
 
@@ -225,6 +272,7 @@ public class AdminManagementService {
         response.setUsername(admin.getUsername());
         response.setFullName(admin.getFullName());
         response.setEmail(admin.getEmail());
+        response.setPhoneNumber(admin.getPhoneNumber());
         response.setRole(admin.getRole());
         response.setActive(admin.isActive());
 
@@ -251,9 +299,10 @@ public class AdminManagementService {
             if (SecurityContextHolder.getContext().getAuthentication() != null) {
                 actorUsername = SecurityContextHolder.getContext().getAuthentication().getName();
             }
-            
+
             String ipAddress = null;
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
+                    .getRequestAttributes();
             if (attributes != null) {
                 HttpServletRequest request = attributes.getRequest();
                 ipAddress = request.getHeader("X-Forwarded-For");
@@ -261,31 +310,32 @@ public class AdminManagementService {
                     ipAddress = request.getRemoteAddr();
                 }
             }
-            
+
             auditLogApplicationService.logActionAsync(actorUsername, action, resource, targetId, payload, ipAddress);
         } catch (Exception e) {
             System.err.println("Failed to log manual activity: " + e.getMessage());
         }
     }
+
     private String generateRandomPassword() {
         String upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         String lowerCase = "abcdefghijklmnopqrstuvwxyz";
         String numbers = "0123456789";
         String specialCharacters = "!@#$%^&*()-_=+";
         String combinedChars = upperCase + lowerCase + numbers + specialCharacters;
-        
+
         java.util.Random random = new java.security.SecureRandom();
         StringBuilder password = new StringBuilder();
-        
+
         password.append(upperCase.charAt(random.nextInt(upperCase.length())));
         password.append(lowerCase.charAt(random.nextInt(lowerCase.length())));
         password.append(numbers.charAt(random.nextInt(numbers.length())));
         password.append(specialCharacters.charAt(random.nextInt(specialCharacters.length())));
-        
+
         for (int i = 0; i < 4; i++) {
             password.append(combinedChars.charAt(random.nextInt(combinedChars.length())));
         }
-        
+
         List<Character> charList = password.chars().mapToObj(c -> (char) c).collect(Collectors.toList());
         java.util.Collections.shuffle(charList, random);
         return charList.stream().map(String::valueOf).collect(Collectors.joining());

@@ -122,4 +122,12 @@ public class ParticipantPortImpl implements ParticipantPort {
 
         participantRepository.save(participant);
     }
+
+    @Override
+    public java.util.List<String> getParticipantUserIds(String meetingId) {
+        return participantRepository.findByMeetingId(meetingId).stream()
+                .map(Participant::getUserId)
+                .collect(java.util.stream.Collectors.toList());
+    }
 }
+

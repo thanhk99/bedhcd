@@ -82,6 +82,12 @@ public class ShareholderRepositoryImpl implements ShareholderRepository {
         return jpaRepository.countByKeywordAndMeetingId(keyword, meetingId);
     }
 
+    @Override
+    public List<Shareholder> findAllActive() {
+        return jpaRepository.findAllBySplitAccountFalse()
+                .stream().map(this::toDomain).collect(Collectors.toList());
+    }
+
     private Shareholder toDomain(ShareholderEntity entity) {
         return Shareholder.builder()
                 .id(entity.getId())
@@ -96,6 +102,7 @@ public class ShareholderRepositoryImpl implements ShareholderRepository {
                 .sharesOwned(entity.getSharesOwned())
                 .enabled(entity.isEnabled())
                 .splitAccount(entity.isSplitAccount())
+                .status(entity.getShareholderStatus())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .deletedAt(entity.getDeletedAt())
@@ -117,6 +124,7 @@ public class ShareholderRepositoryImpl implements ShareholderRepository {
         entity.setSharesOwned(domain.getSharesOwned());
         entity.setEnabled(domain.isEnabled());
         entity.setSplitAccount(domain.isSplitAccount());
+        entity.setShareholderStatus(domain.getStatus());
         entity.setDeletedAt(domain.getDeletedAt());
 
         if (existingEntity == null) {

@@ -2,6 +2,7 @@ package com.api.bedhcd.modules.shareholder.api.v1.dto.response;
 
 import java.time.LocalDateTime;
 
+import com.api.bedhcd.shared.domain.enums.ShareholderStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,6 +22,7 @@ public class ShareholderResponse {
     private String investorCode;
     private Long sharesOwned;
     private boolean enabled;
+    private ShareholderStatus status;
 
     private String meetingId;
     private String meetingName;

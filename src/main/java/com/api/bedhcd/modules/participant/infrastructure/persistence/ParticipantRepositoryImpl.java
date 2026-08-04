@@ -116,6 +116,25 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
                 ParticipantStatus.PRINT));
     }
 
+    @Override
+    public List<Participant> findCheckedInParticipants(String meetingId, int page, int size, String keyword) {
+        return jpaRepository.findCheckedInParticipants(
+                meetingId,
+                List.of(ParticipantStatus.CHECKED_IN, ParticipantStatus.PRINT),
+                keyword,
+                org.springframework.data.domain.PageRequest.of(page, size))
+                .stream().map(this::toDomain).collect(Collectors.toList());
+    }
+
+    @Override
+    public long countCheckedInParticipants(String meetingId, String keyword) {
+        return jpaRepository.countCheckedInParticipants(
+                meetingId,
+                List.of(ParticipantStatus.CHECKED_IN, ParticipantStatus.PRINT),
+                keyword);
+    }
+
+
     private Participant toDomain(ParticipantEntity entity) {
         return Participant.builder()
                 .id(entity.getId())

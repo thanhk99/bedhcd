@@ -35,6 +35,13 @@ import com.api.bedhcd.shared.domain.UuidFactory;
 import java.util.stream.Collectors;
 
 import com.api.bedhcd.modules.identity.application.port.IdentityPort;
+import com.api.bedhcd.shared.port.KafkaPort;
+
+import java.util.ArrayList;
+import java.time.Instant;
+import java.util.concurrent.atomic.AtomicLong;
+
+import com.api.bedhcd.modules.meeting.api.v1.dto.MeetingWebSocketResponse;
 
 @Service
 @RequiredArgsConstructor
@@ -52,9 +59,10 @@ public class MeetingApplicationService {
     private final ParticipantPort participantPort;
     private final ResolutionPort resolutionPort;
     private final VotingPort votingPort;
-    private final ElectionPort electionPort;
+private final ElectionPort electionPort;
     private final IdentityPort identityPort;
     private final AdminContextService adminContextService;
+    private final KafkaPort kafkaPort;
 
     // Sử dụng ObjectMapper với JavaTimeModule để hỗ trợ serialize LocalDateTime
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -140,64 +148,147 @@ public class MeetingApplicationService {
                 ? (double) checkedInShares * 100 / totalShares
                 : 0;
 
-        long totalResolutions = resolutionPort.countResolutionsByMeetingId(id);
-        long totalVotes = votingPort.countVotesByMeetingId(id);
-
-        // Lấy danh sách resolutions kèm options qua ResolutionPort
-        List<MeetingRealtimeResponse.ResolutionStats> resolutionStats = resolutionPort.getResolutionsByMeetingId(id)
-                .stream()
-                .map(r -> MeetingRealtimeResponse.ResolutionStats.builder()
+// Lấy danh sách resolutions kèm options qua ResolutionPort
+    List<MeetingRealtimeResponse.ResolutionResult> resolutionResults = resolutionPort.getResolutionsByMeetingId(id)
+            .stream()
+            .map(r -> {
+                // Lấy chi tiết vote cho từng lựa chọn trong resolution
+                List<com.api.bedhcd.modules.voting.application.port.VoteResult> voteResults = votingPort.getVotesByTarget(r.resolutionId());
+                
+                // Tạo danh sách các option từ resolution (có thể ít hơn 3)
+                List<MeetingRealtimeResponse.VoteOptionResult> optionResults = new ArrayList<>();
+                long totalWeight = 0;
+                long totalVoters = 0;
+                
+                // Lấy tất cả các option từ resolution
+                List<com.api.bedhcd.modules.resolution.application.port.ResolutionPort.OptionSummary> resolutionOptions = r.options();
+                
+                // Duyệt đúng theo optionId thật từ DB thay vì hardcode
+                for (com.api.bedhcd.modules.resolution.application.port.ResolutionPort.OptionSummary opt : r.options()) {
+                    // Tìm vote result tương ứng nếu tồn tại
+                    com.api.bedhcd.modules.voting.application.port.VoteResult voteResult = voteResults.stream()
+                            .filter(v -> v.getOptionId().equals(opt.optionId())) // dùng UUID thật từ DB
+                            .findFirst()
+                            .orElse(null);
+                    
+                    if (voteResult != null) {
+                        optionResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
+                                .votingOptionId(voteResult.getOptionId())
+                                .votingOptionName(opt.name()) // Sử dụng tên thật từ resolution
+                                .voteCount(voteResult.getVoteCount())
+                                .totalWeight(voteResult.getTotalWeight())
+                                .percentage(0.0) // Phần trăm sẽ tính sau
+                                .build());
+                        totalWeight += voteResult.getTotalWeight();
+                        totalVoters += voteResult.getVoteCount();
+                    } else {
+                        optionResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
+                                .votingOptionId(opt.optionId())
+                                .votingOptionName(opt.name())
+                                .voteCount(0)
+                                .totalWeight(0)
+                                .percentage(0.0)
+                                .build());
+                    }
+                }
+                
+                // Tính phần trăm cho từng option
+                for (MeetingRealtimeResponse.VoteOptionResult option : optionResults) {
+                    if (totalWeight > 0) {
+                        option.setPercentage((double) option.getTotalWeight() * 100 / totalWeight);
+                    } else {
+                        option.setPercentage(0.0); // Đảm bảo phần trăm là 0 nếu tổng weight = 0
+                    }
+                }
+                
+                return MeetingRealtimeResponse.ResolutionResult.builder()
                         .resolutionId(r.resolutionId())
                         .title(r.title())
                         .description(r.description())
                         .displayOrder(r.displayOrder())
-                        .options(r.options().stream()
-                                .map(opt -> MeetingRealtimeResponse.OptionInfo.builder()
-                                        .optionId(opt.optionId())
-                                        .name(opt.name())
-                                        .type(opt.type())
-                                        .displayOrder(opt.displayOrder())
-                                        .build())
-                                .collect(Collectors.toList()))
-                        .build())
-                .collect(Collectors.toList());
+                        .options(optionResults)
+                        .totalVoters(totalVoters)
+                        .totalWeight(totalWeight)
+                        .build();
+            })
+            .collect(Collectors.toList());
 
-        // Lấy danh sách elections kèm candidates qua ElectionPort
-        List<MeetingRealtimeResponse.ElectionStats> electionStats = electionPort.getElectionsByMeetingId(id)
-                .stream()
-                .map(e -> MeetingRealtimeResponse.ElectionStats.builder()
+// Lấy danh sách elections kèm candidates qua ElectionPort
+    List<MeetingRealtimeResponse.ElectionResult> electionResults = electionPort.getElectionsByMeetingId(id)
+            .stream()
+            .map(e -> {
+                // Lấy chi tiết vote cho từng ứng cử viên trong election
+                List<com.api.bedhcd.modules.voting.application.port.VoteResult> voteResults = votingPort.getVotesByTarget(e.electionId());
+                
+                // Tạo danh sách các candidate từ election (có thể ít hơn 3)
+                List<MeetingRealtimeResponse.VoteOptionResult> candidateResults = new ArrayList<>();
+                long totalWeight = 0;
+                long totalVoters = 0;
+                
+                // Lấy tất cả các candidate từ election
+                List<com.api.bedhcd.modules.election.application.port.ElectionPort.CandidateSummary> electionCandidates = e.candidates();
+                
+                // Duyệt đúng theo candidateId thật từ DB thay vì hardcode
+                for (com.api.bedhcd.modules.election.application.port.ElectionPort.CandidateSummary candidate : e.candidates()) {
+                    // Tìm vote result tương ứng nếu tồn tại
+                    com.api.bedhcd.modules.voting.application.port.VoteResult voteResult = voteResults.stream()
+                            .filter(v -> v.getOptionId().equals(candidate.candidateId())) // dùng UUID thật từ DB
+                            .findFirst()
+                            .orElse(null);
+                    
+                     if (voteResult != null) {
+                        candidateResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
+                                .votingOptionId(voteResult.getOptionId())
+                                .votingOptionName(candidate.name()) // Sử dụng tên thật từ election
+                                .voteCount(voteResult.getVoteCount())
+                                .totalWeight(voteResult.getTotalWeight())
+                                .percentage(0.0) // Phần trăm sẽ tính sau
+                                .build());
+                        totalWeight += voteResult.getTotalWeight();
+                        totalVoters += voteResult.getVoteCount();
+                    } else {
+                        candidateResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
+                                .votingOptionId(candidate.candidateId())
+                                .votingOptionName(candidate.name())
+                                .voteCount(0)
+                                .totalWeight(0)
+                                .percentage(0.0)
+                                .build());
+                    }
+                }
+                
+                // Tính phần trăm cho từng candidate
+                for (MeetingRealtimeResponse.VoteOptionResult candidate : candidateResults) {
+                    if (totalWeight > 0) {
+                        candidate.setPercentage((double) candidate.getTotalWeight() * 100 / totalWeight);
+                    }
+                }
+                
+                return MeetingRealtimeResponse.ElectionResult.builder()
                         .electionId(e.electionId())
                         .title(e.title())
                         .electionType(e.electionType())
-                        .candidates(e.candidates().stream()
-                                .map(c -> MeetingRealtimeResponse.CandidateInfo.builder()
-                                        .candidateId(c.candidateId())
-                                        .name(c.name())
-                                        .description(c.description())
-                                        .displayOrder(c.displayOrder())
-                                        .build())
-                                .collect(Collectors.toList()))
-                        .build())
-                .collect(Collectors.toList());
+                        .candidates(candidateResults)
+                        .totalVoters(totalVoters)
+                        .totalWeight(totalWeight)
+                        .build();
+            })
+            .collect(Collectors.toList());
 
-        return MeetingRealtimeResponse.builder()
-                .meetingId(meeting.getId())
-                .title(meeting.getTitle())
-                .status(meeting.getStatus())
-                .attendance(MeetingRealtimeResponse.AttendanceStats.builder()
-                        .totalParticipants(totalParticipants)
-                        .checkedInCount(checkedInCount)
-                        .totalShares(totalShares)
-                        .checkedInShares(checkedInShares)
-                        .participationRate(participationRate)
-                        .build())
-                .voting(MeetingRealtimeResponse.VotingStats.builder()
-                        .totalResolutions(totalResolutions)
-                        .totalVotes(totalVotes)
-                        .build())
-                .resolutions(resolutionStats)
-                .elections(electionStats)
-                .build();
+    return MeetingRealtimeResponse.builder()
+            .meetingId(meeting.getId())
+            .title(meeting.getTitle())
+            .status(meeting.getStatus())
+            .attendance(MeetingRealtimeResponse.AttendanceStats.builder()
+                    .totalParticipants(totalParticipants)
+                    .checkedInCount(checkedInCount)
+                    .totalShares(totalShares)
+                    .checkedInShares(checkedInShares)
+                    .participationRate(participationRate)
+                    .build())
+            .resolutions(resolutionResults)
+            .elections(electionResults)
+            .build();
     }
 
     // ─── Lấy danh sách Edit Requests ────────────────────────────────────────────
@@ -256,12 +347,10 @@ public class MeetingApplicationService {
 
     /**
      * Chỉnh sửa cuộc họp.
-     * - SUPERADMIN: Cập nhật trực tiếp, không cần approval.
+     * - SUPERADMIN: Tạo MeetingEditRequest (PENDING), cần approval.
      * - ADMIN thường: Tạo MeetingEditRequest (PENDING), cần approval.
      *
-     * @return MeetingEditRequestResponse khi cần approval, MeetingResponse khi
-     *         SUPERADMIN cập nhật trực tiếp
-     *         (client phân biệt qua field requiresApproval)
+     * @return MeetingEditRequestResponse khi cần approval
      */
     @Caching(evict = {
             @CacheEvict(value = "meetings:all", allEntries = true),
@@ -279,22 +368,7 @@ public class MeetingApplicationService {
         Meeting meeting = meetingRepository.findById(id)
                 .orElseThrow(() -> MeetingException.notFound(id));
 
-        if (adminContextService.isCurrentAdminSuperAdmin()) {
-            // SUPERADMIN: cập nhật trực tiếp
-            meeting.setTitle(updateInfo.getTitle());
-            meeting.setDescription(updateInfo.getDescription());
-            meeting.setStartTime(updateInfo.getStartTime());
-            meeting.setEndTime(updateInfo.getEndTime());
-            meeting.setLocation(updateInfo.getLocation());
-            meeting.setConfigId(updateInfo.getConfigId());
-            meeting.setStatus(updateInfo.getStatus());
-
-            Meeting saved = meetingRepository.save(meeting);
-            MeetingConfig config = loadConfig(saved.getConfigId());
-            return meetingMapper.toResponse(saved, config);
-        }
-
-        // ADMIN thường: tạo pending request
+        // SUPERADMIN cũng phải tạo yêu cầu phê duyệt như ADMIN thông thường
         if (editRequestRepository.existsPendingForMeeting(id)) {
             throw MeetingException.pendingRequestAlreadyExists(id);
         }
@@ -328,7 +402,7 @@ public class MeetingApplicationService {
 
     /**
      * Đổi trạng thái cuộc họp.
-     * - SUPERADMIN: Đổi trực tiếp.
+     * - SUPERADMIN: Tạo MeetingEditRequest (PENDING) chờ duyệt.
      * - ADMIN thường: Tạo MeetingEditRequest (PENDING) chờ duyệt.
      */
     @Caching(evict = {
@@ -343,19 +417,7 @@ public class MeetingApplicationService {
         meetingRepository.findById(id)
                 .orElseThrow(() -> MeetingException.notFound(id));
 
-        if (adminContextService.isCurrentAdminSuperAdmin()) {
-            // SUPERADMIN: cập nhật trực tiếp
-            Meeting meeting = meetingRepository.findById(id)
-                    .orElseThrow(() -> MeetingException.notFound(id));
-            meeting.setStatus(status);
-            meeting.setUpdatedAt(java.time.LocalDateTime.now());
-
-            Meeting saved = meetingRepository.save(meeting);
-            MeetingConfig config = loadConfig(saved.getConfigId());
-            return meetingMapper.toResponse(saved, config);
-        }
-
-        // ADMIN thường: tạo pending request
+        // SUPERADMIN cũng phải tạo yêu cầu phê duyệt như ADMIN thông thường
         if (editRequestRepository.existsPendingForMeeting(id)) {
             throw MeetingException.pendingRequestAlreadyExists(id);
         }
@@ -372,7 +434,7 @@ public class MeetingApplicationService {
 
     /**
      * Xóa cuộc họp.
-     * - SUPERADMIN: Xóa trực tiếp.
+     * - SUPERADMIN: Tạo MeetingEditRequest DELETE (PENDING) chờ duyệt.
      * - ADMIN thường: Tạo MeetingEditRequest DELETE (PENDING) chờ duyệt.
      */
     @Caching(evict = {
@@ -393,13 +455,7 @@ public class MeetingApplicationService {
             throw MeetingException.invalidState("Không thể xóa vì cuộc họp đã tồn tại danh sách cổ đông tham dự.");
         }
 
-        if (adminContextService.isCurrentAdminSuperAdmin()) {
-            // SUPERADMIN: xóa trực tiếp
-            meetingRepository.deleteById(id);
-            return null;
-        }
-
-        // ADMIN thường: tạo pending request
+        // SUPERADMIN cũng phải tạo yêu cầu phê duyệt như ADMIN thông thường
         if (editRequestRepository.existsPendingForMeeting(id)) {
             throw MeetingException.pendingRequestAlreadyExists(id);
         }
@@ -474,8 +530,11 @@ public class MeetingApplicationService {
                     meeting.setLocation(root.get("location").isNull() ? null : root.get("location").asText());
                 if (root.has("configId"))
                     meeting.setConfigId(root.get("configId").isNull() ? null : root.get("configId").asText());
-                if (root.has("status"))
-                    meeting.setStatus(root.get("status").isNull() ? null : root.get("status").asText());
+                if (root.has("status")) {
+                    String newStatus = root.get("status").isNull() ? null : root.get("status").asText();
+                    meeting.setStatus(newStatus);
+                    handleMeetingStatusChange(meeting.getId(), newStatus);
+                }
 
                 if (root.has("startTime")) {
                     meeting.setStartTime(root.get("startTime").isNull() ? null
@@ -565,5 +624,102 @@ public class MeetingApplicationService {
         if (startTime != null && endTime != null && !startTime.isBefore(endTime)) {
             throw MeetingException.invalidState("Thời gian bắt đầu phải trước thời gian kết thúc.");
         }
+    }
+
+private void handleMeetingStatusChange(String meetingId, String newStatus) {
+        if ("COMPLETED".equals(newStatus)) {
+            java.util.List<String> userIds = participantPort.getParticipantUserIds(meetingId);
+            if (userIds != null && !userIds.isEmpty()) {
+                identityPort.updateShareholderStatusBatch(userIds, com.api.bedhcd.shared.domain.enums.ShareholderStatus.EXPIRED);
+            }
+        }
+    }
+
+    /**
+     * Tạo và gửi dữ liệu WebSocket khi có cập nhật
+     */
+    public void sendMeetingUpdateToWebSocket(String meetingId) {
+        try {
+            MeetingRealtimeResponse realtimeStats = getRealtimeStats(meetingId);
+            
+            // Tạo dữ liệu theo định dạng WebSocket - sử dụng kết quả đã tính
+            MeetingWebSocketResponse webSocketResponse = MeetingWebSocketResponse.builder()
+                    .type("FULL")
+                    .data(MeetingWebSocketResponse.Payload.builder()
+                            .meetingId(meetingId)
+                            .resolutionResults(convertToResolutionResults(realtimeStats.getResolutions()))
+                            .electionResults(convertToElectionResults(realtimeStats.getElections()))
+                            .build())
+                    .timestamp(Instant.now().toEpochMilli())
+                    .build();
+            
+            // Gửi qua Kafka (topic vote_events)
+            kafkaPort.send("vote_events", meetingId, webSocketResponse);
+        } catch (Exception e) {
+            // Log lỗi nhưng không throw để không ảnh hưởng đến hệ thống chính
+            System.err.println("Error sending websocket update: " + e.getMessage());
+        }
+    }
+
+private List<MeetingWebSocketResponse.ResolutionResult> convertToResolutionResults(
+            List<MeetingRealtimeResponse.ResolutionResult> resolutionResults) {
+        List<MeetingWebSocketResponse.ResolutionResult> results = new ArrayList<>();
+        
+        for (MeetingRealtimeResponse.ResolutionResult res : resolutionResults) {
+            // Tạo một bản sao để đảm bảo kiểu dữ liệu phù hợp
+            List<MeetingWebSocketResponse.VoteOptionResult> webSocketOptions = new ArrayList<>();
+            for (MeetingRealtimeResponse.VoteOptionResult option : res.getOptions()) {
+                webSocketOptions.add(MeetingWebSocketResponse.VoteOptionResult.builder()
+                        .votingOptionId(option.getVotingOptionId())
+                        .votingOptionName(option.getVotingOptionName())
+                        .voteCount(option.getVoteCount())
+                        .totalWeight(option.getTotalWeight())
+                        .percentage(option.getPercentage())
+                        .build());
+            }
+            
+            MeetingWebSocketResponse.ResolutionResult webSocketResult = MeetingWebSocketResponse.ResolutionResult.builder()
+                    .resolutionId(res.getResolutionId())
+                    .resolutionTitle(res.getTitle())
+                    .results(webSocketOptions)
+                    .totalVoters(res.getTotalVoters())
+                    .totalWeight(res.getTotalWeight())
+                    .build();
+            
+            results.add(webSocketResult);
+        }
+        
+        return results;
+    }
+
+    private List<MeetingWebSocketResponse.ElectionResult> convertToElectionResults(
+            List<MeetingRealtimeResponse.ElectionResult> electionResults) {
+        List<MeetingWebSocketResponse.ElectionResult> results = new ArrayList<>();
+        
+        for (MeetingRealtimeResponse.ElectionResult election : electionResults) {
+            // Tạo một bản sao để đảm bảo kiểu dữ liệu phù hợp
+            List<MeetingWebSocketResponse.VoteOptionResult> webSocketCandidates = new ArrayList<>();
+            for (MeetingRealtimeResponse.VoteOptionResult candidate : election.getCandidates()) {
+                webSocketCandidates.add(MeetingWebSocketResponse.VoteOptionResult.builder()
+                        .votingOptionId(candidate.getVotingOptionId())
+                        .votingOptionName(candidate.getVotingOptionName())
+                        .voteCount(candidate.getVoteCount())
+                        .totalWeight(candidate.getTotalWeight())
+                        .percentage(candidate.getPercentage())
+                        .build());
+            }
+            
+            MeetingWebSocketResponse.ElectionResult webSocketResult = MeetingWebSocketResponse.ElectionResult.builder()
+                    .electionId(election.getElectionId())
+                    .electionTitle(election.getTitle())
+                    .results(webSocketCandidates)
+                    .totalVoters(election.getTotalVoters())
+                    .totalWeight(election.getTotalWeight())
+                    .build();
+            
+            results.add(webSocketResult);
+        }
+        
+        return results;
     }
 }

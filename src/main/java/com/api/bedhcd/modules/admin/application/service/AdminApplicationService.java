@@ -142,7 +142,7 @@ public class AdminApplicationService {
                 .orElseThrow(() -> IdentityException.userNotFound(username));
 
         if (!passwordEncoder.matches(request.getOldPassword(), admin.getPassword())) {
-            throw IdentityException.invalidCredentials();
+            throw com.api.bedhcd.modules.admin.domain.exception.AdminException.incorrectOldPassword();
         }
 
         admin.setPassword(passwordEncoder.encode(request.getNewPassword()));

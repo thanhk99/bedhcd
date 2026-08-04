@@ -24,4 +24,6 @@ public interface ParticipantPort {
     long sumCheckedInSharesByMeetingId(String meetingId);
     String getLastMeetingId(String userId);
     void createParticipant(String meetingId, String userId, Long sharesOwned);
+    java.util.List<String> getParticipantUserIds(String meetingId);
 }
+

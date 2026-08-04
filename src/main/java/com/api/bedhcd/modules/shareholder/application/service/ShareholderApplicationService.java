@@ -17,10 +17,15 @@ import com.api.bedhcd.modules.shareholder.domain.model.Shareholder;
 import com.api.bedhcd.modules.shareholder.domain.repository.ShareholderRepository;
 import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 import com.api.bedhcd.shared.dto.PageResponse;
+import com.api.bedhcd.shared.domain.enums.ShareholderStatus;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +37,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ShareholderApplicationService {
 
     private final ShareholderRepository shareholderRepository;
@@ -42,6 +48,7 @@ public class ShareholderApplicationService {
     private final ResolutionRepository resolutionRepository;
     private final MeetingPort meetingPort;
     private final IdentityPort identityPort;
+    private final CacheManager cacheManager;
 
     @Cacheable(value = "shareholders:page", key = "#page + '-' + #size + '-' + (#keyword != null ? #keyword : '') + '-' + (#meetingId != null ? #meetingId : '')")
     @Transactional(readOnly = true)
@@ -55,7 +62,7 @@ public class ShareholderApplicationService {
                     .collect(Collectors.toList());
             total = shareholderRepository.countByKeywordAndMeetingId(keyword, meetingId);
         } else if (keyword != null && !keyword.isBlank()) {
-            // Re-using searchByKeywordAndMeetingId but passing null for meetingId could be cleaner, 
+            // Re-using searchByKeywordAndMeetingId but passing null for meetingId could be cleaner,
             // but we can stick to using the existing searchByKeyword or searchByKeywordAndMeetingId
             pageItems = shareholderRepository.searchByKeywordAndMeetingId(keyword, null, page, size).stream()
                     .map(shareholderMapper::toResponse)
@@ -109,6 +116,8 @@ public class ShareholderApplicationService {
         Shareholder shareholder = shareholderRepository.findById(id)
                 .orElseThrow(() -> ShareholderException.notFound(id));
 
+        shareholder.validateEditable();
+
         if (request.getFullName() != null) {
             shareholder.setFullName(request.getFullName());
         }
@@ -156,6 +165,7 @@ public class ShareholderApplicationService {
                 .address(request.getAddress())
                 .sharesOwned(request.getSharesOwned() != null ? request.getSharesOwned() : 0L)
                 .enabled(true)
+                .status(ShareholderStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -166,7 +176,8 @@ public class ShareholderApplicationService {
     }
 
     /**
-     * Xoá mềm cổ đông.
+     * Xoá cổ đông.
+     * Không cho phép xóa khi trạng thái là LOCKED (đã gửi email).
      */
     @Caching(evict = {
             @CacheEvict(value = "shareholders", key = "#id"),
@@ -177,10 +188,11 @@ public class ShareholderApplicationService {
     public void deleteShareholder(String id) {
         Shareholder shareholder = shareholderRepository.findById(id)
                 .orElseThrow(() -> ShareholderException.notFound(id));
-        
-        shareholder.setEnabled(false); // soft delete: khoá tài khoản
-        shareholder.setDeletedAt(LocalDateTime.now());
-        shareholderRepository.save(shareholder);
+
+        // Nghiệp vụ domain: chặn xóa khi đang LOCKED
+        shareholder.validateDeletable();
+
+        shareholderRepository.deleteById(id);
     }
 
     /**
@@ -234,4 +246,100 @@ public class ShareholderApplicationService {
                     .build();
         }).collect(Collectors.toList());
     }
+
+    @Caching(evict = {
+            @CacheEvict(value = "shareholders", key = "#shareholderId"),
+            @CacheEvict(value = "shareholders:search", allEntries = true),
+            @CacheEvict(value = "shareholders:page", allEntries = true)
+    })
+    @Transactional
+    public ShareholderResponse sendSimulatedEmailAndLock(String shareholderId) {
+        Shareholder shareholder = shareholderRepository.findById(shareholderId)
+                .orElseThrow(() -> ShareholderException.notFound(shareholderId));
+
+        // In log giả lập email
+        log.info("=== GIẢ LẬP GỬI EMAIL THÀNH CÔNG ===");
+        log.info("Gửi tới: {}", shareholder.getEmail());
+        log.info("Tiêu đề: Thông tin tài khoản tham dự Đại Hội Cổ Đông");
+        log.info("Nội dung: Tài khoản: {} | Mật khẩu: (Đã mã hóa)", shareholder.getUsername());
+        log.info("======================================");
+
+        // Chốt thông tin
+        shareholder.lockInfo();
+        Shareholder saved = shareholderRepository.save(shareholder);
+
+        return shareholderMapper.toResponse(saved);
+    }
+
+    @Caching(evict = {
+            @CacheEvict(value = "shareholders", allEntries = true),
+            @CacheEvict(value = "shareholders:search", allEntries = true),
+            @CacheEvict(value = "shareholders:page", allEntries = true)
+    })
+    @Transactional
+    public void sendSimulatedEmailAndLockBatch(String meetingId) {
+        // Lấy danh sách cổ đông trong cuộc họp
+        java.util.List<String> userIds = participantPort.getParticipantUserIds(meetingId);
+        if (userIds == null || userIds.isEmpty()) return;
+
+        for (String userId : userIds) {
+            shareholderRepository.findById(userId).ifPresent(sh -> {
+                if (sh.getStatus() == ShareholderStatus.ACTIVE) {
+                    log.info("=== GIẢ LẬP GỬI EMAIL BATCH THÀNH CÔNG ===");
+                    log.info("Gửi tới: {} (Cổ đông: {})", sh.getEmail(), sh.getFullName());
+                    log.info("============================================");
+
+                    sh.lockInfo();
+                    shareholderRepository.save(sh);
+                }
+            });
+        }
+    }
+
+    @Async("taskExecutor")
+    public void sendSimulatedEmailAndLockAllAsync() {
+        log.info("Bắt đầu gửi email giả lập cho tất cả cổ đông ACTIVE...");
+
+        // Lấy danh sách tất cả cổ đông active (không split account)
+        List<Shareholder> shareholders = shareholderRepository.findAllActive();
+
+        for (Shareholder shareholder : shareholders) {
+            if (shareholder.getStatus() == ShareholderStatus.ACTIVE) {
+                log.info("=== GIẢ LẬP GỬI EMAIL THÀNH CÔNG ===");
+                log.info("Gửi tới: {} (Cổ đông: {})", shareholder.getEmail(), shareholder.getFullName());
+                log.info("Tiêu đề: Thông tin tài khoản tham dự Đại Hội Cổ Đông");
+                log.info("Nội dung: Tài khoản: {} | Mật khẩu: (Đã mã hóa)", shareholder.getUsername());
+                log.info("======================================");
+
+                // Chốt thông tin cổ đông
+                shareholder.lockInfo();
+                shareholderRepository.save(shareholder);
+            }
+        }
+
+        // Dọn dẹp cache Redis sau khi hoàn tất - flush toàn bộ cache liên quan đến shareholders
+        log.info("Dọn dẹp cache Redis sau khi gửi email cho tất cả cổ đông...");
+
+        try {
+            if (cacheManager != null) {
+                // Flush các cache cần thiết để cập nhật dữ liệu mới
+                Cache pageCache = cacheManager.getCache("shareholders:page");
+                Cache searchCache = cacheManager.getCache("shareholders:search");
+
+                if (pageCache != null) {
+                    pageCache.clear();
+                    log.info("Đã flush cache shareholders:page");
+                }
+                if (searchCache != null) {
+                    searchCache.clear();
+                    log.info("Đã flush cache shareholders:search");
+                }
+            } else {
+                log.warn("CacheManager không khả dụng để flush cache");
+            }
+        } catch (Exception e) {
+            log.error("Lỗi khi flush cache", e);
+        }
+    }
+
 }

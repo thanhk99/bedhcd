@@ -16,6 +16,10 @@ public interface ParticipantRepository {
 
     List<Participant> findCheckedInParticipants(String meetingId);
 
+    List<Participant> findCheckedInParticipants(String meetingId, int page, int size, String keyword);
+
+    long countCheckedInParticipants(String meetingId, String keyword);
+
     Participant save(Participant participant);
 
     List<Participant> saveAll(List<Participant> participants);
@@ -36,3 +40,4 @@ public interface ParticipantRepository {
 
     long sumCheckedInSharesByMeetingId(String meetingId);
 }
+

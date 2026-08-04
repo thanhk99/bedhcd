@@ -42,4 +42,9 @@ public interface IdentityPort {
     java.util.List<UserDTO> createOrUpdateUserBatch(java.util.List<UserDTO> users);
 
     long countUsers();
+
+    void updateShareholderStatus(String userId, com.api.bedhcd.shared.domain.enums.ShareholderStatus status);
+
+    void updateShareholderStatusBatch(java.util.List<String> userIds, com.api.bedhcd.shared.domain.enums.ShareholderStatus status);
 }
+

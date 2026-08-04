@@ -59,7 +59,14 @@ public class VotingPortImpl implements VotingPort {
 
     @Override
     public List<VoteResult> getVotesByTarget(String targetId) {
+        // Check if this is a resolution or election by looking at the vote structure
+        // For now, we'll try to find votes by resolution first, then by election
         List<Vote> votes = voteRepository.findByResolution(targetId);
+        
+        // If no votes found by resolution, try finding by election (for backward compatibility)
+        if (votes.isEmpty()) {
+            votes = voteRepository.findByElection(targetId);
+        }
         
         // Group by optionId and sum weights/counts
         return votes.stream()

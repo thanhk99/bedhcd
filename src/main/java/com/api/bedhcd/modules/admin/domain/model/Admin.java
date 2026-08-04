@@ -25,6 +25,7 @@ public class Admin {
     private String password;
     private String fullName;
     private String email;
+    private String phoneNumber;
     private Role role; // SUPER_ADMIN or ADMIN
     private boolean isActive;
 
@@ -45,7 +46,7 @@ public class Admin {
     }
 
     public static Admin createNew(String username, String encodedPassword, String fullName, String email,
-            String department, String jobTitle,
+            String phoneNumber, String department, String jobTitle,
             AdminRepository repository) {
 
         if (repository.findByUsername(username).isPresent()) {
@@ -61,6 +62,7 @@ public class Admin {
                 .password(encodedPassword)
                 .fullName(fullName)
                 .email(email)
+                .phoneNumber(phoneNumber)
                 .role(Role.ADMIN)
                 .isActive(true)
                 .department(department)
@@ -82,6 +84,11 @@ public class Admin {
         this.email = email;
         this.department = department;
         this.jobTitle = jobTitle;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updatePhone(String phoneNumber, AdminRepository repository) {
+        this.phoneNumber = phoneNumber;
         this.updatedAt = LocalDateTime.now();
     }
 

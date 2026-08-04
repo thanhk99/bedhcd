@@ -16,14 +16,12 @@ public interface ShareholderJpaRepository extends JpaRepository<ShareholderEntit
 
        @Query("SELECT s FROM ShareholderEntity s WHERE s.splitAccount = false AND (" +
                      "LOWER(s.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-                     "LOWER(s.cccd) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-                     "LOWER(s.investorCode) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+                     "LOWER(s.cccd) LIKE LOWER(CONCAT(:keyword, '%')))")
        List<ShareholderEntity> searchByKeyword(@Param("keyword") String keyword);
 
        @Query("SELECT s FROM ShareholderEntity s WHERE s.splitAccount = false AND (" +
                      "LOWER(s.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-                     "LOWER(s.cccd) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-                     "LOWER(s.investorCode) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+                     "LOWER(s.cccd) LIKE LOWER(CONCAT(:keyword, '%')))")
        Page<ShareholderEntity> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
        @Query("SELECT s FROM ShareholderEntity s WHERE s.splitAccount = false AND " +
@@ -34,18 +32,18 @@ public interface ShareholderJpaRepository extends JpaRepository<ShareholderEntit
        @Query("SELECT s FROM ShareholderEntity s WHERE s.splitAccount = false AND " +
               "(:meetingId IS NULL OR s.id IN (SELECT p.userId FROM ParticipantEntity p WHERE p.meetingId = :meetingId AND p.splitTicket = false)) AND " +
               "(:keyword IS NULL OR :keyword = '' OR LOWER(s.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-              "LOWER(s.cccd) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-              "LOWER(s.investorCode) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+              "LOWER(s.cccd) LIKE LOWER(CONCAT(:keyword, '%')))")
        Page<ShareholderEntity> searchByKeywordAndMeetingId(@Param("keyword") String keyword, @Param("meetingId") String meetingId, Pageable pageable);
 
        @Query("SELECT COUNT(s) FROM ShareholderEntity s WHERE s.splitAccount = false AND " +
               "(:meetingId IS NULL OR s.id IN (SELECT p.userId FROM ParticipantEntity p WHERE p.meetingId = :meetingId AND p.splitTicket = false)) AND " +
               "(:keyword IS NULL OR :keyword = '' OR LOWER(s.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-              "LOWER(s.cccd) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-              "LOWER(s.investorCode) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+              "LOWER(s.cccd) LIKE LOWER(CONCAT(:keyword, '%')))")
        long countByKeywordAndMeetingId(@Param("keyword") String keyword, @Param("meetingId") String meetingId);
 
        Page<ShareholderEntity> findAllBySplitAccountFalse(Pageable pageable);
 
        long countBySplitAccountFalse();
+
+       List<ShareholderEntity> findAllBySplitAccountFalse();
 }

@@ -62,6 +62,7 @@ public class AdminRepositoryImpl implements AdminRepository {
                 .password(entity.getPassword())
                 .fullName(entity.getFullName())
                 .email(entity.getEmail())
+                .phoneNumber(entity.getPhoneNumber())  // <-- Đã thêm dòng này
                 .role(entity.getRole())
                 .isActive(entity.isActive())
                 .department(entity.getDepartment())
@@ -80,6 +81,7 @@ public class AdminRepositoryImpl implements AdminRepository {
                 .password(domain.getPassword())
                 .fullName(domain.getFullName())
                 .email(domain.getEmail())
+                .phoneNumber(domain.getPhoneNumber())
                 .role(domain.getRole())
                 .isActive(domain.isActive())
                 .department(domain.getDepartment())
