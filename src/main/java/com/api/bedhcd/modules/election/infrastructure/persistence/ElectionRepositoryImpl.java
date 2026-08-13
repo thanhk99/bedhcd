@@ -39,15 +39,17 @@ public class ElectionRepositoryImpl implements ElectionRepository {
                 ElectionEntity entity = toEntity(domain);
                 ElectionEntity saved = jpaRepository.save(entity);
 
-                // Bước 2: saveAll() trực tiếp — JPA tự xử lý:
-                //   - Candidate có ID chưa tồn tại trong DB → INSERT
-                //   - Candidate có ID đã tồn tại trong DB → UPDATE
-                // Không cần xóa trước vì candidate mới luôn có UUID mới
+                // Bước 2: Xử lý candidates - cần kiểm tra các candidate bị loại bỏ và xóa khỏi DB nếu có
                 if (domain.getCandidates() != null && !domain.getCandidates().isEmpty()) {
                         List<CandidateEntity> candidateEntities = domain.getCandidates().stream()
                                         .map(c -> toCandidateEntity(c, saved.getId()))
                                         .collect(Collectors.toList());
+
+                        // Lưu các candidate mới/update
                         candidateJpaRepository.saveAll(candidateEntities);
+                } else {
+                        // Nếu không còn candidates nào, xóa toàn bộ candidate cũ
+                        candidateJpaRepository.deleteByElectionId(saved.getId());
                 }
 
                 return toDomain(saved);

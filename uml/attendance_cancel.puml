@@ -1,0 +1,25 @@
+@startuml Attendance_Cancel_BA
+title Hủy Điểm Danh Tham Dự Đại Hội 
+start
+
+if (Cuộc họp đang cho phép hủy điểm danh?) then (Có)
+else (Không)
+    :Từ chối — cuộc họp không cho phép hủy;
+    stop
+endif
+
+if (Cổ đông đã điểm danh?) then (Có)
+else (Không)
+    :Từ chối — cổ đông chưa điểm danh;
+    stop
+endif
+
+:Chuyển về trạng thái chưa điểm danh;
+:Huỷ bỏ số cổ phần tham dự và thời gian điểm danh;
+note right: Hủy được ngay cả sau khi đã in thẻ tham dự
+:Lưu thay đổi;
+:Hiển thị thông tin đã hủy;
+
+stop
+
+@enduml

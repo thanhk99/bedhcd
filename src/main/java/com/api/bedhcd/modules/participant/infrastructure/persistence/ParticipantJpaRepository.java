@@ -24,10 +24,10 @@ public interface ParticipantJpaRepository extends JpaRepository<ParticipantEntit
     long countByMeetingIdAndStatusIn(String meetingId,
             List<ParticipantStatus> statuses);
 
-    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.sharesOwned), 0) FROM ParticipantEntity p")
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.sharesOwned), 0) FROM ParticipantEntity p WHERE p.splitTicket = false")
     long sumTotalShares();
 
-    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.sharesOwned), 0) FROM ParticipantEntity p WHERE p.meetingId = :meetingId")
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.sharesOwned), 0) FROM ParticipantEntity p WHERE p.meetingId = :meetingId AND p.splitTicket = false")
     long sumTotalSharesByMeetingId(@org.springframework.data.repository.query.Param("meetingId") String meetingId);
 
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(p) FROM ParticipantEntity p WHERE p.meetingId = :meetingId AND p.status IN :statuses AND p.splitTicket = false")
@@ -35,7 +35,7 @@ public interface ParticipantJpaRepository extends JpaRepository<ParticipantEntit
             @org.springframework.data.repository.query.Param("meetingId") String meetingId,
             @org.springframework.data.repository.query.Param("statuses") List<ParticipantStatus> statuses);
 
-    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.attendingShares + p.receivedProxyShares), 0) FROM ParticipantEntity p WHERE p.status IN :statuses")
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.attendingShares + p.receivedProxyShares), 0) FROM ParticipantEntity p WHERE p.status IN :statuses AND p.splitTicket = false")
     long sumAttendingSharesByStatusIn(
             @org.springframework.data.repository.query.Param("statuses") List<ParticipantStatus> statuses);
 

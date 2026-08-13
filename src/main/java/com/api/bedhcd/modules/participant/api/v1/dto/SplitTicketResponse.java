@@ -21,6 +21,7 @@ public class SplitTicketResponse {
     public static class TicketResponse {
         private String ticketLabel;
         private String cccd;
-        private Long shares;
+        private Long attendingShares;
+        private Long receivedProxyShares;
     }
 }

@@ -58,6 +58,13 @@ public class VotingPortImpl implements VotingPort {
     }
 
     @Override
+    @Transactional
+    public void deleteVotesByMeetingAndUser(String meetingId, String userId) {
+        voteRepository.deleteByMeetingIdAndUserIdForElection(meetingId, userId);
+        voteRepository.deleteByMeetingIdAndUserIdForResolution(meetingId, userId);
+    }
+
+    @Override
     public List<VoteResult> getVotesByTarget(String targetId) {
         // Check if this is a resolution or election by looking at the vote structure
         // For now, we'll try to find votes by resolution first, then by election

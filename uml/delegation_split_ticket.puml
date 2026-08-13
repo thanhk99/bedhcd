@@ -1,0 +1,35 @@
+@startuml Delegation_SplitTicket_BA
+title Tách Phiếu Bầu 
+
+start
+
+if (Người nhận uỷ quyền đã điểm danh?) then (Có)
+else (Không)
+    :Từ chối — chưa điểm danh, không thể tách phiếu;
+    stop
+endif
+
+:Tính tổng quyền biểu quyết hiện có (tham dự + nhận uỷ quyền);
+if (Tổng cổ phần tách không vượt quá quyền biểu quyết?) then (Có)
+else (Không)
+    :Từ chối — vượt quá tổng quyền biểu quyết;
+    stop
+endif
+
+if (Số phiếu tách ít nhất là 2?) then (Có)
+else (Không)
+    :Từ chối — phải tách tối thiểu 2 phiếu;
+    stop
+endif
+
+repeat
+    :Tạo phiếu con (người tham dự phụ);
+    :Gán số cổ phần và đánh dấu phiếu con;
+repeat while (Còn phiếu con cần tách?) is (Còn) not (Hết)
+
+:Xoá quyền biểu quyết khỏi phiếu gốc để tránh bầu trùng;
+:Hiển thị danh sách phiếu con đã tách;
+
+stop
+
+@enduml

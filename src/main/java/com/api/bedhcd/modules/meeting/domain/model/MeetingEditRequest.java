@@ -41,10 +41,17 @@ public class MeetingEditRequest {
     private EditRequestStatus status;
 
     /**
-     * JSON chứa payload thay đổi (dùng cho UPDATE và UPDATE_STATUS).
-     * Null khi actionType là DELETE.
+     * Mô tả tự nhiên, đọc được: "Cập nhật cuộc họp 'X': Đổi Tên từ 'A' thành 'B'".
+     * Null khi actionType là DELETE (dùng description riêng).
      */
-    private String payload;
+    private String description;
+
+    /**
+     * Danh sách thay đổi dạng text có quy ước (KHÔNG phải JSON), mỗi dòng:
+     * fieldCode|fieldLabel|oldValue|newValue (∅ = không có giá trị).
+     * Dùng để áp dụng thay đổi khi APPROVE. Null khi actionType là DELETE.
+     */
+    private String changes;
 
     /**
      * Ghi chú lý do từ chối (do reviewer điền khi REJECT)
@@ -64,14 +71,16 @@ public class MeetingEditRequest {
     /**
      * Tạo yêu cầu chỉnh sửa nội dung cuộc họp (UPDATE).
      */
-    public static MeetingEditRequest createUpdateRequest(String meetingId, String requestedBy, String payloadJson) {
+    public static MeetingEditRequest createUpdateRequest(String meetingId, String requestedBy, String description,
+            String changes) {
         return MeetingEditRequest.builder()
                 .id(UuidFactory.generate())
                 .meetingId(meetingId)
                 .requestedBy(requestedBy)
                 .actionType("UPDATE")
                 .status(EditRequestStatus.PENDING)
-                .payload(payloadJson)
+                .description(description)
+                .changes(changes)
                 .createdAt(LocalDateTime.now())
                 .build();
     }
@@ -79,13 +88,31 @@ public class MeetingEditRequest {
     /**
      * Tạo yêu cầu xóa cuộc họp (DELETE).
      */
-    public static MeetingEditRequest createDeleteRequest(String meetingId, String requestedBy) {
+    public static MeetingEditRequest createDeleteRequest(String meetingId, String requestedBy, String description) {
         return MeetingEditRequest.builder()
                 .id(UuidFactory.generate())
                 .meetingId(meetingId)
                 .requestedBy(requestedBy)
                 .actionType("DELETE")
                 .status(EditRequestStatus.PENDING)
+                .description(description)
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * Tạo yêu cầu tạo cuộc họp mới (CREATE).
+     */
+    public static MeetingEditRequest createCreateRequest(String meetingId, String requestedBy, String description,
+            String changes) {
+        return MeetingEditRequest.builder()
+                .id(UuidFactory.generate())
+                .meetingId(meetingId)
+                .requestedBy(requestedBy)
+                .actionType("CREATE")
+                .status(EditRequestStatus.PENDING)
+                .description(description)
+                .changes(changes)
                 .createdAt(LocalDateTime.now())
                 .build();
     }

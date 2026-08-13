@@ -20,6 +20,9 @@ public class SplitTicketRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TicketRequest {
-        private Long shares;
+        /** Phần proxy TỰ THAM DỰ vào phiếu này (→ attendingShares của phiếu con) */
+        private Long attendingShares;
+        /** Các UỶ QUYỀN cụ thể gộp vào phiếu này (→ receivedProxyShares của phiếu con) */
+        private List<Long> delegationIds;
     }
 }

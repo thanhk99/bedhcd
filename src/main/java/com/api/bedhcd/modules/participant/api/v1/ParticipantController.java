@@ -3,7 +3,11 @@ package com.api.bedhcd.modules.participant.api.v1;
 import com.api.bedhcd.modules.participant.api.v1.dto.AttendanceRequest;
 import com.api.bedhcd.modules.participant.api.v1.dto.AttendanceResponse;
 import com.api.bedhcd.modules.participant.api.v1.dto.CheckInBundleResponse;
+import com.api.bedhcd.modules.participant.api.v1.dto.ReconciliationResponse;
 import com.api.bedhcd.modules.participant.application.service.ParticipantApplicationService;
+import com.api.bedhcd.modules.admin.domain.model.ActionCode;
+import com.api.bedhcd.modules.admin.domain.model.ResourceCode;
+import com.api.bedhcd.modules.admin.infrastructure.security.RequireAdminPermission;
 import com.api.bedhcd.shared.dto.ApiResponse;
 import com.api.bedhcd.shared.dto.PageResponse;
 
@@ -52,13 +56,30 @@ public class ParticipantController {
 
     @Operation(summary = "Lấy thông tin")
     @GetMapping("/bundle")
-    public ApiResponse<CheckInBundleResponse> getBundle(@RequestParam("meetingId") String meetingId, @RequestParam("cccd") String cccd) {
+    public ApiResponse<CheckInBundleResponse> getBundle(@RequestParam("meetingId") String meetingId,
+            @RequestParam("cccd") String cccd) {
         return ApiResponse.success(participantService.getCheckInBundle(meetingId, cccd));
+    }
+
+    @Operation(summary = "Tìm kiếm nhanh người tham dự gồm cả chưa điểm danh (dùng cho autocomplete)")
+    @GetMapping("/search")
+    public ApiResponse<List<AttendanceResponse>> searchParticipants(
+            @RequestParam("meetingId") String meetingId,
+            @RequestParam("keyword") String keyword,
+            @RequestParam(defaultValue = "10") int size) {
+        return ApiResponse.success(participantService.searchParticipants(meetingId, keyword, size));
     }
 
     @Operation(summary = "Đánh dấu đã in")
     @PostMapping("/print")
     public ApiResponse<AttendanceResponse> markAsPrinted(@RequestParam String meetingId, @RequestParam String cccd) {
         return ApiResponse.success(participantService.markAsPrinted(meetingId, cccd));
+    }
+
+    @Operation(summary = "Đối soát số lượng cổ phần tham dự (tạm thời vs thực tế)")
+    @GetMapping("/reconcile/{meetingId}")
+    @RequireAdminPermission(resource = ResourceCode.RECONCILE, action = ActionCode.VIEW)
+    public ApiResponse<ReconciliationResponse> getReconciliation(@PathVariable String meetingId) {
+        return ApiResponse.success(participantService.getReconciliation(meetingId));
     }
 }

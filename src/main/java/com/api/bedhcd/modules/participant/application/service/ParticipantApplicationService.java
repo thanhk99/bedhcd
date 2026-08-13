@@ -4,10 +4,14 @@ import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 import com.api.bedhcd.modules.meeting.application.port.MeetingPort;
 import com.api.bedhcd.modules.participant.api.v1.dto.AttendanceRequest;
 import com.api.bedhcd.modules.participant.api.v1.dto.AttendanceResponse;
+import com.api.bedhcd.modules.participant.api.v1.dto.ReconciliationItemResponse;
+import com.api.bedhcd.modules.participant.api.v1.dto.ReconciliationResponse;
 import com.api.bedhcd.modules.participant.domain.exception.ParticipantException;
 import com.api.bedhcd.modules.participant.api.v1.dto.CheckInBundleResponse;
+import com.api.bedhcd.modules.participant.domain.model.ExpectedAttendance;
 import com.api.bedhcd.modules.participant.domain.model.Participant;
 import com.api.bedhcd.modules.participant.domain.model.ProxyDelegation;
+import com.api.bedhcd.modules.participant.domain.repository.ExpectedAttendanceRepository;
 import com.api.bedhcd.modules.participant.domain.repository.ParticipantRepository;
 import com.api.bedhcd.modules.participant.domain.repository.ProxyDelegationRepository;
 import com.api.bedhcd.shared.domain.enums.DelegationStatus;
@@ -15,12 +19,15 @@ import com.api.bedhcd.shared.domain.enums.ParticipantStatus;
 import com.api.bedhcd.shared.domain.enums.ParticipationType;
 import com.api.bedhcd.shared.dto.PageResponse;
 import com.api.bedhcd.shared.dto.UserDTO;
+import com.api.bedhcd.shared.dto.importing.ExpectedAttendanceImportRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +36,8 @@ public class ParticipantApplicationService {
 
         private final ParticipantRepository participantRepository;
         private final ProxyDelegationRepository proxyDelegationRepository;
+        private final ExpectedAttendanceRepository expectedAttendanceRepository;
+        private final ReconciliationService reconciliationService;
         private final IdentityPort identityPort;
         private final MeetingPort meetingPort;
 
@@ -94,23 +103,39 @@ public class ParticipantApplicationService {
         }
 
         @Transactional(readOnly = true)
-        public PageResponse<AttendanceResponse> getAttendedParticipants(String meetingId, int page, int size, String keyword) {
-                List<AttendanceResponse> items = participantRepository.findCheckedInParticipants(meetingId, page, size, keyword).stream()
+        public PageResponse<AttendanceResponse> getAttendedParticipants(String meetingId, int page, int size,
+                        String keyword) {
+                List<AttendanceResponse> items = participantRepository
+                                .findCheckedInParticipants(meetingId, page, size, keyword).stream()
                                 .map(p -> mapToResponse(p, identityPort.getUserInfo(p.getUserId())))
                                 .collect(Collectors.toList());
                 long total = participantRepository.countCheckedInParticipants(meetingId, keyword);
                 return PageResponse.of(items, total, page, size);
         }
 
+        @Transactional(readOnly = true)
+        public List<AttendanceResponse> searchParticipants(String meetingId, String keyword, int size) {
+                return participantRepository.searchParticipants(meetingId, keyword, size).stream()
+                                .map(p -> mapToResponse(p, identityPort.getUserInfo(p.getUserId())))
+                                .collect(Collectors.toList());
+        }
+
         @Transactional
         public CheckInBundleResponse getCheckInBundle(String meetingId, String cccd) {
+                // Kiểm tra sự tồn tại của meeting trước
+                if (!meetingPort.canAttend(meetingId)) {
+                        throw ParticipantException.invalidState("Cuộc họp không tồn tại hoặc không cho phép điểm danh");
+                }
+
                 String userId = identityPort.getUserIdByCccd(cccd)
                                 .orElseThrow(() -> ParticipantException.notFound("Không tìm thấy cổ đông"));
 
                 UserDTO user = identityPort.getUserInfo(userId);
 
+                // Tìm participant theo meetingId và userId, nếu không tồn tại thì ném exception
                 Participant shareholder = participantRepository.findByMeetingIdAndUserId(meetingId, userId)
-                                .orElseGet(() -> createPendingParticipant(meetingId, user));
+                                .orElseThrow(() -> ParticipantException
+                                                .notFound("Người dùng chưa tham gia cuộc họp này"));
 
                 // Đồng bộ uỷ quyền
                 shareholder.setReceivedProxyShares(proxyDelegationRepository.sumReceivedProxyShares(meetingId, userId));
@@ -158,6 +183,38 @@ public class ParticipantApplicationService {
                                 .shareholder(mapToResponse(shareholder, user))
                                 .outgoingProxies(outgoingDTOs)
                                 .incomingProxies(incomingDTOs)
+                                .build();
+        }
+
+        @Transactional(readOnly = true)
+        public ReconciliationResponse getReconciliation(String meetingId) {
+                List<ExpectedAttendance> expectedList = expectedAttendanceRepository.findByMeetingId(meetingId);
+
+                Map<String, ExpectedAttendanceImportRecord> expectedByCccd = expectedList.stream()
+                                .collect(Collectors.toMap(ExpectedAttendance::getCccd,
+                                                e -> ExpectedAttendanceImportRecord.builder()
+                                                                .cccd(e.getCccd())
+                                                                .expectedShares(e.getExpectedShares())
+                                                                .build(),
+                                                (a, b) -> a, LinkedHashMap::new));
+
+                List<ReconciliationItemResponse> items = reconciliationService.buildItems(meetingId, expectedByCccd);
+
+                long totalExpected = items.stream().mapToLong(ReconciliationItemResponse::getExpectedShares).sum();
+                long expectedShareholders = items.stream()
+                                .filter(i -> i.getExpectedShares() > 0).count();
+                long totalSystem = items.stream().mapToLong(ReconciliationItemResponse::getSystemShares).sum();
+                long systemShareholders = items.stream()
+                                .filter(i -> i.getSystemShares() > 0).count();
+                long mismatched = items.stream().filter(i -> "LECH".equals(i.getStatus())).count();
+
+                return ReconciliationResponse.builder()
+                                .items(items)
+                                .totalExpectedShares(totalExpected)
+                                .totalExpectedShareholders(expectedShareholders)
+                                .totalSystemShares(totalSystem)
+                                .totalSystemShareholders(systemShareholders)
+                                .totalMismatched(mismatched)
                                 .build();
         }
 
@@ -230,6 +287,7 @@ public class ParticipantApplicationService {
                                 .participationType(p.getParticipationType())
                                 .status(p.getStatus())
                                 .checkedInAt(p.getCheckedInAt())
+                                .isRepresentative(user.isSplitAccount())
                                 .build();
         }
 }

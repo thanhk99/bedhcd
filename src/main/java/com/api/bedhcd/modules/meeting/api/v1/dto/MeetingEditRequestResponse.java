@@ -32,9 +32,16 @@ public class MeetingEditRequestResponse {
     private String status;
 
     /**
-     * Payload JSON (có thể null khi DELETE)
+     * Mô tả tự nhiên của thay đổi (vd: "Cập nhật cuộc họp 'X': Đổi Tên từ 'A'
+     * thành 'B'").
      */
-    private String payload;
+    private String description;
+
+    /**
+     * Danh sách thay đổi dạng text có quy ước, mỗi dòng:
+     * fieldCode|fieldLabel|oldValue|newValue (∅ = không có giá trị).
+     */
+    private String changes;
 
     /**
      * Ghi chú lý do từ chối

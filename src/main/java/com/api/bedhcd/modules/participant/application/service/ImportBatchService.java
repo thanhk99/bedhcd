@@ -8,6 +8,7 @@ import com.api.bedhcd.modules.participant.domain.repository.ProxyDelegationRepos
 import com.api.bedhcd.shared.domain.enums.DelegationStatus;
 import com.api.bedhcd.shared.domain.enums.ParticipantStatus;
 import com.api.bedhcd.shared.domain.enums.ParticipationType;
+import com.api.bedhcd.shared.domain.enums.Role;
 import com.api.bedhcd.shared.dto.UserDTO;
 import com.api.bedhcd.shared.dto.importing.ProxyImportRecord;
 import com.api.bedhcd.shared.dto.importing.ShareholderImportRecord;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -95,6 +97,8 @@ public class ImportBatchService {
                         .orElseGet(() -> identityPort.createOrUpdateUser(UserDTO.builder()
                                 .cccd(record.getProxyCccd())
                                 .fullName(record.getFullName())
+                                .roles(Set.of(Role.REPRESENTATIVE))
+                                .splitAccount(true)
                                 .build()).getId());
 
                 ProxyDelegation delegation = ProxyDelegation.builder()

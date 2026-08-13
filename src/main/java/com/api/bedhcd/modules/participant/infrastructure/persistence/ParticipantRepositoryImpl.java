@@ -58,6 +58,11 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
     }
 
     @Override
+    public void delete(Participant domain) {
+        jpaRepository.delete(toEntity(domain));
+    }
+
+    @Override
     public java.util.List<Participant> saveAll(java.util.List<Participant> domains) {
         java.util.List<ParticipantEntity> entities = domains.stream().map(this::toEntity).collect(Collectors.toList());
         return jpaRepository.saveAll(entities).stream().map(this::toDomain).collect(Collectors.toList());
@@ -123,6 +128,19 @@ public class ParticipantRepositoryImpl implements ParticipantRepository {
                 List.of(ParticipantStatus.CHECKED_IN, ParticipantStatus.PRINT),
                 keyword,
                 org.springframework.data.domain.PageRequest.of(page, size))
+                .stream().map(this::toDomain).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Participant> searchParticipants(String meetingId, String keyword, int limit) {
+        return jpaRepository.findCheckedInParticipants(
+                meetingId,
+                List.of(
+                        ParticipantStatus.PENDING,
+                        ParticipantStatus.CHECKED_IN,
+                        ParticipantStatus.PRINT),
+                keyword,
+                org.springframework.data.domain.PageRequest.of(0, limit))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 

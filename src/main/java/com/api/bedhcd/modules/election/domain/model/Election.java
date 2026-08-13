@@ -48,4 +48,21 @@ public class Election {
             throw ElectionException.invalidState("Không thể xóa đợt bầu cử đã có người tham gia bỏ phiếu.");
         }
     }
+
+    /**
+     * Kiểm tra xem một ứng viên có thể bị xóa hay không
+     */
+    public void validateCandidateCanBeDeleted(String candidateId) {
+        // Kiểm tra xem candidate có tồn tại trong danh sách không
+        if (this.candidates == null || this.candidates.isEmpty()) {
+            throw ElectionException.invalidState("Không tìm thấy ứng viên để xóa");
+        }
+
+        boolean candidateExists = this.candidates.stream()
+                .anyMatch(c -> c.getId().equals(candidateId));
+
+        if (!candidateExists) {
+            throw ElectionException.invalidState("Ứng viên không tồn tại trong cuộc bầu cử này");
+        }
+    }
 }

@@ -49,11 +49,11 @@ public class MeetingController {
         return ApiResponse.success(meetingApplicationService.getRealtimeStats(id));
     }
 
-    @Operation(summary = "Tạo cuộc họp mới")
+    @Operation(summary = "Tạo cuộc họp mới. SUPERADMIN và ADMIN thường đều cần tạo yêu cầu chờ duyệt.")
     @PostMapping
     @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.CREATE)
     @AuditActivity(action = "CREATE", resource = "MANAGE_MEETING")
-    public ApiResponse<MeetingResponse> create(@RequestBody Meeting meeting) {
+    public ApiResponse<Object> create(@RequestBody Meeting meeting) {
         return ApiResponse.success(meetingApplicationService.createMeeting(meeting));
     }
 

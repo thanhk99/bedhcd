@@ -17,9 +17,6 @@ import com.api.bedhcd.modules.election.application.port.ElectionPort;
 import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
 import com.api.bedhcd.modules.resolution.application.port.ResolutionPort;
 import com.api.bedhcd.modules.voting.application.port.VotingPort;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -38,6 +35,7 @@ import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 import com.api.bedhcd.shared.port.KafkaPort;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -50,6 +48,23 @@ public class MeetingApplicationService {
     // Cho phép chữ cái (Unicode), chữ số, khoảng trắng, dấu câu thông thường
     private static final Pattern VALID_MEETING_TEXT = Pattern.compile("^[\\p{L}\\p{N}\\s,.:;\\-/()'\"!?&]+$");
 
+    // Nhãn hiển thị cho từng field trong bảng meeting_edit_requests (cột changes)
+    private static final Map<String, String> FIELD_LABELS = Map.of(
+            "title", "Tên cuộc họp",
+            "description", "Mô tả",
+            "location", "Địa điểm",
+            "startTime", "Giờ bắt đầu",
+            "endTime", "Giờ kết thúc",
+            "configId", "Cấu hình",
+            "status", "Trạng thái");
+
+    // Format thời gian hiển thị trong mô tả tự nhiên
+    private static final java.time.format.DateTimeFormatter DATE_TIME_FORMATTER = java.time.format.DateTimeFormatter
+            .ofPattern("dd/MM/yyyy HH:mm");
+
+    // Ký hiệu "không có giá trị" trong cột changes
+    private static final String EMPTY_MARK = "∅";
+
     private final MeetingRepository meetingRepository;
     private final MeetingConfigRepository configRepository;
     private final MeetingEditRequestRepository editRequestRepository;
@@ -59,13 +74,10 @@ public class MeetingApplicationService {
     private final ParticipantPort participantPort;
     private final ResolutionPort resolutionPort;
     private final VotingPort votingPort;
-private final ElectionPort electionPort;
+    private final ElectionPort electionPort;
     private final IdentityPort identityPort;
     private final AdminContextService adminContextService;
     private final KafkaPort kafkaPort;
-
-    // Sử dụng ObjectMapper với JavaTimeModule để hỗ trợ serialize LocalDateTime
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     // ─── Queries ────────────────────────────────────────────────────────────────
 
@@ -148,147 +160,153 @@ private final ElectionPort electionPort;
                 ? (double) checkedInShares * 100 / totalShares
                 : 0;
 
-// Lấy danh sách resolutions kèm options qua ResolutionPort
-    List<MeetingRealtimeResponse.ResolutionResult> resolutionResults = resolutionPort.getResolutionsByMeetingId(id)
-            .stream()
-            .map(r -> {
-                // Lấy chi tiết vote cho từng lựa chọn trong resolution
-                List<com.api.bedhcd.modules.voting.application.port.VoteResult> voteResults = votingPort.getVotesByTarget(r.resolutionId());
-                
-                // Tạo danh sách các option từ resolution (có thể ít hơn 3)
-                List<MeetingRealtimeResponse.VoteOptionResult> optionResults = new ArrayList<>();
-                long totalWeight = 0;
-                long totalVoters = 0;
-                
-                // Lấy tất cả các option từ resolution
-                List<com.api.bedhcd.modules.resolution.application.port.ResolutionPort.OptionSummary> resolutionOptions = r.options();
-                
-                // Duyệt đúng theo optionId thật từ DB thay vì hardcode
-                for (com.api.bedhcd.modules.resolution.application.port.ResolutionPort.OptionSummary opt : r.options()) {
-                    // Tìm vote result tương ứng nếu tồn tại
-                    com.api.bedhcd.modules.voting.application.port.VoteResult voteResult = voteResults.stream()
-                            .filter(v -> v.getOptionId().equals(opt.optionId())) // dùng UUID thật từ DB
-                            .findFirst()
-                            .orElse(null);
-                    
-                    if (voteResult != null) {
-                        optionResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
-                                .votingOptionId(voteResult.getOptionId())
-                                .votingOptionName(opt.name()) // Sử dụng tên thật từ resolution
-                                .voteCount(voteResult.getVoteCount())
-                                .totalWeight(voteResult.getTotalWeight())
-                                .percentage(0.0) // Phần trăm sẽ tính sau
-                                .build());
-                        totalWeight += voteResult.getTotalWeight();
-                        totalVoters += voteResult.getVoteCount();
-                    } else {
-                        optionResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
-                                .votingOptionId(opt.optionId())
-                                .votingOptionName(opt.name())
-                                .voteCount(0)
-                                .totalWeight(0)
-                                .percentage(0.0)
-                                .build());
-                    }
-                }
-                
-                // Tính phần trăm cho từng option
-                for (MeetingRealtimeResponse.VoteOptionResult option : optionResults) {
-                    if (totalWeight > 0) {
-                        option.setPercentage((double) option.getTotalWeight() * 100 / totalWeight);
-                    } else {
-                        option.setPercentage(0.0); // Đảm bảo phần trăm là 0 nếu tổng weight = 0
-                    }
-                }
-                
-                return MeetingRealtimeResponse.ResolutionResult.builder()
-                        .resolutionId(r.resolutionId())
-                        .title(r.title())
-                        .description(r.description())
-                        .displayOrder(r.displayOrder())
-                        .options(optionResults)
-                        .totalVoters(totalVoters)
-                        .totalWeight(totalWeight)
-                        .build();
-            })
-            .collect(Collectors.toList());
+        // Lấy danh sách resolutions kèm options qua ResolutionPort
+        List<MeetingRealtimeResponse.ResolutionResult> resolutionResults = resolutionPort.getResolutionsByMeetingId(id)
+                .stream()
+                .map(r -> {
+                    // Lấy chi tiết vote cho từng lựa chọn trong resolution
+                    List<com.api.bedhcd.modules.voting.application.port.VoteResult> voteResults = votingPort
+                            .getVotesByTarget(r.resolutionId());
 
-// Lấy danh sách elections kèm candidates qua ElectionPort
-    List<MeetingRealtimeResponse.ElectionResult> electionResults = electionPort.getElectionsByMeetingId(id)
-            .stream()
-            .map(e -> {
-                // Lấy chi tiết vote cho từng ứng cử viên trong election
-                List<com.api.bedhcd.modules.voting.application.port.VoteResult> voteResults = votingPort.getVotesByTarget(e.electionId());
-                
-                // Tạo danh sách các candidate từ election (có thể ít hơn 3)
-                List<MeetingRealtimeResponse.VoteOptionResult> candidateResults = new ArrayList<>();
-                long totalWeight = 0;
-                long totalVoters = 0;
-                
-                // Lấy tất cả các candidate từ election
-                List<com.api.bedhcd.modules.election.application.port.ElectionPort.CandidateSummary> electionCandidates = e.candidates();
-                
-                // Duyệt đúng theo candidateId thật từ DB thay vì hardcode
-                for (com.api.bedhcd.modules.election.application.port.ElectionPort.CandidateSummary candidate : e.candidates()) {
-                    // Tìm vote result tương ứng nếu tồn tại
-                    com.api.bedhcd.modules.voting.application.port.VoteResult voteResult = voteResults.stream()
-                            .filter(v -> v.getOptionId().equals(candidate.candidateId())) // dùng UUID thật từ DB
-                            .findFirst()
-                            .orElse(null);
-                    
-                     if (voteResult != null) {
-                        candidateResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
-                                .votingOptionId(voteResult.getOptionId())
-                                .votingOptionName(candidate.name()) // Sử dụng tên thật từ election
-                                .voteCount(voteResult.getVoteCount())
-                                .totalWeight(voteResult.getTotalWeight())
-                                .percentage(0.0) // Phần trăm sẽ tính sau
-                                .build());
-                        totalWeight += voteResult.getTotalWeight();
-                        totalVoters += voteResult.getVoteCount();
-                    } else {
-                        candidateResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
-                                .votingOptionId(candidate.candidateId())
-                                .votingOptionName(candidate.name())
-                                .voteCount(0)
-                                .totalWeight(0)
-                                .percentage(0.0)
-                                .build());
-                    }
-                }
-                
-                // Tính phần trăm cho từng candidate
-                for (MeetingRealtimeResponse.VoteOptionResult candidate : candidateResults) {
-                    if (totalWeight > 0) {
-                        candidate.setPercentage((double) candidate.getTotalWeight() * 100 / totalWeight);
-                    }
-                }
-                
-                return MeetingRealtimeResponse.ElectionResult.builder()
-                        .electionId(e.electionId())
-                        .title(e.title())
-                        .electionType(e.electionType())
-                        .candidates(candidateResults)
-                        .totalVoters(totalVoters)
-                        .totalWeight(totalWeight)
-                        .build();
-            })
-            .collect(Collectors.toList());
+                    // Tạo danh sách các option từ resolution (có thể ít hơn 3)
+                    List<MeetingRealtimeResponse.VoteOptionResult> optionResults = new ArrayList<>();
+                    long totalWeight = 0;
+                    long totalVoters = 0;
 
-    return MeetingRealtimeResponse.builder()
-            .meetingId(meeting.getId())
-            .title(meeting.getTitle())
-            .status(meeting.getStatus())
-            .attendance(MeetingRealtimeResponse.AttendanceStats.builder()
-                    .totalParticipants(totalParticipants)
-                    .checkedInCount(checkedInCount)
-                    .totalShares(totalShares)
-                    .checkedInShares(checkedInShares)
-                    .participationRate(participationRate)
-                    .build())
-            .resolutions(resolutionResults)
-            .elections(electionResults)
-            .build();
+                    // Lấy tất cả các option từ resolution
+                    List<com.api.bedhcd.modules.resolution.application.port.ResolutionPort.OptionSummary> resolutionOptions = r
+                            .options();
+
+                    // Duyệt đúng theo optionId thật từ DB thay vì hardcode
+                    for (com.api.bedhcd.modules.resolution.application.port.ResolutionPort.OptionSummary opt : r
+                            .options()) {
+                        // Tìm vote result tương ứng nếu tồn tại
+                        com.api.bedhcd.modules.voting.application.port.VoteResult voteResult = voteResults.stream()
+                                .filter(v -> v.getOptionId().equals(opt.optionId())) // dùng UUID thật từ DB
+                                .findFirst()
+                                .orElse(null);
+
+                        if (voteResult != null) {
+                            optionResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
+                                    .votingOptionId(voteResult.getOptionId())
+                                    .votingOptionName(opt.name()) // Sử dụng tên thật từ resolution
+                                    .voteCount(voteResult.getVoteCount())
+                                    .totalWeight(voteResult.getTotalWeight())
+                                    .percentage(0.0) // Phần trăm sẽ tính sau
+                                    .build());
+                            totalWeight += voteResult.getTotalWeight();
+                            totalVoters += voteResult.getVoteCount();
+                        } else {
+                            optionResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
+                                    .votingOptionId(opt.optionId())
+                                    .votingOptionName(opt.name())
+                                    .voteCount(0)
+                                    .totalWeight(0)
+                                    .percentage(0.0)
+                                    .build());
+                        }
+                    }
+
+                    // Tính phần trăm cho từng option
+                    for (MeetingRealtimeResponse.VoteOptionResult option : optionResults) {
+                        if (totalWeight > 0) {
+                            option.setPercentage((double) option.getTotalWeight() * 100 / totalWeight);
+                        } else {
+                            option.setPercentage(0.0); // Đảm bảo phần trăm là 0 nếu tổng weight = 0
+                        }
+                    }
+
+                    return MeetingRealtimeResponse.ResolutionResult.builder()
+                            .resolutionId(r.resolutionId())
+                            .title(r.title())
+                            .description(r.description())
+                            .displayOrder(r.displayOrder())
+                            .options(optionResults)
+                            .totalVoters(totalVoters)
+                            .totalWeight(totalWeight)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        // Lấy danh sách elections kèm candidates qua ElectionPort
+        List<MeetingRealtimeResponse.ElectionResult> electionResults = electionPort.getElectionsByMeetingId(id)
+                .stream()
+                .map(e -> {
+                    // Lấy chi tiết vote cho từng ứng cử viên trong election
+                    List<com.api.bedhcd.modules.voting.application.port.VoteResult> voteResults = votingPort
+                            .getVotesByTarget(e.electionId());
+
+                    // Tạo danh sách các candidate từ election (có thể ít hơn 3)
+                    List<MeetingRealtimeResponse.VoteOptionResult> candidateResults = new ArrayList<>();
+                    long totalWeight = 0;
+                    long totalVoters = 0;
+
+                    // Lấy tất cả các candidate từ election
+                    List<com.api.bedhcd.modules.election.application.port.ElectionPort.CandidateSummary> electionCandidates = e
+                            .candidates();
+
+                    // Duyệt đúng theo candidateId thật từ DB thay vì hardcode
+                    for (com.api.bedhcd.modules.election.application.port.ElectionPort.CandidateSummary candidate : e
+                            .candidates()) {
+                        // Tìm vote result tương ứng nếu tồn tại
+                        com.api.bedhcd.modules.voting.application.port.VoteResult voteResult = voteResults.stream()
+                                .filter(v -> v.getOptionId().equals(candidate.candidateId())) // dùng UUID thật từ DB
+                                .findFirst()
+                                .orElse(null);
+
+                        if (voteResult != null) {
+                            candidateResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
+                                    .votingOptionId(voteResult.getOptionId())
+                                    .votingOptionName(candidate.name()) // Sử dụng tên thật từ election
+                                    .voteCount(voteResult.getVoteCount())
+                                    .totalWeight(voteResult.getTotalWeight())
+                                    .percentage(0.0) // Phần trăm sẽ tính sau
+                                    .build());
+                            totalWeight += voteResult.getTotalWeight();
+                            totalVoters += voteResult.getVoteCount();
+                        } else {
+                            candidateResults.add(MeetingRealtimeResponse.VoteOptionResult.builder()
+                                    .votingOptionId(candidate.candidateId())
+                                    .votingOptionName(candidate.name())
+                                    .voteCount(0)
+                                    .totalWeight(0)
+                                    .percentage(0.0)
+                                    .build());
+                        }
+                    }
+
+                    // Tính phần trăm cho từng candidate
+                    for (MeetingRealtimeResponse.VoteOptionResult candidate : candidateResults) {
+                        if (totalWeight > 0) {
+                            candidate.setPercentage((double) candidate.getTotalWeight() * 100 / totalWeight);
+                        }
+                    }
+
+                    return MeetingRealtimeResponse.ElectionResult.builder()
+                            .electionId(e.electionId())
+                            .title(e.title())
+                            .electionType(e.electionType())
+                            .candidates(candidateResults)
+                            .totalVoters(totalVoters)
+                            .totalWeight(totalWeight)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        return MeetingRealtimeResponse.builder()
+                .meetingId(meeting.getId())
+                .title(meeting.getTitle())
+                .status(meeting.getStatus())
+                .attendance(MeetingRealtimeResponse.AttendanceStats.builder()
+                        .totalParticipants(totalParticipants)
+                        .checkedInCount(checkedInCount)
+                        .totalShares(totalShares)
+                        .checkedInShares(checkedInShares)
+                        .participationRate(participationRate)
+                        .build())
+                .resolutions(resolutionResults)
+                .elections(electionResults)
+                .build();
     }
 
     // ─── Lấy danh sách Edit Requests ────────────────────────────────────────────
@@ -314,7 +332,7 @@ private final ElectionPort electionPort;
             @CacheEvict(value = "meetings:ongoing", allEntries = true)
     })
     @Transactional
-    public MeetingResponse createMeeting(Meeting meeting) {
+    public Object createMeeting(Meeting meeting) {
         // Validate các trường bắt buộc
         validateMeetingFields(meeting.getTitle(), meeting.getDescription(), meeting.getLocation(),
                 meeting.getStartTime(), meeting.getEndTime());
@@ -325,24 +343,28 @@ private final ElectionPort electionPort;
 
         MeetingConfig config = loadConfig(meeting.getConfigId());
 
-        if (config != null && config.getStateConfigs() != null && !config.getStateConfigs().isEmpty()) {
-            Set<String> nextStates = config.getStateConfigs().values().stream()
-                    .map(rule -> rule.getNextState())
-                    .filter(state -> state != null)
-                    .collect(Collectors.toSet());
-
-            String firstStatus = config.getStateConfigs().keySet().stream()
-                    .filter(k -> !nextStates.contains(k))
-                    .findFirst()
-                    .orElse(null);
-
-            if (firstStatus != null) {
-                meeting.setStatus(firstStatus);
-            }
+        // Logic kiểm tra nếu có yêu cầu đang chờ xử lý
+        if (editRequestRepository.existsPendingForMeeting("NEW")) {
+            throw MeetingException.pendingRequestAlreadyExists("NEW");
         }
 
-        Meeting saved = meetingRepository.save(meeting);
-        return meetingMapper.toResponse(saved, config);
+        // Tạo mô tả rõ ràng + danh sách thay đổi (text) từ thông tin cuộc họp mới
+        Map<String, Object> newValues = new HashMap<>();
+        newValues.put("title", meeting.getTitle());
+        newValues.put("description", meeting.getDescription());
+        newValues.put("location", meeting.getLocation());
+        newValues.put("startTime", meeting.getStartTime());
+        newValues.put("endTime", meeting.getEndTime());
+        newValues.put("configId", meeting.getConfigId());
+
+        String changesText = buildChangesText(newValues, null);
+        String description = buildCreateDescription(meeting);
+        String adminId = adminContextService.getCurrentAdminId();
+
+        // Tạo yêu cầu phê duyệt CREATE thay vì trực tiếp lưu
+        MeetingEditRequest request = MeetingEditRequest.createCreateRequest("NEW", adminId, description, changesText);
+        MeetingEditRequest saved = editRequestRepository.save(request);
+        return editRequestMapper.toResponse(saved);
     }
 
     /**
@@ -374,28 +396,44 @@ private final ElectionPort electionPort;
         }
 
         java.util.Map<String, Object> changes = new java.util.HashMap<>();
-        if (!java.util.Objects.equals(meeting.getTitle(), updateInfo.getTitle()))
+        java.util.Map<String, Object> oldValues = new java.util.HashMap<>();
+        if (!java.util.Objects.equals(meeting.getTitle(), updateInfo.getTitle())) {
             changes.put("title", updateInfo.getTitle());
-        if (!java.util.Objects.equals(meeting.getDescription(), updateInfo.getDescription()))
+            oldValues.put("title", meeting.getTitle());
+        }
+        if (!java.util.Objects.equals(meeting.getDescription(), updateInfo.getDescription())) {
             changes.put("description", updateInfo.getDescription());
-        if (!java.util.Objects.equals(meeting.getStartTime(), updateInfo.getStartTime()))
+            oldValues.put("description", meeting.getDescription());
+        }
+        if (!java.util.Objects.equals(meeting.getStartTime(), updateInfo.getStartTime())) {
             changes.put("startTime", updateInfo.getStartTime());
-        if (!java.util.Objects.equals(meeting.getEndTime(), updateInfo.getEndTime()))
+            oldValues.put("startTime", meeting.getStartTime());
+        }
+        if (!java.util.Objects.equals(meeting.getEndTime(), updateInfo.getEndTime())) {
             changes.put("endTime", updateInfo.getEndTime());
-        if (!java.util.Objects.equals(meeting.getLocation(), updateInfo.getLocation()))
+            oldValues.put("endTime", meeting.getEndTime());
+        }
+        if (!java.util.Objects.equals(meeting.getLocation(), updateInfo.getLocation())) {
             changes.put("location", updateInfo.getLocation());
-        if (!java.util.Objects.equals(meeting.getConfigId(), updateInfo.getConfigId()))
+            oldValues.put("location", meeting.getLocation());
+        }
+        if (!java.util.Objects.equals(meeting.getConfigId(), updateInfo.getConfigId())) {
             changes.put("configId", updateInfo.getConfigId());
-        if (!java.util.Objects.equals(meeting.getStatus(), updateInfo.getStatus()))
+            oldValues.put("configId", meeting.getConfigId());
+        }
+        if (!java.util.Objects.equals(meeting.getStatus(), updateInfo.getStatus())) {
             changes.put("status", updateInfo.getStatus());
+            oldValues.put("status", meeting.getStatus());
+        }
 
         if (changes.isEmpty()) {
             throw MeetingException.invalidState("Không có thay đổi nào để tạo yêu cầu.");
         }
 
-        String payloadJson = serializeToJson(changes);
+        String changesText = buildChangesText(changes, oldValues);
+        String description = buildUpdateDescription(meeting.getTitle(), changes, oldValues);
         String adminId = adminContextService.getCurrentAdminId();
-        MeetingEditRequest request = MeetingEditRequest.createUpdateRequest(id, adminId, payloadJson);
+        MeetingEditRequest request = MeetingEditRequest.createUpdateRequest(id, adminId, description, changesText);
         MeetingEditRequest saved = editRequestRepository.save(request);
         return editRequestMapper.toResponse(saved);
     }
@@ -414,7 +452,7 @@ private final ElectionPort electionPort;
     @Transactional
     public Object updateStatus(String id, String status) {
         // Xác minh cuộc họp tồn tại
-        meetingRepository.findById(id)
+        Meeting meeting = meetingRepository.findById(id)
                 .orElseThrow(() -> MeetingException.notFound(id));
 
         // SUPERADMIN cũng phải tạo yêu cầu phê duyệt như ADMIN thông thường
@@ -424,10 +462,13 @@ private final ElectionPort electionPort;
 
         java.util.Map<String, Object> changes = new java.util.HashMap<>();
         changes.put("status", status);
+        java.util.Map<String, Object> oldValues = new java.util.HashMap<>();
+        oldValues.put("status", meeting.getStatus());
 
-        String payloadJson = serializeToJson(changes);
+        String changesText = buildChangesText(changes, oldValues);
+        String description = buildUpdateDescription(meeting.getTitle(), changes, oldValues);
         String adminId = adminContextService.getCurrentAdminId();
-        MeetingEditRequest request = MeetingEditRequest.createUpdateRequest(id, adminId, payloadJson);
+        MeetingEditRequest request = MeetingEditRequest.createUpdateRequest(id, adminId, description, changesText);
         MeetingEditRequest saved = editRequestRepository.save(request);
         return editRequestMapper.toResponse(saved);
     }
@@ -446,6 +487,9 @@ private final ElectionPort electionPort;
     @Transactional
     public Object deleteMeeting(String id) {
 
+        Meeting meeting = meetingRepository.findById(id)
+                .orElseThrow(() -> MeetingException.notFound(id));
+
         if (!meetingPort.canDeleteMeeting(id)) {
             throw MeetingException.invalidState("Trạng thái cuộc họp hiện tại không cho phép xóa cuộc họp.");
         }
@@ -460,8 +504,13 @@ private final ElectionPort electionPort;
             throw MeetingException.pendingRequestAlreadyExists(id);
         }
 
+        String meetingName = meeting.getTitle() != null && !meeting.getTitle().isBlank()
+                ? meeting.getTitle()
+                : id;
+        String description = "Xoá cuộc họp '" + meetingName + "'";
+
         String adminId = adminContextService.getCurrentAdminId();
-        MeetingEditRequest request = MeetingEditRequest.createDeleteRequest(id, adminId);
+        MeetingEditRequest request = MeetingEditRequest.createDeleteRequest(id, adminId, description);
         MeetingEditRequest saved = editRequestRepository.save(request);
         return editRequestMapper.toResponse(saved);
     }
@@ -517,33 +566,44 @@ private final ElectionPort electionPort;
 
     private void applyRequestToMeeting(MeetingEditRequest request) {
         switch (request.getActionType()) {
+            case "CREATE" -> {
+                // Xử lý yêu cầu tạo mới cuộc họp
+                Meeting meeting = new Meeting();
+                applyChangesToMeeting(meeting, request.getChanges());
+
+                // Set mã cuộc họp
+                meeting.setMeetingCode(UuidFactory.generate().substring(0, 8).toUpperCase());
+
+                // Set trạng thái ban đầu nếu có trong config
+                MeetingConfig config = loadConfig(meeting.getConfigId());
+                if (config != null && config.getStateConfigs() != null && !config.getStateConfigs().isEmpty()) {
+                    Set<String> nextStates = config.getStateConfigs().values().stream()
+                            .map(rule -> rule.getNextState())
+                            .filter(state -> state != null)
+                            .collect(Collectors.toSet());
+
+                    String firstStatus = config.getStateConfigs().keySet().stream()
+                            .filter(k -> !nextStates.contains(k))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (firstStatus != null) {
+                        meeting.setStatus(firstStatus);
+                    }
+                }
+
+                // Lưu cuộc họp mới
+                Meeting savedMeeting = meetingRepository.save(meeting);
+
+                // Gửi thông báo WebSocket nếu cần
+                sendMeetingUpdateToWebSocket(savedMeeting.getId());
+            }
             case "UPDATE" -> {
+                // Xử lý chỉnh sửa cuộc họp bình thường
                 Meeting meeting = meetingRepository.findById(request.getMeetingId())
                         .orElseThrow(() -> MeetingException.notFound(request.getMeetingId()));
 
-                com.fasterxml.jackson.databind.JsonNode root = parseJsonNode(request.getPayload());
-                if (root.has("title"))
-                    meeting.setTitle(root.get("title").isNull() ? null : root.get("title").asText());
-                if (root.has("description"))
-                    meeting.setDescription(root.get("description").isNull() ? null : root.get("description").asText());
-                if (root.has("location"))
-                    meeting.setLocation(root.get("location").isNull() ? null : root.get("location").asText());
-                if (root.has("configId"))
-                    meeting.setConfigId(root.get("configId").isNull() ? null : root.get("configId").asText());
-                if (root.has("status")) {
-                    String newStatus = root.get("status").isNull() ? null : root.get("status").asText();
-                    meeting.setStatus(newStatus);
-                    handleMeetingStatusChange(meeting.getId(), newStatus);
-                }
-
-                if (root.has("startTime")) {
-                    meeting.setStartTime(root.get("startTime").isNull() ? null
-                            : objectMapper.convertValue(root.get("startTime"), java.time.LocalDateTime.class));
-                }
-                if (root.has("endTime")) {
-                    meeting.setEndTime(root.get("endTime").isNull() ? null
-                            : objectMapper.convertValue(root.get("endTime"), java.time.LocalDateTime.class));
-                }
+                applyChangesToMeeting(meeting, request.getChanges());
 
                 meetingRepository.save(meeting);
             }
@@ -563,28 +623,131 @@ private final ElectionPort electionPort;
         }
     }
 
-    private String serializeToJson(Object obj) {
-        try {
-            return objectMapper.writeValueAsString(obj);
-        } catch (JsonProcessingException e) {
-            throw MeetingException.invalidState("Không thể serialize payload: " + e.getMessage());
+    /**
+     * Tạo nội dung cột changes (text quy ước, mỗi dòng: fieldCode|fieldLabel|old|new).
+     * oldValues == null nghĩa là tạo mới (old = ∅).
+     */
+    private String buildChangesText(Map<String, Object> newValues, Map<String, Object> oldValues) {
+        List<String> lines = new ArrayList<>();
+        if (newValues == null) {
+            return "";
+        }
+        for (Map.Entry<String, Object> entry : newValues.entrySet()) {
+            String field = entry.getKey();
+            String label = FIELD_LABELS.getOrDefault(field, field);
+            String oldValue = oldValues == null ? EMPTY_MARK : formatStorageValue(oldValues.get(field));
+            String newValue = formatStorageValue(entry.getValue());
+            lines.add(field + "|" + label + "|" + oldValue + "|" + newValue);
+        }
+        return String.join("\n", lines);
+    }
+
+    /**
+     * Mô tả tự nhiên cho yêu cầu tạo mới cuộc họp.
+     */
+    private String buildCreateDescription(Meeting meeting) {
+        List<String> parts = new ArrayList<>();
+        if (meeting.getLocation() != null && !meeting.getLocation().isBlank()) {
+            parts.add("Địa điểm: '" + meeting.getLocation() + "'");
+        }
+        if (meeting.getStartTime() != null) {
+            parts.add("Từ " + meeting.getStartTime().format(DATE_TIME_FORMATTER));
+        }
+        if (meeting.getEndTime() != null) {
+            parts.add("đến " + meeting.getEndTime().format(DATE_TIME_FORMATTER));
+        }
+        String title = meeting.getTitle() != null && !meeting.getTitle().isBlank()
+                ? "'" + meeting.getTitle() + "'"
+                : "";
+        String info = parts.isEmpty() ? "" : " (" + String.join(", ", parts) + ")";
+        return "Tạo cuộc họp mới " + title + info;
+    }
+
+    /**
+     * Mô tả tự nhiên cho yêu cầu cập nhật cuộc họp: "Đổi X từ 'A' thành 'B'".
+     */
+    private String buildUpdateDescription(String meetingTitle, Map<String, Object> changes,
+            Map<String, Object> oldValues) {
+        List<String> parts = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : changes.entrySet()) {
+            String field = entry.getKey();
+            String label = FIELD_LABELS.getOrDefault(field, field);
+            String oldValue = oldValues == null ? EMPTY_MARK : formatDisplayValue(oldValues.get(field));
+            String newValue = formatDisplayValue(entry.getValue());
+            parts.add("Đổi " + label + " từ '" + oldValue + "' thành '" + newValue + "'");
+        }
+        String title = meetingTitle != null && !meetingTitle.isBlank() ? "'" + meetingTitle + "'" : "";
+        return "Cập nhật cuộc họp " + title + ": " + String.join(", ", parts);
+    }
+
+    /**
+     * Giá trị lưu trong cột changes (LocalDateTime để dạng ISO để parse lại).
+     */
+    private String formatStorageValue(Object value) {
+        if (value == null) {
+            return EMPTY_MARK;
+        }
+        if (value instanceof java.time.LocalDateTime) {
+            return ((java.time.LocalDateTime) value).toString();
+        }
+        return value.toString();
+    }
+
+    /**
+     * Giá trị hiển thị trong mô tả tự nhiên (ngày giờ dạng dd/MM/yyyy HH:mm).
+     */
+    private String formatDisplayValue(Object value) {
+        if (value == null) {
+            return EMPTY_MARK;
+        }
+        if (value instanceof java.time.LocalDateTime) {
+            return ((java.time.LocalDateTime) value).format(DATE_TIME_FORMATTER);
+        }
+        String text = value.toString();
+        return text.isEmpty() ? "(trống)" : text;
+    }
+
+    /**
+     * Áp dụng danh sách thay đổi (cột changes) lên cuộc họp khi APPROVE.
+     */
+    private void applyChangesToMeeting(Meeting meeting, String changes) {
+        if (changes == null || changes.isBlank()) {
+            return;
+        }
+        for (String line : changes.split("\n")) {
+            if (line.isBlank()) {
+                continue;
+            }
+            String[] parts = line.split("\\|");
+            if (parts.length < 4) {
+                continue;
+            }
+            String field = parts[0];
+            String newValue = EMPTY_MARK.equals(parts[3]) ? null : parts[3];
+            switch (field) {
+                case "title" -> meeting.setTitle(newValue);
+                case "description" -> meeting.setDescription(newValue);
+                case "location" -> meeting.setLocation(newValue);
+                case "configId" -> meeting.setConfigId(newValue);
+                case "startTime" -> meeting.setStartTime(parseDateTime(newValue));
+                case "endTime" -> meeting.setEndTime(parseDateTime(newValue));
+                case "status" -> {
+                    meeting.setStatus(newValue);
+                    if (meeting.getId() != null) {
+                        handleMeetingStatusChange(meeting.getId(), newValue);
+                    }
+                }
+                default -> {
+                }
+            }
         }
     }
 
-    private com.fasterxml.jackson.databind.JsonNode parseJsonNode(String json) {
-        try {
-            return objectMapper.readTree(json);
-        } catch (JsonProcessingException e) {
-            throw MeetingException.invalidState("Không thể parse payload: " + e.getMessage());
+    private java.time.LocalDateTime parseDateTime(String value) {
+        if (value == null) {
+            return null;
         }
-    }
-
-    private <T> T deserializeFromJson(String json, Class<T> clazz) {
-        try {
-            return objectMapper.readValue(json, clazz);
-        } catch (JsonProcessingException e) {
-            throw MeetingException.invalidState("Không thể deserialize payload: " + e.getMessage());
-        }
+        return java.time.LocalDateTime.parse(value);
     }
 
     private MeetingConfig loadConfig(String configId) {
@@ -626,11 +789,12 @@ private final ElectionPort electionPort;
         }
     }
 
-private void handleMeetingStatusChange(String meetingId, String newStatus) {
+    private void handleMeetingStatusChange(String meetingId, String newStatus) {
         if ("COMPLETED".equals(newStatus)) {
             java.util.List<String> userIds = participantPort.getParticipantUserIds(meetingId);
             if (userIds != null && !userIds.isEmpty()) {
-                identityPort.updateShareholderStatusBatch(userIds, com.api.bedhcd.shared.domain.enums.ShareholderStatus.EXPIRED);
+                identityPort.updateShareholderStatusBatch(userIds,
+                        com.api.bedhcd.shared.domain.enums.ShareholderStatus.EXPIRED);
             }
         }
     }
@@ -641,7 +805,7 @@ private void handleMeetingStatusChange(String meetingId, String newStatus) {
     public void sendMeetingUpdateToWebSocket(String meetingId) {
         try {
             MeetingRealtimeResponse realtimeStats = getRealtimeStats(meetingId);
-            
+
             // Tạo dữ liệu theo định dạng WebSocket - sử dụng kết quả đã tính
             MeetingWebSocketResponse webSocketResponse = MeetingWebSocketResponse.builder()
                     .type("FULL")
@@ -652,7 +816,7 @@ private void handleMeetingStatusChange(String meetingId, String newStatus) {
                             .build())
                     .timestamp(Instant.now().toEpochMilli())
                     .build();
-            
+
             // Gửi qua Kafka (topic vote_events)
             kafkaPort.send("vote_events", meetingId, webSocketResponse);
         } catch (Exception e) {
@@ -661,10 +825,10 @@ private void handleMeetingStatusChange(String meetingId, String newStatus) {
         }
     }
 
-private List<MeetingWebSocketResponse.ResolutionResult> convertToResolutionResults(
+    private List<MeetingWebSocketResponse.ResolutionResult> convertToResolutionResults(
             List<MeetingRealtimeResponse.ResolutionResult> resolutionResults) {
         List<MeetingWebSocketResponse.ResolutionResult> results = new ArrayList<>();
-        
+
         for (MeetingRealtimeResponse.ResolutionResult res : resolutionResults) {
             // Tạo một bản sao để đảm bảo kiểu dữ liệu phù hợp
             List<MeetingWebSocketResponse.VoteOptionResult> webSocketOptions = new ArrayList<>();
@@ -677,25 +841,26 @@ private List<MeetingWebSocketResponse.ResolutionResult> convertToResolutionResul
                         .percentage(option.getPercentage())
                         .build());
             }
-            
-            MeetingWebSocketResponse.ResolutionResult webSocketResult = MeetingWebSocketResponse.ResolutionResult.builder()
+
+            MeetingWebSocketResponse.ResolutionResult webSocketResult = MeetingWebSocketResponse.ResolutionResult
+                    .builder()
                     .resolutionId(res.getResolutionId())
                     .resolutionTitle(res.getTitle())
                     .results(webSocketOptions)
                     .totalVoters(res.getTotalVoters())
                     .totalWeight(res.getTotalWeight())
                     .build();
-            
+
             results.add(webSocketResult);
         }
-        
+
         return results;
     }
 
     private List<MeetingWebSocketResponse.ElectionResult> convertToElectionResults(
             List<MeetingRealtimeResponse.ElectionResult> electionResults) {
         List<MeetingWebSocketResponse.ElectionResult> results = new ArrayList<>();
-        
+
         for (MeetingRealtimeResponse.ElectionResult election : electionResults) {
             // Tạo một bản sao để đảm bảo kiểu dữ liệu phù hợp
             List<MeetingWebSocketResponse.VoteOptionResult> webSocketCandidates = new ArrayList<>();
@@ -708,7 +873,7 @@ private List<MeetingWebSocketResponse.ResolutionResult> convertToResolutionResul
                         .percentage(candidate.getPercentage())
                         .build());
             }
-            
+
             MeetingWebSocketResponse.ElectionResult webSocketResult = MeetingWebSocketResponse.ElectionResult.builder()
                     .electionId(election.getElectionId())
                     .electionTitle(election.getTitle())
@@ -716,10 +881,10 @@ private List<MeetingWebSocketResponse.ResolutionResult> convertToResolutionResul
                     .totalVoters(election.getTotalVoters())
                     .totalWeight(election.getTotalWeight())
                     .build();
-            
+
             results.add(webSocketResult);
         }
-        
+
         return results;
     }
 }

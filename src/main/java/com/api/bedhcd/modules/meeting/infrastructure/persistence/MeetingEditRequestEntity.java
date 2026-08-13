@@ -45,10 +45,18 @@ public class MeetingEditRequestEntity {
     private String status;
 
     /**
-     * JSON payload chứa dữ liệu thay đổi (null khi DELETE)
+     * Mô tả tự nhiên, đọc được nội dung thay đổi (vd: "Cập nhật cuộc họp 'X':
+     * Đổi Tên từ 'A' thành 'B'").
      */
     @Column(columnDefinition = "TEXT")
-    private String payload;
+    private String description;
+
+    /**
+     * Danh sách thay đổi dạng text có quy ước (KHÔNG phải JSON), mỗi dòng:
+     * fieldCode|fieldLabel|oldValue|newValue (∅ = không có giá trị).
+     */
+    @Column(columnDefinition = "TEXT")
+    private String changes;
 
     /**
      * Ghi chú lý do từ chối

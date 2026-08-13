@@ -1,0 +1,26 @@
+@startuml Attendance_Update_BA
+title Cập Nhật Tham Dự Đại Hội 
+
+start
+
+if (Cuộc họp đang cho phép điểm danh?) then (Có)
+else (Không)
+    :Từ chối — cuộc họp chưa mở điểm danh;
+    stop
+endif
+
+if (Cổ đông đã điểm danh trước đó?) then (Có)
+else (Không)
+    :Từ chối — chưa có hồ sơ tham dự;
+    stop
+endif
+
+:Đồng bộ lại số cổ phần (sở hữu, nhận uỷ quyền, đã uỷ quyền);
+:Cập nhật số cổ phần tham dự mới;
+note right: Không được vượt quá số cổ phần khả dụng
+:Lưu thay đổi;
+:Hiển thị thông tin tham dự đã cập nhật;
+
+stop
+
+@enduml

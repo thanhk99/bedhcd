@@ -63,6 +63,16 @@ public class VoteRepositoryImpl implements VoteRepository {
         return jpaRepository.countByMeetingId(meetingId);
     }
 
+    @Override
+    public void deleteByMeetingIdAndUserIdForElection(String meetingId, String userId) {
+        jpaRepository.deleteByMeetingIdAndUserIdForElection(meetingId, userId);
+    }
+
+    @Override
+    public void deleteByMeetingIdAndUserIdForResolution(String meetingId, String userId) {
+        jpaRepository.deleteByMeetingIdAndUserIdForResolution(meetingId, userId);
+    }
+
     private Vote toDomain(VoteEntity entity) {
         return Vote.builder()
                 .id(entity.getId())

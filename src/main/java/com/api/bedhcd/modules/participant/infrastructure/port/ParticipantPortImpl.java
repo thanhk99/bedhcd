@@ -50,6 +50,13 @@ public class ParticipantPortImpl implements ParticipantPort {
     }
 
     @Override
+    public boolean isPrinted(String meetingId, String userId) {
+        return participantRepository.findByMeetingIdAndUserId(meetingId, userId)
+                .map(p -> p.getStatus() == ParticipantStatus.PRINT)
+                .orElse(false);
+    }
+
+    @Override
     public java.time.LocalDateTime getCheckedInAt(String meetingId, String userId) {
         return participantRepository.findByMeetingIdAndUserId(meetingId, userId)
                 .map(Participant::getCheckedInAt)

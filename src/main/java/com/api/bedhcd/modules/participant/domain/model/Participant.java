@@ -138,6 +138,19 @@ public class Participant {
     }
 
     /**
+     * Nghiệp vụ: Reset về CHECKED_IN để yêu cầu in lại phiếu.
+     * CHỈ áp dụng khi đang ở trạng thái PRINT.
+     * Trả về true nếu đã reset (cần xoá phiếu bầu bên ngoài).
+     */
+    public boolean resetToPendingPrint() {
+        if (this.status == ParticipantStatus.PRINT) {
+            this.status = ParticipantStatus.CHECKED_IN;
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Nghiệp vụ: Đánh dấu đã in thẻ
      */
     public void markAsPrinted() {
@@ -196,5 +209,10 @@ public class Participant {
     public void adjustReceivedProxyShares(long delta) {
         long received = this.receivedProxyShares != null ? this.receivedProxyShares : 0L;
         this.receivedProxyShares = received + delta;
+    }
+
+    public void adjustAttendingShares(long delta) {
+        long attending = this.attendingShares != null ? this.attendingShares : 0L;
+        this.attendingShares = attending + delta;
     }
 }

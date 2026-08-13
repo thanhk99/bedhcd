@@ -12,7 +12,8 @@ public enum ResourceCode {
     ATTENDANCE_LIST(List.of(ActionCode.VIEW, ActionCode.APPROVE)),
     MANAGE_PROXY(List.of(ActionCode.VIEW, ActionCode.CREATE, ActionCode.UPDATE, ActionCode.DELETE, ActionCode.APPROVE)),
     REPORT(List.of(ActionCode.VIEW, ActionCode.EXPORT)),
-    MANAGE_ROLE_GROUP(List.of(ActionCode.VIEW, ActionCode.CREATE, ActionCode.UPDATE, ActionCode.DELETE));
+    MANAGE_ROLE_GROUP(List.of(ActionCode.VIEW, ActionCode.CREATE, ActionCode.UPDATE, ActionCode.DELETE)),
+    RECONCILE(List.of(ActionCode.VIEW, ActionCode.EXPORT));
 
     private final List<ActionCode> allowedActions;
 

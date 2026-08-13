@@ -1,0 +1,38 @@
+@startuml Delegation_Update_BA
+title Điều Chỉnh Cổ Phần Uỷ Quyền (Góc nhìn nghiệp vụ)
+
+start
+
+if (Uỷ quyền thuộc cuộc họp này?) then (Có)
+else (Không)
+    :Từ chối — uỷ quyền không thuộc cuộc họp;
+    stop
+endif
+
+if (Uỷ quyền đang hoạt động?) then (Có)
+else (Không)
+    :Từ chối — chỉ điều chỉnh được uỷ quyền đang hoạt động;
+    stop
+endif
+
+if (Số cổ phần mới khác số cũ?) then (Có)
+else (Không)
+    :Giữ nguyên, hiển thị thông tin hiện tại;
+    stop
+endif
+
+if (Người uỷ quyền còn đủ cổ phần cho số mới?) then (Có)
+else (Không)
+    :Từ chối — vượt quá số cổ phần khả dụng;
+    stop
+endif
+
+:Cập nhật số cổ phần mới của uỷ quyền;
+:Điều chỉnh cổ phần đã uỷ quyền của người uỷ quyền;
+:Điều chỉnh cổ phần nhận uỷ quyền của người nhận;
+:Lưu hồ sơ của cả hai;
+:Hiển thị thông tin uỷ quyền đã điều chỉnh;
+
+stop
+
+@enduml

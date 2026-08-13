@@ -1,0 +1,45 @@
+@startuml Delegation_State_BA
+title Trạng Thái Uỷ Quyền (Góc nhìn nghiệp vụ)
+
+[*] --> Hoạt động : Cổ đông tạo uỷ quyền
+
+state "Hoạt động" as ACTIVE {
+    note right of ACTIVE
+        Cổ phần uỷ quyền đang có hiệu lực:
+        - Người uỷ quyền: tăng cổ phần đã uỷ quyền
+        - Người nhận: tăng cổ phần nhận uỷ quyền
+        Chỉ trạng thái này mới được điều chỉnh / thu hồi
+    end note
+}
+ACTIVE --> Đã thu hồi : Thu hồi uỷ quyền (do cổ đông thao tác)
+ACTIVE --> Hết hạn : Hệ thống tự động hết hạn (cuộc họp kết thúc / bị hủy)
+ACTIVE --> Hoạt động : Điều chỉnh số cổ phần uỷ quyền
+
+state "Đã thu hồi" as REVOKED {
+    note right of REVOKED
+        Ghi nhận thời điểm thu hồi
+        Hoàn trả cổ phần cho người uỷ quyền
+        Bỏ cổ phần nhận uỷ quyền khỏi người nhận
+        Không thể điều chỉnh hay thu hồi lại
+    end note
+}
+
+state "Hết hạn" as EXPIRED {
+    note right of EXPIRED
+        Ghi nhận thời điểm hết hạn
+        Hoàn trả cổ phần cho người uỷ quyền
+        Bỏ cổ phần nhận uỷ quyền khỏi người nhận
+        Khác "Đã thu hồi": do hệ thống tự động đánh dấu
+    end note
+}
+
+REVOKED --> [*]
+EXPIRED --> [*]
+
+note bottom of EXPIRED
+  Quy tắc hết hạn: uỷ quyền hoạt động sẽ chuyển sang "Hết hạn" khi
+  cuộc họp đã kết thúc hoặc bị huỷ. Còn "Đã thu hồi" là do cổ đông
+  chủ động thu hồi trước đó.
+end note
+
+@enduml

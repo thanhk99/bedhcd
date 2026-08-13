@@ -27,4 +27,5 @@ public class AttendanceResponse {
     private ParticipationType participationType;
     private ParticipantStatus status;
     private LocalDateTime checkedInAt;
+    private boolean isRepresentative;
 }

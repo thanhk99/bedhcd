@@ -41,6 +41,12 @@ public interface IdentityPort {
      */
     java.util.List<UserDTO> createOrUpdateUserBatch(java.util.List<UserDTO> users);
 
+    /**
+     * Tìm các tài khoản phiếu con (tách phiếu) thuộc cùng CCCD gốc.
+     * Phiếu con có cccd = baseCccd + 1 ký tự chữ cái (A..Z) và splitAccount = true.
+     */
+    java.util.List<UserDTO> findSplitAccountsByBaseCccd(String baseCccd);
+
     long countUsers();
 
     void updateShareholderStatus(String userId, com.api.bedhcd.shared.domain.enums.ShareholderStatus status);

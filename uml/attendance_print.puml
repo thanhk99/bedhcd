@@ -1,0 +1,18 @@
+@startuml Attendance_Print_BA
+title In Thẻ Tham Dự Đại Hội 
+
+start
+
+if (Cổ đông đã điểm danh?) then (Có)
+else (Không)
+    :Từ chối — chưa điểm danh, không thể in thẻ;
+    stop
+endif
+
+:Đánh dấu đã in thẻ tham dự;
+:Lưu thay đổi;
+:Hiển thị thông tin đã in thẻ;
+
+stop
+
+@enduml

@@ -13,4 +13,6 @@ public interface VoteRepository {
     List<Vote> findByUser(String userId);
     long count();
     long countByMeetingId(String meetingId);
+    void deleteByMeetingIdAndUserIdForElection(String meetingId, String userId);
+    void deleteByMeetingIdAndUserIdForResolution(String meetingId, String userId);
 }

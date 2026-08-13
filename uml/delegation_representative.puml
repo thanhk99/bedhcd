@@ -1,0 +1,28 @@
+@startuml Delegation_Representative_BA
+title Tạo Người Đại Diện Tham Dự 
+
+start
+
+if (Người được chỉ định đã là cổ đông?) then (Có)
+    :Sử dụng hồ sơ cổ đông hiện có;
+else (Chưa)
+    :Tạo tài khoản người đại diện;
+endif
+
+if (Tìm thấy người uỷ quyền theo CCCD?) then (Có)
+else (Không)
+    :Từ chối — không tìm thấy người uỷ quyền;
+    stop
+endif
+
+:Tạo uỷ quyền cho người đại diện;
+if (Người nhận không phải cổ đông?) then (Có)
+    :Ghi nhận người đại diện tham dự theo hình thức nhận uỷ quyền;
+else (Không)
+endif
+
+:Hiển thị thông tin người đại diện và tài khoản truy cập;
+
+stop
+
+@enduml

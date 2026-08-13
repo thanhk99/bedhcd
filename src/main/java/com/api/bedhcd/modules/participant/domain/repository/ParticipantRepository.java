@@ -18,11 +18,15 @@ public interface ParticipantRepository {
 
     List<Participant> findCheckedInParticipants(String meetingId, int page, int size, String keyword);
 
+    List<Participant> searchParticipants(String meetingId, String keyword, int limit);
+
     long countCheckedInParticipants(String meetingId, String keyword);
 
     Participant save(Participant participant);
 
     List<Participant> saveAll(List<Participant> participants);
+
+    void delete(Participant participant);
 
     long count();
 

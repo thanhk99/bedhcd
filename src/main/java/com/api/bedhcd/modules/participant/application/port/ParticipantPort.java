@@ -14,6 +14,11 @@ public interface ParticipantPort {
      */
     boolean isCheckedIn(String meetingId, String userId);
     java.time.LocalDateTime getCheckedInAt(String meetingId, String userId);
+
+    /**
+     * Kiểm tra cổ đông đã in phiếu (PRINT) chưa — điều kiện để bỏ phiếu.
+     */
+    boolean isPrinted(String meetingId, String userId);
     long countTotalParticipants();
     long countTotalCheckedIn();
     long sumTotalShares();

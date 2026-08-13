@@ -74,4 +74,11 @@ public class ElectionController {
         electionService.deleteElection(meetingId, id);
         return ApiResponse.success(null);
     }
+
+    @DeleteMapping("{electionId}/candidates/{candidateId}")
+    @Operation(summary = "Xóa ứng viên", description = "Xóa một ứng viên khỏi cuộc bầu cử")
+    public ApiResponse<Void> deleteCandidate(@PathVariable String electionId, @PathVariable String candidateId) {
+        electionService.deleteCandidate(electionId, candidateId);
+        return ApiResponse.success(null);
+    }
 }

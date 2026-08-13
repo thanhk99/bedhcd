@@ -16,4 +16,9 @@ public interface CandidateJpaRepository extends JpaRepository<CandidateEntity, S
     @Modifying
     @Query("DELETE FROM CandidateEntity c WHERE c.electionId = :electionId")
     void deleteByElectionId(@Param("electionId") String electionId);
+
+    // Xóa candidate theo candidateId
+    @Modifying
+    @Query("DELETE FROM CandidateEntity c WHERE c.id = :candidateId")
+    void deleteById(@Param("candidateId") String candidateId);
 }

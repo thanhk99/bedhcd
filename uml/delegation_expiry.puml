@@ -1,0 +1,26 @@
+@startuml Delegation_Expiry_BA
+title Hết Hạn Uỷ Quyền Tự Động (Góc nhìn nghiệp vụ)
+
+start
+
+:Tìm các uỷ quyền đang hoạt động;
+
+repeat
+    if (Cuộc họp đã kết thúc hoặc bị hủy?) then (Đúng)
+        :Chuyển trạng thái thành hết hạn;
+        :Ghi nhận thời điểm hết hạn;
+        :Hoàn trả cổ phần cho người uỷ quyền;
+        :Bỏ cổ phần nhận uỷ quyền khỏi người nhận;
+        :Lưu hồ sơ của cả hai;
+    else (Chưa)
+    endif
+repeat while (Còn uỷ quyền hoạt động chưa xử lý?) is (Còn) not (Hết)
+
+note bottom
+    Quá trình này do hệ thống chạy định kỳ mỗi phút,
+    không cần thao tác từ người dùng.
+end note
+
+stop
+
+@enduml

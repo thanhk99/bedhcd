@@ -130,8 +130,8 @@ public class ResolutionApplicationService {
             throw ResolutionException.invalidState("Cấu hình cuộc họp hiện tại không cho phép cổ đông bỏ phiếu.");
         }
 
-        if (!participantPort.isCheckedIn(resolution.getMeetingId(), userId)) {
-            throw ResolutionException.invalidState("Cổ đông chưa điểm danh, không thể bỏ phiếu.");
+        if (!participantPort.isPrinted(resolution.getMeetingId(), userId)) {
+            throw ResolutionException.invalidState("Cổ đông chưa in phiếu tham dự, không thể bỏ phiếu biểu quyết.");
         }
 
         long votingPower = participantPort.getVotingPower(resolution.getMeetingId(), userId);

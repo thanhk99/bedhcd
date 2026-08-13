@@ -91,6 +91,21 @@ public class IdentityPortImpl implements IdentityPort {
     }
 
     @Override
+    public java.util.List<com.api.bedhcd.shared.dto.UserDTO> findSplitAccountsByBaseCccd(String baseCccd) {
+        if (baseCccd == null || baseCccd.isBlank()) {
+            return java.util.Collections.emptyList();
+        }
+        java.util.List<String> candidateCccds = new java.util.ArrayList<>();
+        for (int i = 0; i < 26; i++) {
+            candidateCccds.add(baseCccd + (char) ('A' + i));
+        }
+        return userRepository.findAllByCccdIn(candidateCccds).stream()
+                .filter(UserEntity::isSplitAccount)
+                .map(this::toUserDTO)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
     public com.api.bedhcd.shared.dto.UserDTO createOrUpdateUser(com.api.bedhcd.shared.dto.UserDTO dto) {
         boolean isExisting = userRepository.findByCccd(dto.getCccd()).isPresent();
 
@@ -131,11 +146,14 @@ public class IdentityPortImpl implements IdentityPort {
         }
 
         // Chỉ cập nhật enabled nếu tài khoản là mới.
-
         if (!isExisting) {
             entity.setEnabled(true);
-            entity.setSplitAccount(dto.isSplitAccount());
         }
+
+        // Luôn đồng bộ splitAccount: tài khoản đại diện/tách phiếu được đánh dấu để
+        // loại khỏi mọi danh sách, tính toán cổ đông. Đồng thời tự sửa dữ liệu cũ
+        // từng bị tạo nhầm thành cổ đông (legacy).
+        entity.setSplitAccount(dto.isSplitAccount());
 
         if (dto.getRoles() != null && !dto.getRoles().isEmpty()) {
             entity.setRoles(dto.getRoles());
@@ -178,6 +196,11 @@ public class IdentityPortImpl implements IdentityPort {
             } else {
                 if (entity.getShareholderStatus() == ShareholderStatus.EXPIRED) {
                     entity.setShareholderStatus(ShareholderStatus.ACTIVE);
+                }
+                // "Hồi sinh" tài khoản đại diện/phiếu con khi được import thành cổ đông thật
+                if (entity.isSplitAccount() && !dto.isSplitAccount()) {
+                    entity.setSplitAccount(false);
+                    entity.setRoles(Set.of(Role.SHAREHOLDER));
                 }
             }
 
@@ -240,5 +263,22 @@ public class IdentityPortImpl implements IdentityPort {
             user.setShareholderStatus(status);
         }
         userRepository.saveAll(users);
+    }
+
+    private com.api.bedhcd.shared.dto.UserDTO toUserDTO(UserEntity entity) {
+        return com.api.bedhcd.shared.dto.UserDTO.builder()
+                .id(entity.getId())
+                .username(entity.getUsername())
+                .fullName(entity.getFullName())
+                .email(entity.getEmail())
+                .cccd(entity.getCccd())
+                .investorCode(entity.getInvestorCode())
+                .phoneNumber(entity.getPhoneNumber())
+                .sharesOwned(entity.getSharesOwned())
+                .roles(entity.getRoles())
+                .enabled(entity.isEnabled())
+                .splitAccount(entity.isSplitAccount())
+                .shareholderStatus(entity.getShareholderStatus())
+                .build();
     }
 }

@@ -1,0 +1,42 @@
+@startuml Attendance_State_BA
+title Trạng Thái Tham Dự Cổ Đông
+
+[*] --> Chưa điểm danh : Cổ đông được thêm vào cuộc họp
+
+state "Chưa điểm danh" as PENDING {
+    note right of PENDING
+        Số cổ phần tham dự = 0
+        Có thể uỷ quyền cho người khác
+    end note
+}
+
+PENDING --> CHECKED_IN : Cổ đông đăng ký tham dự (xác nhận tham dự)
+
+state "Đã điểm danh" as CHECKED_IN {
+    note right of CHECKED_IN
+        Có cổ phần tham dự hoặc nhận uỷ quyền
+        Loại tham dự:
+        - Trực tiếp (nếu sở hữu cổ phần)
+        - Nhận uỷ quyền (nếu không sở hữu)
+    end note
+}
+
+CHECKED_IN --> PRINT : In thẻ tham dự
+CHECKED_IN --> CHECKED_IN : Cập nhật số cổ phần tham dự
+
+state "Đã in thẻ" as PRINT {
+    note right of PRINT
+        Đã phát thẻ tham dự
+        Có quyền tham gia biểu quyết
+    end note
+}
+
+CHECKED_IN --> PENDING : Hủy điểm danh
+PRINT --> PENDING : Hủy điểm danh
+
+note bottom of PRINT
+Đã điểm danh hoặc đã in thẻ => KHÔNG được uỷ quyền nữa.
+Việc uỷ quyền chỉ thực hiện khi cổ đông còn ở trạng thái chưa điểm danh.
+end note
+
+@enduml

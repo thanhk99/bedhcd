@@ -1,0 +1,43 @@
+@startuml Delegation_Create_BA
+title Tạo Uỷ Quyền Tham Dự Đại Hội 
+
+start
+
+if (Cuộc họp đang cho phép cổ đông thực hiện uỷ quyền?) then (Có)
+else (Không)
+    :Từ chối — cuộc họp không cho phép uỷ quyền;
+    stop
+endif
+
+if (Cuộc họp chưa kết thúc?) then (Có)
+else (Không)
+    :Từ chối — cuộc họp đã kết thúc, không thể uỷ quyền;
+    stop
+endif
+
+:Xác định người uỷ quyền và người nhận uỷ quyền;
+:Tạo hồ sơ tham dự cho người uỷ quyền (nếu chưa có);
+:Tạo hồ sơ tham dự cho người nhận uỷ quyền (nếu chưa có);
+
+if (Người uỷ quyền còn đủ cổ phần để uỷ quyền?) then (Có)
+else (Không)
+    :Từ chối — số cổ phần vượt quá khả dụng;
+    stop
+endif
+
+note right
+    Điều kiện uỷ quyền:
+    - Cổ đông CHƯA điểm danh
+    - Số cổ phần uỷ quyền > 0
+    - Không vượt quá cổ phần sở hữu còn lại
+end note
+
+:Ghi nhận uỷ quyền ở trạng thái hoạt động;
+:Cập nhật số cổ phần đã uỷ quyền của người uỷ quyền;
+:Cập nhật số cổ phần nhận uỷ quyền của người nhận;
+:Lưu hồ sơ tham dự của cả hai;
+:Hiển thị thông tin uỷ quyền thành công;
+
+stop
+
+@enduml

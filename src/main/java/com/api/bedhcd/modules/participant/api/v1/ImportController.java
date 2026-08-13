@@ -5,6 +5,8 @@ import com.api.bedhcd.modules.admin.domain.model.ResourceCode;
 import com.api.bedhcd.modules.admin.infrastructure.security.RequireAdminPermission;
 import com.api.bedhcd.modules.participant.application.service.ImportApplicationService;
 import com.api.bedhcd.modules.participant.application.service.ImportJobApplicationService;
+import com.api.bedhcd.modules.participant.api.v1.dto.ExpectedAttendancePreviewResponse;
+import com.api.bedhcd.modules.participant.api.v1.dto.ImportExpectedResponse;
 import com.api.bedhcd.modules.participant.api.v1.dto.ImportJobResponse;
 import com.api.bedhcd.shared.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,20 @@ public class ImportController {
     public ApiResponse<String> importProxies(@PathVariable String meetingId, @RequestParam("file") MultipartFile file) {
         String jobId = importService.importProxies(meetingId, file);
         return ApiResponse.success(jobId); // Trả về jobId để client polling
+    }
+
+    @PostMapping("/{meetingId}/expected/preview")
+    @RequireAdminPermission(resource = ResourceCode.MANAGE_SHAREHOLDER, action = ActionCode.CREATE)
+    public ApiResponse<ExpectedAttendancePreviewResponse> previewExpectedAttendance(@PathVariable String meetingId,
+            @RequestParam("file") MultipartFile file) {
+        return ApiResponse.success(importService.previewExpectedAttendance(meetingId, file));
+    }
+
+    @PostMapping("/{meetingId}/expected")
+    @RequireAdminPermission(resource = ResourceCode.MANAGE_SHAREHOLDER, action = ActionCode.CREATE)
+    public ApiResponse<ImportExpectedResponse> importExpectedAttendance(@PathVariable String meetingId,
+            @RequestParam("file") MultipartFile file) {
+        return ApiResponse.success(importService.importExpectedAttendance(meetingId, file));
     }
 
     @GetMapping("/jobs/{jobId}")

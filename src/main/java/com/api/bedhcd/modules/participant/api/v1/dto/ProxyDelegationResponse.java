@@ -21,6 +21,7 @@ public class ProxyDelegationResponse {
     private String proxyId;
     private String proxyName;
     private String proxyCccd;
+    private boolean proxyIsRepresentative;
     private Long sharesDelegated;
     private DelegationStatus status;
     private LocalDateTime createdAt;

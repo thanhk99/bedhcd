@@ -1,5 +1,6 @@
 package com.api.bedhcd.util;
 
+import com.api.bedhcd.shared.dto.importing.ExpectedAttendanceImportRecord;
 import com.api.bedhcd.shared.dto.importing.ProxyImportRecord;
 import com.api.bedhcd.shared.dto.importing.ShareholderImportRecord;
 import org.apache.poi.openxml4j.opc.OPCPackage;
@@ -46,6 +47,24 @@ public class StreamingExcelHelper {
             if (iter.hasNext()) {
                 try (InputStream stream = iter.next()) {
                     ProxySheetHandler handler = new ProxySheetHandler(batchSize, batchConsumer);
+                    processSheet(styles, strings, handler, stream);
+                }
+            }
+        }
+    }
+
+    public static void streamExpectedAttendance(String filePath, int batchSize,
+            Consumer<List<ExpectedAttendanceImportRecord>> batchConsumer) throws Exception {
+        try (OPCPackage pkg = OPCPackage.open(filePath, PackageAccess.READ)) {
+            XSSFReader xssfReader = new XSSFReader(pkg);
+            StylesTable styles = xssfReader.getStylesTable();
+            ReadOnlySharedStringsTable strings = new ReadOnlySharedStringsTable(pkg);
+
+            XSSFReader.SheetIterator iter = (XSSFReader.SheetIterator) xssfReader.getSheetsData();
+            if (iter.hasNext()) {
+                try (InputStream stream = iter.next()) {
+                    ExpectedAttendanceSheetHandler handler = new ExpectedAttendanceSheetHandler(batchSize,
+                            batchConsumer);
                     processSheet(styles, strings, handler, stream);
                 }
             }
@@ -255,6 +274,84 @@ public class StreamingExcelHelper {
                     break;
                 case 10:
                     currentRecordBuilder.placeOfIssue(formattedValue);
+                    break;
+            }
+        }
+
+        @Override
+        public void endSheet() {
+            if (!currentBatch.isEmpty()) {
+                batchConsumer.accept(new ArrayList<>(currentBatch));
+                currentBatch.clear();
+            }
+        }
+    }
+
+    // --- Expected Attendance Handler ---
+    private static class ExpectedAttendanceSheetHandler implements XSSFSheetXMLHandler.SheetContentsHandler {
+        private final int batchSize;
+        private final Consumer<List<ExpectedAttendanceImportRecord>> batchConsumer;
+        // Dùng Map để dedupe trùng CCCD (giữ bản ghi cuối cùng)
+        private final java.util.Map<String, ExpectedAttendanceImportRecord> mergeMap = new java.util.LinkedHashMap<>();
+        private final List<ExpectedAttendanceImportRecord> currentBatch = new ArrayList<>();
+        private ExpectedAttendanceImportRecord.ExpectedAttendanceImportRecordBuilder currentRecordBuilder;
+        private int currentRow = -1;
+
+        public ExpectedAttendanceSheetHandler(int batchSize,
+                Consumer<List<ExpectedAttendanceImportRecord>> batchConsumer) {
+            this.batchSize = batchSize;
+            this.batchConsumer = batchConsumer;
+        }
+
+        @Override
+        public void startRow(int rowNum) {
+            currentRow = rowNum;
+            if (rowNum > 0) { // Skip header
+                currentRecordBuilder = ExpectedAttendanceImportRecord.builder();
+            }
+        }
+
+        @Override
+        public void endRow(int rowNum) {
+            if (rowNum > 0 && currentRecordBuilder != null) {
+                ExpectedAttendanceImportRecord record = currentRecordBuilder.build();
+                if (record.getCccd() != null && !record.getCccd().isEmpty()) {
+                    // Nếu trùng CCCD, thay thế bản ghi cũ trong batch
+                    if (mergeMap.containsKey(record.getCccd())) {
+                        ExpectedAttendanceImportRecord existing = mergeMap.get(record.getCccd());
+                        currentBatch.remove(existing);
+                        mergeMap.put(record.getCccd(), record);
+                        currentBatch.add(record);
+                    } else {
+                        mergeMap.put(record.getCccd(), record);
+                        currentBatch.add(record);
+                    }
+                }
+
+                if (currentBatch.size() >= batchSize) {
+                    batchConsumer.accept(new ArrayList<>(currentBatch));
+                    currentBatch.clear();
+                }
+            }
+        }
+
+        @Override
+        public void cell(String cellReference, String formattedValue,
+                org.apache.poi.xssf.usermodel.XSSFComment comment) {
+            if (currentRow == 0 || currentRecordBuilder == null)
+                return;
+            if (formattedValue == null || formattedValue.isEmpty())
+                return;
+
+            int colIndex = colLetterToIndex(cellReference.replaceAll("[0-9]", ""));
+
+            // Format: cell(0)=cccd, cell(1)=expectedShares
+            switch (colIndex) {
+                case 0:
+                    currentRecordBuilder.cccd(formattedValue);
+                    break;
+                case 1:
+                    currentRecordBuilder.expectedShares(parseLongSafely(formattedValue));
                     break;
             }
         }

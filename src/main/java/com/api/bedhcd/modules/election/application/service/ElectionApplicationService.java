@@ -15,6 +15,7 @@ import com.api.bedhcd.modules.voting.application.port.OptionVote;
 import com.api.bedhcd.modules.voting.application.port.VoteResult;
 import com.api.bedhcd.modules.voting.application.port.VotingPort;
 import com.api.bedhcd.modules.election.domain.model.Candidate;
+import com.api.bedhcd.modules.election.infrastructure.persistence.CandidateJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ public class ElectionApplicationService {
         private final IdentityPort identityPort;
         private final ParticipantPort participantPort;
         private final MeetingPort meetingPort;
+        private final CandidateJpaRepository candidateJpaRepository;
 
         @Transactional(readOnly = true)
         public List<ElectionResponse> getByMeeting(String meetingId) {
@@ -162,8 +164,8 @@ public class ElectionApplicationService {
                                         .invalidState("Cấu hình cuộc họp hiện tại không cho phép cổ đông bỏ phiếu.");
                 }
 
-                if (!participantPort.isCheckedIn(election.getMeetingId(), userId)) {
-                        throw ElectionException.invalidState("Cổ đông chưa điểm danh, không thể bỏ phiếu.");
+                if (!participantPort.isPrinted(election.getMeetingId(), userId)) {
+                        throw ElectionException.invalidState("Cổ đông chưa in phiếu tham dự, không thể bỏ phiếu bầu.");
                 }
 
                 long basePower = participantPort.getVotingPower(election.getMeetingId(), userId);
@@ -246,6 +248,30 @@ public class ElectionApplicationService {
                 election.validateCanBeDeleted(votingPort.countVotersByTarget(electionId));
 
                 electionRepository.delete(election);
+        }
+
+        @Transactional
+        public void deleteCandidate(String electionId, String candidateId) {
+                Election election = electionRepository.findById(electionId)
+                                .orElseThrow(() -> ElectionException.electionNotFound(electionId));
+
+                if (!meetingPort.canEditResolutionOrElection(election.getMeetingId())) {
+                        throw ElectionException.invalidState(
+                                        "Trạng thái cuộc họp hiện tại không cho phép xóa ứng viên.");
+                }
+
+                // Kiểm tra logic business rule trong domain model
+                election.validateCandidateCanBeDeleted(candidateId);
+
+                // Xóa candidate khỏi database
+                candidateJpaRepository.deleteById(candidateId);
+
+                // Loại bỏ candidate khỏi danh sách (nếu vẫn còn cần)
+                if (election.getCandidates() != null) {
+                        election.getCandidates().removeIf(c -> c.getId().equals(candidateId));
+                }
+
+                electionRepository.save(election);
         }
 
         private ElectionResponse toResponse(Election domain) {

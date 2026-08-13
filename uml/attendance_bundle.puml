@@ -1,0 +1,25 @@
+@startuml Attendance_Bundle_BA
+title Xem Hồ Sơ Điểm Danh (Bundle) 
+
+start
+
+if (Cuộc họp cho phép xem điểm danh?) then (Có)
+else (Không)
+    :Từ chối — cuộc họp không cho phép;
+    stop
+endif
+
+if (Cổ đông tham gia cuộc họp này?) then (Có)
+else (Không)
+    :Từ chối — cổ đông chưa tham gia cuộc họp;
+    stop
+endif
+
+:Đồng bộ số cổ phần nhận uỷ quyền và đã uỷ quyền;
+:Liệt kê các uỷ quyền đi (cổ đông uỷ quyền cho người khác);
+:Liệt kê các uỷ quyền đến (người khác uỷ quyền cho cổ đông);
+:Hiển thị hồ sơ tham dự kèm danh sách uỷ quyền;
+
+stop
+
+@enduml

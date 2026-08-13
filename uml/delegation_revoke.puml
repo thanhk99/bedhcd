@@ -1,0 +1,20 @@
+@startuml Delegation_Revoke_BA
+title Thu Hồi Uỷ Quyền (Góc nhìn nghiệp vụ)
+
+start
+
+if (Uỷ quyền đang hoạt động?) then (Có)
+else (Không)
+    stop
+endif
+
+:Chuyển trạng thái uỷ quyền thành đã thu hồi;
+:Ghi nhận thời gian thu hồi;
+:Hoàn trả cổ phần đã uỷ quyền cho người uỷ quyền;
+:Bỏ số cổ phần nhận uỷ quyền khỏi người nhận;
+:Lưu hồ sơ của cả hai;
+:Hiển thị kết quả thu hồi thành công;
+
+stop
+
+@enduml

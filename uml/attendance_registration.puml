@@ -1,0 +1,54 @@
+@startuml Attendance_Registration_BA
+title Đăng Ký Tham Dự Đại Hội 
+
+start
+
+if (Cuộc họp đang cho phép điểm danh?) then (Có)
+else (Không)
+    :Từ chối — cuộc họp chưa mở điểm danh;
+    stop
+endif
+
+if (Cổ đông tồn tại trong hệ thống theo CCCD?) then (Có)
+else (Không)
+    :Từ chối — không tìm thấy cổ đông;
+    stop
+endif
+
+:Xác định số cổ phần sở hữu của cổ đông;
+if (Cổ đông đã có bản ghi tham dự trong cuộc họp này?) then (Có)
+    :Sử dụng bản ghi hiện có;
+else (Chưa)
+    :Tạo bản ghi mới (chưa điểm danh);
+endif
+
+:Đồng bộ số cổ phần sở hữu;
+:Đồng bộ số cổ phần nhận uỷ quyền từ người khác;
+:Đồng bộ số cổ phần đã uỷ quyền cho người khác;
+
+if (Số cổ phần đăng ký tham dự hợp lệ?) then (Có)
+else (Không)
+    :Từ chối — số cổ phần không hợp lệ;
+    stop
+endif
+
+if (Cổ đông có ít nhất 1 cổ phần tham dự hoặc nhận uỷ quyền?) then (Có)
+else (Không)
+    :Từ chối — không có quyền tham dự;
+    stop
+endif
+
+note right
+    Số cổ phần tham dự không được vượt
+    quá số cổ phần sở hữu còn lại sau khi
+    đã uỷ quyền cho người khác.
+end note
+
+:Xác nhận đã điểm danh (ghi nhận thời gian điểm danh);
+:Xác định loại tham dự — trực tiếp hoặc chỉ nhận uỷ quyền;
+:Lưu hồ sơ tham dự;
+:Hiển thị thông tin tham dự thành công;
+
+stop
+
+@enduml
