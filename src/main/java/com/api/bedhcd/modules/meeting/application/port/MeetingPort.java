@@ -1,6 +1,7 @@
 package com.api.bedhcd.modules.meeting.application.port;
 
 import com.api.bedhcd.modules.meeting.domain.model.MeetingRules;
+import java.util.Map;
 
 public interface MeetingPort {
     /**
@@ -20,7 +21,7 @@ public interface MeetingPort {
 
     long countMeetings();
 
-    long countByStatus(String status);
+    Map<String, Long> countMeetingsGroupedByStatus();
 
     /**
      * Kiểm tra xem cuộc họp có cho phép điểm danh hay không (ủy thác cho Domain

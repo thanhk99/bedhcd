@@ -68,21 +68,32 @@ public class IdentityPortImpl implements IdentityPort {
     }
 
     @Override
+    public java.util.Map<String, com.api.bedhcd.shared.dto.UserDTO> getUsersByCccds(java.util.Collection<String> cccds) {
+        if (cccds == null || cccds.isEmpty()) return java.util.Collections.emptyMap();
+        java.util.List<UserEntity> users = userRepository.findAllByCccdIn(new java.util.ArrayList<>(cccds));
+        java.util.Map<String, com.api.bedhcd.shared.dto.UserDTO> map = new java.util.HashMap<>();
+        for (UserEntity u : users) {
+            if (u.getCccd() != null) {
+                map.put(u.getCccd(), toUserDTO(u));
+            }
+        }
+        return map;
+    }
+
+    @Override
+    public java.util.Map<String, com.api.bedhcd.shared.dto.UserDTO> getUsersMapByIds(java.util.Collection<String> userIds) {
+        if (userIds == null || userIds.isEmpty()) return java.util.Collections.emptyMap();
+        java.util.List<UserEntity> users = userRepository.findAllById(userIds);
+        java.util.Map<String, com.api.bedhcd.shared.dto.UserDTO> map = new java.util.HashMap<>();
+        for (UserEntity u : users) {
+            map.put(u.getId(), toUserDTO(u));
+        }
+        return map;
+    }
+
+    @Override
     public com.api.bedhcd.shared.dto.UserDTO getUserInfo(String userId) {
-        return userRepository.findById(userId).map(entity -> com.api.bedhcd.shared.dto.UserDTO.builder()
-                .id(entity.getId())
-                .username(entity.getUsername())
-                .fullName(entity.getFullName())
-                .email(entity.getEmail())
-                .cccd(entity.getCccd())
-                .investorCode(entity.getInvestorCode())
-                .phoneNumber(entity.getPhoneNumber())
-                .sharesOwned(entity.getSharesOwned())
-                .roles(entity.getRoles())
-                .enabled(entity.isEnabled())
-                .splitAccount(entity.isSplitAccount())
-                .shareholderStatus(entity.getShareholderStatus())
-                .build()).orElse(null);
+        return userRepository.findById(userId).map(this::toUserDTO).orElse(null);
     }
 
     @Override

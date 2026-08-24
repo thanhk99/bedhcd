@@ -1,6 +1,7 @@
 package com.api.bedhcd.modules.meeting.domain.repository;
 
 import com.api.bedhcd.modules.meeting.domain.model.Meeting;
+import java.util.Map;
 import java.util.Optional;
 
 public interface MeetingRepository {
@@ -11,5 +12,5 @@ public interface MeetingRepository {
     Meeting save(Meeting meeting);
     void deleteById(String id);
     long count();
-    long countByStatus(String status);
+    Map<String, Long> countMeetingsGroupedByStatus();
 }

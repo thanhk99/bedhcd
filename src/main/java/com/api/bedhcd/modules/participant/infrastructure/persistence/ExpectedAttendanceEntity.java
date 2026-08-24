@@ -31,6 +31,12 @@ public class ExpectedAttendanceEntity {
     @Column(name = "expected_shares", nullable = false)
     private Long expectedShares;
 
+    @Column(name = "proxy_cccd", length = 32)
+    private String proxyCccd;
+
+    @Column(name = "proxy_shares")
+    private Long proxyShares;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }

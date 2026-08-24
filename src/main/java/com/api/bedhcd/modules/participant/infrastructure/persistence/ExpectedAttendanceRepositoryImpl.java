@@ -47,6 +47,8 @@ public class ExpectedAttendanceRepositoryImpl implements ExpectedAttendanceRepos
                 .meetingId(entity.getMeetingId())
                 .cccd(entity.getCccd())
                 .expectedShares(entity.getExpectedShares())
+                .proxyCccd(entity.getProxyCccd())
+                .proxyShares(entity.getProxyShares())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }
@@ -57,6 +59,8 @@ public class ExpectedAttendanceRepositoryImpl implements ExpectedAttendanceRepos
                 .meetingId(domain.getMeetingId())
                 .cccd(domain.getCccd())
                 .expectedShares(domain.getExpectedShares())
+                .proxyCccd(domain.getProxyCccd())
+                .proxyShares(domain.getProxyShares())
                 .createdAt(domain.getCreatedAt())
                 .build();
     }

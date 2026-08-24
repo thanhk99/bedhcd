@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Kết quả đối soát của một cuộc họp, bao gồm danh sách chi tiết và các chỉ số tổng.
- * So sánh giữa danh sách tham dự dự kiến (KSNB) và dữ liệu trong meeting_participants.
+ * So sánh giữa danh sách tham dự dự kiến (KSNB) và dữ liệu thực tế điểm danh/in thẻ.
  */
 @Data
 @Builder
@@ -18,14 +18,29 @@ import java.util.List;
 public class ReconciliationResponse {
     private List<ReconciliationItemResponse> items;
 
-    /** Tổng số lượng cổ phần tham dự dự kiến (theo file KSNB) */
-    private Long totalExpectedShares;
-    /** Tổng số cổ đông tham dự dự kiến (theo file KSNB) */
+    /** TẠM THỜI (Import) - Số lượng CĐ tham dự dự kiến */
     private Long totalExpectedShareholders;
-    /** Tổng số lượng cổ phần trong hệ thống (meeting_participants) */
-    private Long totalSystemShares;
-    /** Tổng số cổ đông trong hệ thống (meeting_participants) */
-    private Long totalSystemShareholders;
-    /** Tổng số bản ghi lệch */
+    /** TẠM THỜI (Import) - Số lượng cổ phần tham dự dự kiến */
+    private Long totalExpectedShares;
+    /** TẠM THỜI (Import) - Tỷ lệ % (CĐ + UQ dự kiến / Tổng CP VSD) */
+    private Double expectedRatio;
+
+    /** THỰC TẾ (đã in phiếu) - Số lượng CĐ thực tế tham dự (chỉ tính cổ đông chính có status PRINT) */
+    private Long totalActualShareholders;
+    /** THỰC TẾ (đã in phiếu) - Số lượng cổ phần thực tế tham dự (Status = PRINT) */
+    private Long totalActualShares;
+    /** THỰC TẾ (đã in phiếu) - Tỷ lệ % (CĐ + UQ thực tế PRINT / Tổng CP VSD) */
+    private Double actualRatio;
+
+    /** Tổng số lượng cổ phần VSD của cuộc họp */
+    private Long totalVsdShares;
+
+    /** Tổng số bản ghi KHỚP */
+    private Long totalMatched;
+    /** Tổng số bản ghi LỆCH */
     private Long totalMismatched;
+    /** Tổng số CP của các bản ghi KHỚP */
+    private Long totalMatchedShares;
+    /** Tổng số CP của các bản ghi LỆCH */
+    private Long totalUnmatchedShares;
 }

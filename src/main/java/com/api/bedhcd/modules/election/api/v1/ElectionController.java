@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import com.api.bedhcd.modules.meeting.application.service.MeetingApplicationService;
+import com.api.bedhcd.modules.meeting.api.v1.dto.BatchApprovalRequest;
+
 @RestController
 @RequestMapping("/api/v1/election/")
 @Tag(name = "Elections", description = "Các api Quản lý bầu cử ")
@@ -22,6 +25,8 @@ import java.util.List;
 public class ElectionController {
 
     private final ElectionApplicationService electionService;
+    private final com.api.bedhcd.modules.election.domain.repository.ElectionRepository electionRepository;
+    private final MeetingApplicationService meetingApplicationService;
 
     @GetMapping("{meetingId}/elections")
     @Operation(summary = "Lấy danh sách bầu cử theo cuộc họp", description = "Lấy danh sách bầu cử theo cuộc họp")
@@ -30,29 +35,58 @@ public class ElectionController {
     }
 
     @PostMapping("{meetingId}/elections")
-    @Operation(summary = "Tạo danh sách bầu cử theo cuộc họp", description = "Tạo danh sách bầu cử theo cuộc họp")
-    public ApiResponse<ElectionResponse> create(@PathVariable String meetingId, @RequestBody ElectionRequest request) {
-        return ApiResponse.success(electionService.createElection(meetingId, request));
+    @Operation(summary = "Tạo danh sách bầu cử theo cuộc họp (Chờ duyệt)", description = "Tạo danh sách bầu cử theo cuộc họp")
+    public ApiResponse<Object> create(@PathVariable String meetingId, @RequestBody ElectionRequest request) {
+        BatchApprovalRequest batch = new BatchApprovalRequest();
+        BatchApprovalRequest.ElectionData data = new BatchApprovalRequest.ElectionData(
+            request.getTitle(), request.getDescription(), request.getType(), request.getDisplayOrder(), null);
+        batch.setElections(List.of(new BatchApprovalRequest.ElectionOperation("CREATE", null, data, null)));
+        batch.setNote("Tạo mới bầu cử");
+        return ApiResponse.success(meetingApplicationService.submitBatchApproval(meetingId, batch));
     }
 
     @PutMapping("elections/{id}")
-    @Operation(summary = "Cập nhật danh sách bầu cử", description = "Cập nhật danh sách bầu cử")
-    public ApiResponse<ElectionResponse> update(@PathVariable String id, @RequestBody ElectionRequest request) {
-        return ApiResponse.success(electionService.updateElection(id, request));
+    @Operation(summary = "Cập nhật danh sách bầu cử (Chờ duyệt)", description = "Cập nhật danh sách bầu cử")
+    public ApiResponse<Object> update(@PathVariable String id, @RequestBody ElectionRequest request) {
+        String meetingId = electionRepository.findById(id)
+            .orElseThrow(() -> com.api.bedhcd.modules.election.domain.exception.ElectionException.electionNotFound(id))
+            .getMeetingId();
+        BatchApprovalRequest batch = new BatchApprovalRequest();
+        BatchApprovalRequest.ElectionData data = new BatchApprovalRequest.ElectionData(
+            request.getTitle(), request.getDescription(), request.getType(), request.getDisplayOrder(), null);
+        batch.setElections(List.of(new BatchApprovalRequest.ElectionOperation("UPDATE", id, data, null)));
+        batch.setNote("Cập nhật bầu cử");
+        return ApiResponse.success(meetingApplicationService.submitBatchApproval(meetingId, batch));
     }
 
     @PostMapping("{id}/candidates")
-    @Operation(summary = "Thêm ứng viên", description = "Thêm ứng viên")
-    public ApiResponse<ElectionResponse> addCandidate(@PathVariable String id,
+    @Operation(summary = "Thêm ứng viên (Chờ duyệt)", description = "Thêm ứng viên")
+    public ApiResponse<Object> addCandidate(@PathVariable String id,
             @RequestBody CandidateRequest request) {
-        return ApiResponse.success(electionService.addCandidate(id, request));
+        String meetingId = electionRepository.findById(id)
+            .orElseThrow(() -> com.api.bedhcd.modules.election.domain.exception.ElectionException.electionNotFound(id))
+            .getMeetingId();
+        BatchApprovalRequest batch = new BatchApprovalRequest();
+        BatchApprovalRequest.ElectionData data = new BatchApprovalRequest.ElectionData();
+        data.setCandidates(List.of(new BatchApprovalRequest.CandidateOperation("CREATE", null, request, null)));
+        batch.setElections(List.of(new BatchApprovalRequest.ElectionOperation("UPDATE", id, data, null)));
+        batch.setNote("Thêm ứng viên");
+        return ApiResponse.success(meetingApplicationService.submitBatchApproval(meetingId, batch));
     }
 
     @PutMapping("{id}/candidates/{candidateId}")
-    @Operation(summary = "Cập nhật ứng viên", description = "Cập nhật ứng viên")
-    public ApiResponse<ElectionResponse> updateCandidate(@PathVariable String id, @PathVariable String candidateId,
+    @Operation(summary = "Cập nhật ứng viên (Chờ duyệt)", description = "Cập nhật ứng viên")
+    public ApiResponse<Object> updateCandidate(@PathVariable String id, @PathVariable String candidateId,
             @RequestBody CandidateRequest request) {
-        return ApiResponse.success(electionService.updateCandidate(id, candidateId, request));
+        String meetingId = electionRepository.findById(id)
+            .orElseThrow(() -> com.api.bedhcd.modules.election.domain.exception.ElectionException.electionNotFound(id))
+            .getMeetingId();
+        BatchApprovalRequest batch = new BatchApprovalRequest();
+        BatchApprovalRequest.ElectionData data = new BatchApprovalRequest.ElectionData();
+        data.setCandidates(List.of(new BatchApprovalRequest.CandidateOperation("UPDATE", candidateId, request, null)));
+        batch.setElections(List.of(new BatchApprovalRequest.ElectionOperation("UPDATE", id, data, null)));
+        batch.setNote("Cập nhật ứng viên");
+        return ApiResponse.success(meetingApplicationService.submitBatchApproval(meetingId, batch));
     }
 
     @PostMapping("{id}/vote")
@@ -69,16 +103,25 @@ public class ElectionController {
     }
 
     @DeleteMapping("{meetingId}/elections/{id}")
-    @Operation(summary = "Xóa cuộc bầu cử", description = "Xóa cuộc bầu cử")
-    public ApiResponse<Void> deleteElection(@PathVariable String meetingId, @PathVariable String id) {
-        electionService.deleteElection(meetingId, id);
-        return ApiResponse.success(null);
+    @Operation(summary = "Xóa cuộc bầu cử (Chờ duyệt)", description = "Xóa cuộc bầu cử")
+    public ApiResponse<Object> deleteElection(@PathVariable String meetingId, @PathVariable String id) {
+        BatchApprovalRequest batch = new BatchApprovalRequest();
+        batch.setElections(List.of(new BatchApprovalRequest.ElectionOperation("DELETE", id, null, null)));
+        batch.setNote("Xóa bầu cử");
+        return ApiResponse.success(meetingApplicationService.submitBatchApproval(meetingId, batch));
     }
 
     @DeleteMapping("{electionId}/candidates/{candidateId}")
-    @Operation(summary = "Xóa ứng viên", description = "Xóa một ứng viên khỏi cuộc bầu cử")
-    public ApiResponse<Void> deleteCandidate(@PathVariable String electionId, @PathVariable String candidateId) {
-        electionService.deleteCandidate(electionId, candidateId);
-        return ApiResponse.success(null);
+    @Operation(summary = "Xóa ứng viên (Chờ duyệt)", description = "Xóa một ứng viên khỏi cuộc bầu cử")
+    public ApiResponse<Object> deleteCandidate(@PathVariable String electionId, @PathVariable String candidateId) {
+        String meetingId = electionRepository.findById(electionId)
+            .orElseThrow(() -> com.api.bedhcd.modules.election.domain.exception.ElectionException.electionNotFound(electionId))
+            .getMeetingId();
+        BatchApprovalRequest batch = new BatchApprovalRequest();
+        BatchApprovalRequest.ElectionData data = new BatchApprovalRequest.ElectionData();
+        data.setCandidates(List.of(new BatchApprovalRequest.CandidateOperation("DELETE", candidateId, null, null)));
+        batch.setElections(List.of(new BatchApprovalRequest.ElectionOperation("UPDATE", electionId, data, null)));
+        batch.setNote("Xóa ứng viên");
+        return ApiResponse.success(meetingApplicationService.submitBatchApproval(meetingId, batch));
     }
 }

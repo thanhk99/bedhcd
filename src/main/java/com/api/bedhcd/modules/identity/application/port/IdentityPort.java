@@ -27,6 +27,16 @@ public interface IdentityPort {
     java.util.Optional<String> getUserIdByCccd(String cccd);
 
     /**
+     * Batch lookup: map CCCD -> UserDTO
+     */
+    java.util.Map<String, UserDTO> getUsersByCccds(java.util.Collection<String> cccds);
+
+    /**
+     * Batch lookup: map userId -> UserDTO
+     */
+    java.util.Map<String, UserDTO> getUsersMapByIds(java.util.Collection<String> userIds);
+
+    /**
      * Lấy thông tin cơ bản của người dùng cho các module khác
      */
     UserDTO getUserInfo(String userId);

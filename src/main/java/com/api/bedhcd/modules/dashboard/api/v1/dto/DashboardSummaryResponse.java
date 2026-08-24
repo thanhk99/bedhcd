@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -34,9 +36,7 @@ public class DashboardSummaryResponse {
     @AllArgsConstructor
     public static class MeetingStats {
         private long totalMeetings;
-        private long scheduled;
-        private long ongoing;
-        private long completed;
-        private long cancelled;
+        /** Số lượng cuộc họp theo từng trạng thái động (tên trạng thái -> số lượng) */
+        private Map<String, Long> statusCounts;
     }
 }

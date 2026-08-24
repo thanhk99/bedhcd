@@ -96,6 +96,16 @@ public class ProxyApplicationService {
                 delegator.adjustDelegatedShares(-delegation.getSharesDelegated());
                 proxy.adjustReceivedProxyShares(-delegation.getSharesDelegated());
 
+                // Fix Bug 2: Nếu người nhận uỷ quyền không còn quyền biểu quyết nào
+                // (thường là đại diện không phải cổ đông), reset về PENDING
+                long totalVotingPower = (proxy.getAttendingShares() != null ? proxy.getAttendingShares() : 0L)
+                                + (proxy.getReceivedProxyShares() != null ? proxy.getReceivedProxyShares() : 0L);
+                if (totalVotingPower <= 0) {
+                        proxy.setStatus(ParticipantStatus.PENDING);
+                        proxy.setAttendingShares(0L);
+                        proxy.setCheckedInAt(null);
+                }
+
                 participantRepository.save(delegator);
 
                 resetAndInvalidateVotes(delegation.getMeetingId(), proxy);
@@ -249,6 +259,7 @@ public class ProxyApplicationService {
                                         .fullName(fullName)
                                         .roles(Set.of(Role.REPRESENTATIVE))
                                         .splitAccount(true)
+                                        .sharesOwned(0L) // Fix Bug 1: Bắt buộc reset về 0, tránh giữ cổ phần cũ trong DB
                                         .build());
                 }
 

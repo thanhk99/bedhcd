@@ -20,5 +20,7 @@ public class ExpectedAttendance {
     private String meetingId;
     private String cccd;
     private Long expectedShares;
+    private String proxyCccd;
+    private Long proxyShares;
     private LocalDateTime createdAt;
 }

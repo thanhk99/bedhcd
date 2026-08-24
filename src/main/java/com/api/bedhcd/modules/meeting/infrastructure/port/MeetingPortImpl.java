@@ -68,8 +68,8 @@ public class MeetingPortImpl implements MeetingPort {
     }
 
     @Override
-    public long countByStatus(String status) {
-        return meetingRepository.countByStatus(status);
+    public java.util.Map<String, Long> countMeetingsGroupedByStatus() {
+        return meetingRepository.countMeetingsGroupedByStatus();
     }
 
     @Override

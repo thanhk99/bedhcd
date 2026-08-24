@@ -57,6 +57,11 @@ public class MeetingEditRequest {
      * Ghi chú lý do từ chối (do reviewer điền khi REJECT)
      */
     private String note;
+    
+    /**
+     * Dữ liệu JSON cho các batch request (CREATE/UPDATE/DELETE list)
+     */
+    private String payload;
 
     private LocalDateTime createdAt;
     private LocalDateTime reviewedAt;
@@ -113,6 +118,23 @@ public class MeetingEditRequest {
                 .status(EditRequestStatus.PENDING)
                 .description(description)
                 .changes(changes)
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
+    
+    /**
+     * Tạo yêu cầu cập nhật hàng loạt cho Nghị quyết, Bầu cử (BATCH_UPDATE).
+     */
+    public static MeetingEditRequest createBatchRequest(String meetingId, String requestedBy, String description,
+            String payload) {
+        return MeetingEditRequest.builder()
+                .id(UuidFactory.generate())
+                .meetingId(meetingId)
+                .requestedBy(requestedBy)
+                .actionType("BATCH_UPDATE")
+                .status(EditRequestStatus.PENDING)
+                .description(description)
+                .payload(payload)
                 .createdAt(LocalDateTime.now())
                 .build();
     }

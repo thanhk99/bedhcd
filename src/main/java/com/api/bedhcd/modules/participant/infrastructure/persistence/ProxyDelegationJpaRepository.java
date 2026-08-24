@@ -26,4 +26,6 @@ public interface ProxyDelegationJpaRepository extends JpaRepository<ProxyDelegat
     @Query("SELECT COALESCE(SUM(p.sharesDelegated), 0) FROM ProxyDelegationEntity p " +
            "WHERE p.meetingId = :meetingId AND p.delegatorId = :delegatorId AND p.status = 'ACTIVE'")
     long sumDelegatedShares(@Param("meetingId") String meetingId, @Param("delegatorId") String delegatorId);
+
+    List<ProxyDelegationEntity> findByMeetingIdAndStatus(String meetingId, DelegationStatus status);
 }

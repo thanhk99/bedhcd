@@ -5,6 +5,9 @@ import com.api.bedhcd.modules.meeting.domain.repository.MeetingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import com.api.bedhcd.shared.domain.UuidFactory;
 
@@ -59,8 +62,17 @@ public class MeetingRepositoryImpl implements MeetingRepository {
     }
 
     @Override
-    public long countByStatus(String status) {
-        return jpaRepository.countByStatus(status);
+    public Map<String, Long> countMeetingsGroupedByStatus() {
+        List<Object[]> rows = jpaRepository.countMeetingsGroupedByStatus();
+        Map<String, Long> result = new HashMap<>();
+        for (Object[] row : rows) {
+            String status = (String) row[0];
+            Long count = (Long) row[1];
+            if (status != null) {
+                result.put(status, count);
+            }
+        }
+        return result;
     }
 
     private Meeting toDomain(MeetingEntity entity) {

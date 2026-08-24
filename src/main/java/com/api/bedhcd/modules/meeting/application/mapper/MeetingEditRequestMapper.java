@@ -28,6 +28,7 @@ public class MeetingEditRequestMapper {
                 .status(domain.getStatus().name())
                 .description(domain.getDescription())
                 .changes(domain.getChanges())
+                .payload(domain.getPayload())
                 .note(domain.getNote())
                 .reviewedBy(domain.getReviewedBy())
                 .createdAt(domain.getCreatedAt())

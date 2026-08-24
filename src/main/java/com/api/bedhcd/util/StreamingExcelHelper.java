@@ -345,13 +345,23 @@ public class StreamingExcelHelper {
 
             int colIndex = colLetterToIndex(cellReference.replaceAll("[0-9]", ""));
 
-            // Format: cell(0)=cccd, cell(1)=expectedShares
+            // Format 4 cột: 
+            // cell(0) = CCCD cổ đông
+            // cell(1) = CCCD người nhận uỷ quyền
+            // cell(2) = Số CP tham dự
+            // cell(3) = Số CP uỷ quyền
             switch (colIndex) {
                 case 0:
                     currentRecordBuilder.cccd(formattedValue);
                     break;
                 case 1:
+                    currentRecordBuilder.proxyCccd(formattedValue);
+                    break;
+                case 2:
                     currentRecordBuilder.expectedShares(parseLongSafely(formattedValue));
+                    break;
+                case 3:
+                    currentRecordBuilder.proxyShares(parseLongSafely(formattedValue));
                     break;
             }
         }

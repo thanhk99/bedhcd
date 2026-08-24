@@ -23,10 +23,7 @@ public class DashboardApplicationService {
     @Transactional(readOnly = true)
     public DashboardSummaryResponse getSummary() {
         long totalMeetings = meetingPort.countMeetings();
-        long scheduledMeetings = meetingPort.countByStatus("SCHEDULED");
-        long ongoingMeetings = meetingPort.countByStatus("ONGOING");
-        long completedMeetings = meetingPort.countByStatus("COMPLETED");
-        long cancelledMeetings = meetingPort.countByStatus("CANCELLED");
+        java.util.Map<String, Long> statusCounts = meetingPort.countMeetingsGroupedByStatus();
 
         long checkedInCount = participantPort.countTotalCheckedIn();
         long totalSharesRepresented = participantPort.sumTotalShares();
@@ -51,10 +48,7 @@ public class DashboardApplicationService {
                         .build())
                 .meetingStats(DashboardSummaryResponse.MeetingStats.builder()
                         .totalMeetings(totalMeetings)
-                        .scheduled(scheduledMeetings)
-                        .ongoing(ongoingMeetings)
-                        .completed(completedMeetings)
-                        .cancelled(cancelledMeetings)
+                        .statusCounts(statusCounts)
                         .build())
                 .totalResolutions(totalResolutions)
                 .totalVotes(totalVotes)

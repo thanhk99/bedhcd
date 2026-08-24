@@ -44,6 +44,11 @@ public class MeetingEditRequestResponse {
     private String changes;
 
     /**
+     * Dữ liệu JSON cho các batch request
+     */
+    private String payload;
+
+    /**
      * Ghi chú lý do từ chối
      */
     private String note;

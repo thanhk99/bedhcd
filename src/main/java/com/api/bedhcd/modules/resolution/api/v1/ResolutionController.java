@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import com.api.bedhcd.modules.meeting.application.service.MeetingApplicationService;
+import com.api.bedhcd.modules.meeting.api.v1.dto.BatchApprovalRequest;
+
 @RestController
 @RequestMapping("/api/v1/resolution")
 @Tag(name = "Resolution Management", description = "Quản lý các chức năng liên quan đến nghị quyết, bao gồm tạo, cập nhật, xóa và bỏ phiếu")
@@ -21,6 +24,7 @@ import java.util.List;
 public class ResolutionController {
 
     private final ResolutionApplicationService resolutionService;
+    private final MeetingApplicationService meetingApplicationService;
 
     @Operation(summary = "Lấy danh sách nghị quyết của cuộc họp theo ID")
     @GetMapping("meeting/{meetingId}")
@@ -28,25 +32,33 @@ public class ResolutionController {
         return ApiResponse.success(resolutionService.listResolutionsByMeetingId(meetingId));
     }
 
-    @Operation(summary = "Tạo nghị quyết mới cho cuộc họp")
+    @Operation(summary = "Tạo nghị quyết mới cho cuộc họp (Chờ duyệt)")
     @PostMapping("meeting/{meetingId}")
-    public ApiResponse<ResolutionResponse> create(@PathVariable String meetingId,
+    public ApiResponse<Object> create(@PathVariable String meetingId,
             @RequestBody ResolutionRequest request) {
-        return ApiResponse.success(resolutionService.createResolution(meetingId, request));
+        BatchApprovalRequest batch = new BatchApprovalRequest();
+        batch.setResolutions(List.of(new BatchApprovalRequest.ResolutionOperation("CREATE", null, request, null)));
+        batch.setNote("Tạo mới nghị quyết");
+        return ApiResponse.success(meetingApplicationService.submitBatchApproval(meetingId, batch));
     }
 
-    @Operation(summary = "Cập nhật nghị quyết")
+    @Operation(summary = "Cập nhật nghị quyết (Chờ duyệt)")
     @PutMapping("/{meetingId}/{id}")
-    public ApiResponse<ResolutionResponse> updateResolution(@PathVariable String meetingId, @PathVariable String id,
+    public ApiResponse<Object> updateResolution(@PathVariable String meetingId, @PathVariable String id,
             @RequestBody ResolutionRequest request) {
-        return ApiResponse.success(resolutionService.updateResolution(meetingId, id, request));
+        BatchApprovalRequest batch = new BatchApprovalRequest();
+        batch.setResolutions(List.of(new BatchApprovalRequest.ResolutionOperation("UPDATE", id, request, null)));
+        batch.setNote("Cập nhật nghị quyết");
+        return ApiResponse.success(meetingApplicationService.submitBatchApproval(meetingId, batch));
     }
 
-    @Operation(summary = "Xóa nghị quyết")
+    @Operation(summary = "Xóa nghị quyết (Chờ duyệt)")
     @DeleteMapping("/{meetingId}/{id}")
-    public ApiResponse<Void> deleteResolution(@PathVariable String meetingId, @PathVariable String id) {
-        resolutionService.deleteResolution(meetingId, id);
-        return ApiResponse.success(null);
+    public ApiResponse<Object> deleteResolution(@PathVariable String meetingId, @PathVariable String id) {
+        BatchApprovalRequest batch = new BatchApprovalRequest();
+        batch.setResolutions(List.of(new BatchApprovalRequest.ResolutionOperation("DELETE", id, null, null)));
+        batch.setNote("Xóa nghị quyết");
+        return ApiResponse.success(meetingApplicationService.submitBatchApproval(meetingId, batch));
     }
 
     @Operation(summary = "Lấy thông tin chi tiết về nghị quyết")

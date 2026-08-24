@@ -144,6 +144,8 @@ public class ImportApplicationService {
                         .meetingId(meetingId)
                         .cccd(CccdUtil.normalizeCccd(r.getCccd()))
                         .expectedShares(r.getExpectedShares() != null ? r.getExpectedShares() : 0L)
+                        .proxyCccd(r.getProxyCccd() != null && !r.getProxyCccd().isBlank() ? CccdUtil.normalizeCccd(r.getProxyCccd()) : null)
+                        .proxyShares(r.getProxyShares() != null ? r.getProxyShares() : 0L)
                         .createdAt(LocalDateTime.now())
                         .build())
                 .collect(Collectors.toList());

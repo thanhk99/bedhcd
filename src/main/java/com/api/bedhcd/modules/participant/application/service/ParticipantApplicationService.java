@@ -2,6 +2,7 @@ package com.api.bedhcd.modules.participant.application.service;
 
 import com.api.bedhcd.modules.identity.application.port.IdentityPort;
 import com.api.bedhcd.modules.meeting.application.port.MeetingPort;
+import com.api.bedhcd.modules.participant.application.port.ParticipantPort;
 import com.api.bedhcd.modules.participant.api.v1.dto.AttendanceRequest;
 import com.api.bedhcd.modules.participant.api.v1.dto.AttendanceResponse;
 import com.api.bedhcd.modules.participant.api.v1.dto.ReconciliationItemResponse;
@@ -27,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,6 +40,7 @@ public class ParticipantApplicationService {
         private final ReconciliationService reconciliationService;
         private final IdentityPort identityPort;
         private final MeetingPort meetingPort;
+        private final ParticipantPort participantPort;
 
         @Transactional
         public AttendanceResponse registerAttendance(AttendanceRequest request) {
@@ -54,11 +55,12 @@ public class ParticipantApplicationService {
 
                 UserDTO user = identityPort.getUserInfo(userId);
 
+                // Fix Bug 3: Chỉ cho phép đăng ký nếu cổ đông đã có trong danh sách của cuộc họp này
+                // (được import trước hoặc tạo qua luồng ủy quyền hợp lệ).
+                // Tránh trường hợp cổ đông thuộc cuộc họp A nhập CCCD và tham dự cuộc họp B.
                 Participant participant = participantRepository.findByMeetingIdAndUserId(request.getMeetingId(), userId)
-                                .orElse(Participant.builder()
-                                                .meetingId(request.getMeetingId())
-                                                .userId(userId)
-                                                .build());
+                                .orElseThrow(() -> ParticipantException.notFound(
+                                                "Cổ đông không có trong danh sách tham dự của cuộc họp này. Vui lòng kiểm tra lại."));
 
                 // Đồng bộ số liệu cổ phần từ các nguồn ngoài (uỷ quyền, sở hữu)
                 long ownedShares = user.getSharesOwned() != null ? user.getSharesOwned() : 0L;
@@ -195,26 +197,60 @@ public class ParticipantApplicationService {
                                                 e -> ExpectedAttendanceImportRecord.builder()
                                                                 .cccd(e.getCccd())
                                                                 .expectedShares(e.getExpectedShares())
+                                                                .proxyCccd(e.getProxyCccd())
+                                                                .proxyShares(e.getProxyShares())
                                                                 .build(),
                                                 (a, b) -> a, LinkedHashMap::new));
 
                 List<ReconciliationItemResponse> items = reconciliationService.buildItems(meetingId, expectedByCccd);
 
-                long totalExpected = items.stream().mapToLong(ReconciliationItemResponse::getExpectedShares).sum();
-                long expectedShareholders = items.stream()
-                                .filter(i -> i.getExpectedShares() > 0).count();
-                long totalSystem = items.stream().mapToLong(ReconciliationItemResponse::getSystemShares).sum();
-                long systemShareholders = items.stream()
-                                .filter(i -> i.getSystemShares() > 0).count();
-                long mismatched = items.stream().filter(i -> "LECH".equals(i.getStatus())).count();
+                long totalExpected = items.stream()
+                                .mapToLong(i -> (i.getImportDirectShares() != null ? i.getImportDirectShares() : 0L)
+                                                + (i.getImportProxyShares() != null ? i.getImportProxyShares() : 0L))
+                                .sum();
+                long expectedShareholders = items.size();
+
+                long totalActualShares = items.stream()
+                                .mapToLong(i -> (i.getActualDirectShares() != null ? i.getActualDirectShares() : 0L)
+                                                + (i.getActualProxyShares() != null ? i.getActualProxyShares() : 0L))
+                                .sum();
+                long actualShareholders = items.stream()
+                                .filter(i -> "PRINT".equals(i.getShareholderStatus())
+                                                || "PRINT".equals(i.getActualProxyStatus()))
+                                .count();
+
+                long totalVsdShares = participantPort.sumTotalSharesByMeetingId(meetingId);
+                double expectedRatio = totalVsdShares > 0 ? (double) totalExpected * 100 / totalVsdShares : 0.0;
+                double actualRatio = totalVsdShares > 0 ? (double) totalActualShares * 100 / totalVsdShares : 0.0;
+
+                long matchedCount = items.stream().filter(i -> "KHOP".equals(i.getStatus())).count();
+                long mismatchedCount = items.stream().filter(i -> "LECH".equals(i.getStatus())).count();
+
+                long matchedShares = items.stream()
+                                .filter(i -> "KHOP".equals(i.getStatus()))
+                                .mapToLong(i -> (i.getActualDirectShares() != null ? i.getActualDirectShares() : 0L)
+                                                + (i.getActualProxyShares() != null ? i.getActualProxyShares() : 0L))
+                                .sum();
+
+                long unmatchedShares = items.stream()
+                                .filter(i -> "LECH".equals(i.getStatus()))
+                                .mapToLong(i -> (i.getImportDirectShares() != null ? i.getImportDirectShares() : 0L)
+                                                + (i.getImportProxyShares() != null ? i.getImportProxyShares() : 0L))
+                                .sum();
 
                 return ReconciliationResponse.builder()
                                 .items(items)
                                 .totalExpectedShares(totalExpected)
                                 .totalExpectedShareholders(expectedShareholders)
-                                .totalSystemShares(totalSystem)
-                                .totalSystemShareholders(systemShareholders)
-                                .totalMismatched(mismatched)
+                                .expectedRatio(Math.round(expectedRatio * 10.0) / 10.0)
+                                .totalActualShareholders(actualShareholders)
+                                .totalActualShares(totalActualShares)
+                                .actualRatio(Math.round(actualRatio * 10.0) / 10.0)
+                                .totalVsdShares(totalVsdShares)
+                                .totalMatched(matchedCount)
+                                .totalMismatched(mismatchedCount)
+                                .totalMatchedShares(matchedShares)
+                                .totalUnmatchedShares(unmatchedShares)
                                 .build();
         }
 

@@ -54,6 +54,13 @@ public class ProxyDelegationRepositoryImpl implements ProxyDelegationRepository 
     }
 
     @Override
+    public List<ProxyDelegation> findActiveByMeetingId(String meetingId) {
+        return jpaRepository.findByMeetingIdAndStatus(meetingId, DelegationStatus.ACTIVE).stream()
+                .map(this::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public ProxyDelegation save(ProxyDelegation domain) {
         ProxyDelegationEntity entity = toEntity(domain);
         return toDomain(jpaRepository.save(entity));

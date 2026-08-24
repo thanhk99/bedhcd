@@ -16,4 +16,6 @@ import lombok.NoArgsConstructor;
 public class ExpectedAttendanceImportRecord {
     private String cccd;
     private Long expectedShares;
+    private String proxyCccd;
+    private Long proxyShares;
 }

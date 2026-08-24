@@ -96,4 +96,14 @@ public class MeetingController {
     public ApiResponse<Object> delete(@PathVariable String id) {
         return ApiResponse.success(meetingApplicationService.deleteMeeting(id));
     }
+    
+    @Operation(summary = "Gửi duyệt toàn bộ thay đổi (Nghị quyết, Bầu cử) trong một lần")
+    @PostMapping("/{id}/submit-approval")
+    @RequireAdminPermission(resource = ResourceCode.MANAGE_MEETING, action = ActionCode.UPDATE)
+    @AuditActivity(action = "UPDATE", resource = "MANAGE_MEETING")
+    public ApiResponse<Object> submitBatchApproval(
+            @PathVariable String id, 
+            @RequestBody com.api.bedhcd.modules.meeting.api.v1.dto.BatchApprovalRequest payload) {
+        return ApiResponse.success(meetingApplicationService.submitBatchApproval(id, payload));
+    }
 }

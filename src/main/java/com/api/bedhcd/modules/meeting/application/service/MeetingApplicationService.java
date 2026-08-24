@@ -78,6 +78,8 @@ public class MeetingApplicationService {
     private final IdentityPort identityPort;
     private final AdminContextService adminContextService;
     private final KafkaPort kafkaPort;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final org.springframework.context.ApplicationContext applicationContext;
 
     // ─── Queries ────────────────────────────────────────────────────────────────
 
@@ -515,6 +517,96 @@ public class MeetingApplicationService {
         return editRequestMapper.toResponse(saved);
     }
 
+    /**
+     * Tạo yêu cầu BATCH_UPDATE chờ duyệt cho Nghị quyết và Bầu cử.
+     */
+    @Caching(evict = {
+            @CacheEvict(value = "meetings", key = "#id"),
+            @CacheEvict(value = "meetings:realtime", key = "#id")
+    })
+    @Transactional
+    public Object submitBatchApproval(String id, com.api.bedhcd.modules.meeting.api.v1.dto.BatchApprovalRequest payload) {
+        // Xác minh cuộc họp tồn tại
+        Meeting meeting = meetingRepository.findById(id)
+                .orElseThrow(() -> MeetingException.notFound(id));
+
+        if (editRequestRepository.existsPendingForMeeting(id)) {
+            throw MeetingException.pendingRequestAlreadyExists(id);
+        }
+
+        if (payload.getResolutions() != null) {
+            com.api.bedhcd.modules.resolution.domain.repository.ResolutionRepository resolutionRepo = 
+                applicationContext.getBean(com.api.bedhcd.modules.resolution.domain.repository.ResolutionRepository.class);
+            for (var resOp : payload.getResolutions()) {
+                if (("UPDATE".equals(resOp.getAction()) || "DELETE".equals(resOp.getAction())) && resOp.getId() != null) {
+                    resolutionRepo.findById(resOp.getId()).ifPresent(res -> {
+                        resOp.setOldData(new com.api.bedhcd.modules.voting.api.v1.dto.ResolutionRequest(
+                            res.getTitle(), res.getDescription(), res.getDisplayOrder()));
+                    });
+                }
+            }
+        }
+        
+        if (payload.getElections() != null) {
+            com.api.bedhcd.modules.election.domain.repository.ElectionRepository electionRepo = 
+                applicationContext.getBean(com.api.bedhcd.modules.election.domain.repository.ElectionRepository.class);
+            for (var elOp : payload.getElections()) {
+                if (("UPDATE".equals(elOp.getAction()) || "DELETE".equals(elOp.getAction())) && elOp.getId() != null) {
+                    electionRepo.findById(elOp.getId()).ifPresent(el -> {
+                        com.api.bedhcd.modules.meeting.api.v1.dto.BatchApprovalRequest.ElectionData oldElData = 
+                            new com.api.bedhcd.modules.meeting.api.v1.dto.BatchApprovalRequest.ElectionData(
+                                el.getTitle(), el.getDescription(), el.getElectionType(), el.getDisplayOrder(), new java.util.ArrayList<>());
+                        elOp.setOldData(oldElData);
+                        
+                        // map old candidate data if candidate operations exist
+                        if (elOp.getData() != null && elOp.getData().getCandidates() != null) {
+                            for (var candOp : elOp.getData().getCandidates()) {
+                                if (("UPDATE".equals(candOp.getAction()) || "DELETE".equals(candOp.getAction())) && candOp.getId() != null) {
+                                    el.getCandidates().stream().filter(c -> c.getId().equals(candOp.getId())).findFirst().ifPresent(c -> {
+                                        candOp.setOldData(new com.api.bedhcd.modules.election.api.v1.dto.CandidateRequest(
+                                            c.getName(), c.getDescription(), c.getDisplayOrder()));
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        
+        if (payload.getDocuments() != null) {
+            com.api.bedhcd.modules.document.domain.repository.DocumentRepository documentRepo = 
+                applicationContext.getBean(com.api.bedhcd.modules.document.domain.repository.DocumentRepository.class);
+            for (var docOp : payload.getDocuments()) {
+                if (("UPDATE".equals(docOp.getAction()) || "DELETE".equals(docOp.getAction())) && docOp.getId() != null) {
+                    documentRepo.findById(docOp.getId()).ifPresent(doc -> {
+                        docOp.setOldData(new com.api.bedhcd.modules.meeting.api.v1.dto.BatchApprovalRequest.DocumentData(
+                            doc.getTitle(), doc.getFileUrl(), doc.getFileName(), doc.getDisplayOrder()
+                        ));
+                    });
+                }
+            }
+        }
+
+String payloadJson = "";
+        try {
+            payloadJson = objectMapper.writeValueAsString(payload);
+        } catch (Exception e) {
+            throw MeetingException.invalidState("Không thể serialize payload batch request");
+        }
+
+        String description = "Cập nhật hàng loạt (Nghị quyết & Bầu cử) cho cuộc họp '" + meeting.getTitle() + "'";
+        if (payload.getNote() != null && !payload.getNote().isBlank()) {
+            description += ". Ghi chú: " + payload.getNote();
+        }
+
+        String adminId = adminContextService.getCurrentAdminId();
+        MeetingEditRequest request = MeetingEditRequest.createBatchRequest(id, adminId, description, payloadJson);
+        MeetingEditRequest saved = editRequestRepository.save(request);
+        return editRequestMapper.toResponse(saved);
+    }
+
     // ─── Approve / Reject ────────────────────────────────────────────────────────
 
     /**
@@ -617,6 +709,73 @@ public class MeetingApplicationService {
                             .invalidState("Không thể thực thi xóa vì cuộc họp đã tồn tại danh sách cổ đông tham dự.");
                 }
                 meetingRepository.deleteById(request.getMeetingId());
+            }
+            case "BATCH_UPDATE" -> {
+                try {
+                    com.api.bedhcd.modules.meeting.api.v1.dto.BatchApprovalRequest payload = 
+                        objectMapper.readValue(request.getPayload(), com.api.bedhcd.modules.meeting.api.v1.dto.BatchApprovalRequest.class);
+                    
+                    com.api.bedhcd.modules.resolution.application.service.ResolutionApplicationService resolutionService = 
+                        applicationContext.getBean(com.api.bedhcd.modules.resolution.application.service.ResolutionApplicationService.class);
+                        
+                    com.api.bedhcd.modules.election.application.service.ElectionApplicationService electionService = 
+                        applicationContext.getBean(com.api.bedhcd.modules.election.application.service.ElectionApplicationService.class);
+                    
+                    if (payload.getResolutions() != null) {
+                        for (var resOp : payload.getResolutions()) {
+                            if ("CREATE".equals(resOp.getAction())) {
+                                resolutionService.createResolution(request.getMeetingId(), resOp.getData());
+                            } else if ("UPDATE".equals(resOp.getAction())) {
+                                resolutionService.updateResolution(request.getMeetingId(), resOp.getId(), resOp.getData());
+                            } else if ("DELETE".equals(resOp.getAction())) {
+                                resolutionService.deleteResolution(request.getMeetingId(), resOp.getId());
+                            }
+                        }
+                    }
+                    
+                    if (payload.getElections() != null) {
+                        for (var elOp : payload.getElections()) {
+                            if ("CREATE".equals(elOp.getAction())) {
+                                com.api.bedhcd.modules.election.api.v1.dto.ElectionRequest elReq = 
+                                    new com.api.bedhcd.modules.election.api.v1.dto.ElectionRequest(
+                                        elOp.getData().getTitle(), elOp.getData().getDescription(), 
+                                        elOp.getData().getType(), elOp.getData().getDisplayOrder());
+                                com.api.bedhcd.modules.election.api.v1.dto.ElectionResponse createdEl = 
+                                    electionService.createElection(request.getMeetingId(), elReq);
+                                    
+                                if (elOp.getData().getCandidates() != null) {
+                                    for (var candOp : elOp.getData().getCandidates()) {
+                                        if ("CREATE".equals(candOp.getAction())) {
+                                            electionService.addCandidate(createdEl.getId(), candOp.getData());
+                                        }
+                                    }
+                                }
+                            } else if ("UPDATE".equals(elOp.getAction())) {
+                                com.api.bedhcd.modules.election.api.v1.dto.ElectionRequest elReq = 
+                                    new com.api.bedhcd.modules.election.api.v1.dto.ElectionRequest(
+                                        elOp.getData().getTitle(), elOp.getData().getDescription(), 
+                                        elOp.getData().getType(), elOp.getData().getDisplayOrder());
+                                electionService.updateElection(elOp.getId(), elReq);
+                                
+                                if (elOp.getData().getCandidates() != null) {
+                                    for (var candOp : elOp.getData().getCandidates()) {
+                                        if ("CREATE".equals(candOp.getAction())) {
+                                            electionService.addCandidate(elOp.getId(), candOp.getData());
+                                        } else if ("UPDATE".equals(candOp.getAction())) {
+                                            electionService.updateCandidate(elOp.getId(), candOp.getId(), candOp.getData());
+                                        } else if ("DELETE".equals(candOp.getAction())) {
+                                            electionService.deleteCandidate(elOp.getId(), candOp.getId());
+                                        }
+                                    }
+                                }
+                            } else if ("DELETE".equals(elOp.getAction())) {
+                                electionService.deleteElection(request.getMeetingId(), elOp.getId());
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    throw MeetingException.invalidState("Lỗi khi xử lý payload BATCH_UPDATE: " + e.getMessage());
+                }
             }
             default -> throw MeetingException.invalidState(
                     "Loại thao tác không hợp lệ: " + request.getActionType());

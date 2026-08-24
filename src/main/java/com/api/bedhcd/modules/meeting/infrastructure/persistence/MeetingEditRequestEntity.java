@@ -63,6 +63,12 @@ public class MeetingEditRequestEntity {
      */
     @Column(columnDefinition = "TEXT")
     private String note;
+    
+    /**
+     * Dữ liệu JSON cho các batch request
+     */
+    @Column(columnDefinition = "TEXT")
+    private String payload;
 
     /**
      * ID của admin đã duyệt / từ chối

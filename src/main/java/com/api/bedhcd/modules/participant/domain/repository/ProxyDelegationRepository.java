@@ -13,6 +13,7 @@ public interface ProxyDelegationRepository {
     List<ProxyDelegation> findByMeetingIdAndProxyId(String meetingId, String proxyId, DelegationStatus status);
     long sumReceivedProxyShares(String meetingId, String proxyId);
     long sumDelegatedShares(String meetingId, String delegatorId);
+    List<ProxyDelegation> findActiveByMeetingId(String meetingId);
     ProxyDelegation save(ProxyDelegation delegation);
     void revokeById(Long id);
 }
